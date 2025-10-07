@@ -1,0 +1,217 @@
+/* =============================
+  FILE: src/styles/globals.css
+  ============================= */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =================== Variables globales =================== */
+:root {
+  color-scheme: dark;
+  --hud-neon: #22d3ee;
+  --hud-glass: rgba(9, 12, 16, 0.45);
+  --hud-frame: rgba(255, 255, 255, 0.08);
+  --hud-text: #e5e7eb;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+/* Ocultar el juego mientras dura la cutscene */
+#fs-root.cutscene-active {
+  visibility: hidden;
+}
+
+/* El contenedor del juego debe ocupar todo el viewport (incluye fullscreen) */
+:where(#immersive-root, [data-immersive-root], .game-root) {
+  width: 100vw;
+  height: 100dvh;
+  /* dvh para móviles con barras dinámicas */
+}
+
+/* No pises la utilidad `fixed` de Tailwind: sólo aplica relative si NO es fixed */
+:where(#immersive-root, [data-immersive-root], .game-root):not(.fixed) {
+  position: relative;
+}
+
+/* Asegura que el canvas y overlays llenen el contenedor del juego */
+.game-root>canvas,
+.game-root>.canvas-overlay,
+.game-root>.r3f {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: none;
+}
+
+/* =================== Base =================== */
+@layer base {
+
+  /* 🌐 Tema + tipografía */
+  body {
+    @apply bg-black text-white;
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Orbitron', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* 🎯 Cursor ROBOT global por defecto */
+  html,
+  body {
+    @apply cursor-robot;
+  }
+
+  /* 🔵 Estado acción en controles interactivos */
+  a,
+  button,
+  [role="button"],
+  .is-action {
+    @apply hover:cursor-robot-pointer;
+  }
+
+  /* 🕹️ Modo juego: ocultar cursor del SO cuando body tiene la clase .hide-cursor */
+  body.hide-cursor,
+  body.hide-cursor * {
+    cursor: none !important;
+  }
+
+  /* 🧩 Asegurar robot cuando la UI lo pida explícitamente */
+  body.show-cursor,
+  body.hud-cursor {
+    @apply cursor-robot;
+  }
+
+  /* ✏️ HUD Editor: siempre mostrar cursor y con estilo robot */
+  body.hud-editing {
+    @apply cursor-robot;
+  }
+
+  body.hud-editing a,
+  body.hud-editing button,
+  body.hud-editing [role="button"],
+  body.hud-editing .is-action {
+    @apply hover:cursor-robot-pointer;
+  }
+
+  /* 🧷 Cuando el overlay ignora puntero, el target real es el <canvas>.
+     Forzamos el mismo cursor también en el canvas. */
+  body.show-cursor canvas,
+  body.hud-cursor canvas,
+  body.hud-editing canvas {
+    cursor: inherit !important;
+  }
+}
+
+/* =================== Components =================== */
+@layer components {
+  .canvas-overlay {
+    @apply fixed inset-0 pointer-events-none;
+    z-index: 30;
+    /* encima del canvas, por debajo de modales con z-40/z-50 */
+  }
+
+  .pointer {
+    pointer-events: all;
+  }
+
+  .btn-metal {
+    @apply inline-flex items-center justify-center select-none rounded-xl border text-cyan-100 px-4 py-2 font-medium tracking-wide transition-colors duration-150 ease-out;
+    border-color: rgba(34, 211, 238, 0.30);
+    background-image: linear-gradient(to bottom, rgba(34, 211, 238, 0.10), rgba(34, 211, 238, 0.00));
+    box-shadow: inset 0 0 24px rgba(34, 211, 238, 0.08), 0 0 40px rgba(34, 211, 238, 0.12);
+  }
+
+  .btn-metal:hover {
+    background-color: rgba(34, 211, 238, 0.10);
+  }
+
+  .btn-metal:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.50), inset 0 0 24px rgba(34, 211, 238, 0.10);
+  }
+
+  .btn-metal:disabled {
+    opacity: .5;
+    pointer-events: none;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center select-none rounded-xl border text-white px-4 py-2 font-medium tracking-wide transition-colors duration-150 ease-out;
+    border-color: var(--hud-frame);
+    background: color-mix(in oklab, black 70%, transparent);
+    backdrop-filter: blur(6px);
+  }
+
+  .btn-ghost:hover {
+    background: color-mix(in oklab, black 58%, transparent);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  .btn-ghost:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.55), 0 0 24px rgba(34, 211, 238, 0.20);
+  }
+
+  .btn-ghost:disabled {
+    opacity: .55;
+    pointer-events: none;
+  }
+
+  .panel-glass {
+    @apply rounded-3xl border p-4 sm:p-6;
+    border-color: var(--hud-frame);
+    background: var(--hud-glass);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 40px rgba(34, 211, 238, 0.12), inset 0 0 24px rgba(34, 211, 238, 0.08);
+  }
+
+  .panel-glass .panel-title {
+    @apply font-bold leading-tight text-white;
+    font-size: clamp(1rem, calc(1.2vw + 0.8rem), 1.4rem);
+  }
+
+  .panel-glass .panel-subtitle {
+    @apply mt-1 text-[11px] sm:text-xs text-white/60;
+  }
+
+  .loader-overlay {
+    @apply fixed inset-0 grid place-items-center bg-black/40 backdrop-blur-sm z-50;
+  }
+
+  .loader-card {
+    @apply panel-glass text-center;
+    width: min(520px, 92vw);
+  }
+
+  .loader-title {
+    @apply font-semibold text-white/90 mb-3;
+    font-size: clamp(1rem, 1vw + 0.5rem, 1.25rem);
+  }
+
+  .loader-spinner {
+    width: 42px;
+    height: 42px;
+    border-radius: 9999px;
+    border: 3px solid rgba(255, 255, 255, .2);
+    border-top-color: var(--hud-neon);
+    animation: spin 1s linear infinite;
+    margin-inline: auto;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
