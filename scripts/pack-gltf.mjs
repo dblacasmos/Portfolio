@@ -24,21 +24,45 @@ function run(cmd, args, opts = {}) {
   });
 }
 
+// --- NUEVO: utilidades para detectar punteros LFS y fallar con mensaje claro ---
+function isLFSPointer(file) {
+  try {
+    const head = fs.readFileSync(file, "utf8");
+    return head.startsWith("version https://git-lfs.github.com/spec/v1");
+  } catch {
+    // Si no se puede leer como texto, asumimos que es binario real
+    return false;
+  }
+}
+
+function assertNotLFSPointer(file) {
+  if (isLFSPointer(file)) {
+    throw new Error(`El archivo parece un puntero de Git LFS: ${file}
+Descarga el binario real (git lfs pull) o reemplázalo por el asset real antes de continuar.`);
+  }
+}
+
 function rmrf(p) { try { fs.rmSync(p, { recursive: true, force: true }); } catch { } }
 function unlink(p) { try { fs.unlinkSync(p); } catch { } }
 
-async function normalizeTextures(glbPath) {
-  if (!cfg.models?.normalizeWebPInModels) return glbPath; // opcional
-  const dir = path.dirname(glbPath);
-  const base = path.basename(glbPath, path.extname(glbPath));
+async function normalizeTextures(modelPath) {
+  if (!cfg.models?.normalizeWebPInModels) return modelPath; // opcional
+  assertNotLFSPointer(modelPath);
+  const dir = path.dirname(modelPath);
+  const base = path.basename(modelPath, path.extname(modelPath));
   const work = path.join(dir, base + ".norm_work");
   const outGLTF = path.join(work, base + ".gltf");
   const backGLB = path.join(dir, base + ".norm.glb");
   fs.mkdirSync(work, { recursive: true });
-  // 1) convertir a .gltf (esto ya extrae bin y texturas al directorio)
-  await run(NPM, [...GLTF, "copy", glbPath, outGLTF]);
+  // 1) convertir a .gltf (forzamos formato para evitar diferencias de CLI)
+  await run(NPM, [...GLTF, "copy", modelPath, outGLTF, "--format", "gltf"]);
+  // 1.1) validar que la salida es JSON antes de parsear
+  const text = fs.readFileSync(outGLTF, "utf-8");
+  if (!text.trim().startsWith("{")) {
+    throw new Error(`La salida ${outGLTF} no es JSON. Verifica que ${modelPath} sea válido (no puntero LFS / no corrupto).`);
+  }
   // 2) reemplazar *.webp/*.avif -> *.png y ajustar JSON
-  const gltf = JSON.parse(fs.readFileSync(outGLTF, "utf-8"));
+  const gltf = JSON.parse(text);
   if (Array.isArray(gltf.images)) {
     for (const img of gltf.images) {
       if (!img || (!img.uri && !img.bufferView)) continue;
@@ -55,8 +79,8 @@ async function normalizeTextures(glbPath) {
     }
     fs.writeFileSync(outGLTF, JSON.stringify(gltf, null, 2));
   }
-  // 3) volver a .glb embebido por extensión
-  await run(NPM, [...GLTF, "copy", outGLTF, backGLB]);
+  // 3) volver a .glb embebido (forzamos formato)
+  await run(NPM, [...GLTF, "copy", outGLTF, backGLB, "--format", "glb"]);
   // Limpieza del workdir
   rmrf(work);
   // Si quedó un *.gltf “huérfano” junto al modelo original, elimínalo
@@ -68,6 +92,8 @@ async function normalizeTextures(glbPath) {
 }
 
 async function pack(input) {
+  // Comprobación temprana: evitar procesar punteros LFS (mensaje claro)
+  assertNotLFSPointer(input);
   // helper de tamaños
   const safeSize = (p) => { try { return fs.statSync(p).size; } catch { return 0; } };
   const kb = (n) => (n > 0 ? (n / 1024).toFixed(2) : "-");
