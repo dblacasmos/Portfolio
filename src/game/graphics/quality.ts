@@ -27,7 +27,7 @@ export type QualityMode = "low" | "medium" | "high" | "auto";
 type Preset = { dprMax: number; maxTextureSize: number };
 const PRESETS: Record<Exclude<QualityMode, "auto">, Preset> = {
     low: { dprMax: 1.0, maxTextureSize: 1024 },
-    medium: { dprMax: 1.1, maxTextureSize: 2048 },
+    medium: { dprMax: 1.25, maxTextureSize: 2048 },
     high: { dprMax: 1.5, maxTextureSize: 4096 },
 };
 

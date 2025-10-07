@@ -6,7 +6,7 @@
   "scripts": {
     "models:finalize": "node scripts/finalize-models.mjs",
     "prebuild": "node scripts/prebuild.mjs",
-    "build": "npm run prebuild && vite build",
+    "build": "vite build",
     "predev": "node scripts/prebuild.mjs",
     "dev": "npm run predev && vite",
     "preview": "vite preview",
@@ -35,7 +35,6 @@
     "react-router-dom": "^7.8.0",
     "three": "^0.179.1",
     "three-mesh-bvh": "^0.9.1",
-    "three-stdlib": "^2.36.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
@@ -61,6 +60,7 @@
     "postcss": "^8.5.6",
     "sharp": "^0.34.4",
     "tailwindcss": "^3.4.17",
+    "three-stdlib": "^2.36.0",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.35.1",
     "vite": "^7.0.7",

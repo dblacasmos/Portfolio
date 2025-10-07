@@ -24,7 +24,7 @@ function run(cmd, args, opts = {}) {
   });
 }
 
-// --- NUEVO: utilidades para detectar punteros LFS y fallar con mensaje claro ---
+// Utilidades para detectar punteros LFS y fallar con mensaje claro
 function isLFSPointer(file) {
   try {
     const head = fs.readFileSync(file, "utf8");
@@ -54,8 +54,8 @@ async function normalizeTextures(modelPath) {
   const outGLTF = path.join(work, base + ".gltf");
   const backGLB = path.join(dir, base + ".norm.glb");
   fs.mkdirSync(work, { recursive: true });
-  // 1) convertir a .gltf (forzamos formato para evitar diferencias de CLI)
-  await run(NPM, [...GLTF, "copy", modelPath, outGLTF, "--format", "gltf"]);
+  // 1) convertir a .gltf (el CLI infiere por extensión)
+  await run(NPM, [...GLTF, "copy", modelPath, outGLTF]);
   // 1.1) validar que la salida es JSON antes de parsear
   const text = fs.readFileSync(outGLTF, "utf-8");
   if (!text.trim().startsWith("{")) {
@@ -79,8 +79,8 @@ async function normalizeTextures(modelPath) {
     }
     fs.writeFileSync(outGLTF, JSON.stringify(gltf, null, 2));
   }
-  // 3) volver a .glb embebido (forzamos formato)
-  await run(NPM, [...GLTF, "copy", outGLTF, backGLB, "--format", "glb"]);
+  // 3) volver a .glb embebido (el CLI infiere por extensión)
+  await run(NPM, [...GLTF, "copy", outGLTF, backGLB]);
   // Limpieza del workdir
   rmrf(work);
   // Si quedó un *.gltf “huérfano” junto al modelo original, elimínalo
