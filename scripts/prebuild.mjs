@@ -3,6 +3,11 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
 
+if (process.env.VERCEL || process.env.CI || process.env.SKIP_ASSET_PIPELINE) {
+  console.log("[prebuild] CI detectado → salto pipeline de assets");
+  process.exit(0);
+}
+
 function run(nodeArgs, file) {
   return new Promise((resolve, reject) => {
     const ps = spawn(process.execPath, [...nodeArgs, file], { stdio: "inherit" });
