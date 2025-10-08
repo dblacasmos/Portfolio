@@ -316,7 +316,3 @@ Archivo: `src/game/graphics/quality.ts`
 - Este README describe **lo que hay en el repo**: rutas, scripts, assets y decisiones de ingeniería (compresión, colisiones, HUD, audio).  
 - Si amplías la ciudad o añades enemigos nuevos, reaprovecha el pipeline (`models:pack`, `assets:ktx2`) para mantener el peso a raya.  
 - Para depurar pesos de bundle, habilita `sourcemap` en `vite.config.ts` y revisa los chunks grandes (Three + GLTF suelen rozar el límite por defecto, ya está ajustado con `chunkSizeWarningLimit`).
-
----
-
-¿Quieres que te deje también el archivo listo como `README.md`? Te pego aquí el contenido completo para copiar y pegar (este mismo texto). Si prefieres, puedo generarte un archivo descargable con el README en un clic.
