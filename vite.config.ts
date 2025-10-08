@@ -13,14 +13,17 @@ export default defineConfig({
   assetsInclude: ['**/*.glb', '**/*.gltf', '**/*.wasm', '**/*.ktx2', '**/*.bin'],
   build: {
     target: 'es2022',
-    chunkSizeWarningLimit: 2000, // three+gltf se pasa del umbral por defecto
+    chunkSizeWarningLimit: 3000, // three+gltf se pasa del umbral por defecto
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (!has(id, 'node_modules')) return undefined
           if (has(id, 'node_modules/three/')) return 'three'
           if (has(id, '@react-three/fiber') || has(id, '@react-three/drei')) return 'r3f'
-          if (has(id, '/howler/')) return 'howler'
+          if (has(id, '/howler/')) return 'audio'
+          if (has(id, 'node_modules/react/') || has(id, 'node_modules/react-dom/') || has(id, 'react-router-dom')) return 'react'
+          if (has(id, 'framer-motion')) return 'motion'
+          if (has(id, 'zustand')) return 'state'
           if (
             has(id, 'three-mesh-bvh') ||
             has(id, 'three-stdlib') ||

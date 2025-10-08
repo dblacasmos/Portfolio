@@ -14,16 +14,21 @@ import { optimizeStatic, tuneMaterials } from "../../utils/three/optimizeGLTF";
 import { isKTX2Ready } from "@/game/utils/three/ktx2/ktx2";
 import { prepareForMerge } from "@/game/utils/three/geometry/prepareForMerge";
 
-// BVH (idempotente)
-import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from "three-mesh-bvh";
-(THREE.BufferGeometry as any).prototype.computeBoundsTree ??= computeBoundsTree;
-(THREE.BufferGeometry as any).prototype.disposeBoundsTree ??= disposeBoundsTree;
-(THREE.Mesh as any).prototype.raycast ??= acceleratedRaycast;
+// BVH (idempotente) — carga dinámica para partir chunk
+let __bvhPatched = false;
+async function ensureBVH() {
+  if (__bvhPatched) return;
+  const { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } = await import('three-mesh-bvh');
+  (THREE.BufferGeometry as any).prototype.computeBoundsTree ??= computeBoundsTree;
+  (THREE.BufferGeometry as any).prototype.disposeBoundsTree ??= disposeBoundsTree;
+  (THREE.Mesh as any).prototype.raycast ??= acceleratedRaycast;
+  __bvhPatched = true;
+}
 
 const LAYER_WORLD = CFG.layers.WORLD;
 
-// cacheamos el merge una sola vez (algunas builds exponen "mergeGeometries" y otras "mergeBufferGeometries")
-const MERGE = (BufferGeometryUtils as any).mergeGeometries ?? (BufferGeometryUtils as any).mergeBufferGeometries;
+// cacheamos el merge una sola vez (evita hoisting de Rollup a imports con nombre)
+const MERGE = ((u: any) => u['mergeGeometries'] ?? u['mergeBufferGeometries'])(BufferGeometryUtils as any);
 
 export type CityReadyInfo = {
   groundMesh: THREE.Mesh | null;
@@ -234,6 +239,8 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
   // Prepara capas, materiales y sombras una vez cargada la glTF
   useEffect(() => {
     if (!scene) return;
+    // asegura el parche BVH (lazy)
+    void ensureBVH();
     setLayerRecursive(scene, LAYER_WORLD);
     optimizeStatic(scene);
     tuneMaterials(scene);

@@ -1,14 +1,11 @@
-/* =======================================
-   FILE: src/game/utils/three/extractMergedMesh.ts
-   ======================================= */
+/* FILE: src/game/utils/three/geometry/extractMergedMesh.ts */
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { prepareForMerge } from "@/game/utils/three/geometry/prepareForMerge";
 
 /**
- * Fusiona todos los meshes que cumplan `predicate` aplicando matrixWorld.
- * Deja la geometría lista para colisión (invisible) y con BVH si está disponible.
- * Nota: aquí sólo mantenemos `position` más tarde para ahorrar memoria.
+ * Fusiona meshes que cumplan `predicate` aplicando matrixWorld.
+ * Deja sólo `position` para colisión, y computa BVH si está disponible.
  */
 export function extractMergedMesh(
     root: THREE.Object3D,
@@ -20,19 +17,15 @@ export function extractMergedMesh(
     root.traverse((obj: any) => {
         if (!obj?.isMesh || !predicate(obj)) return;
 
-        // Normaliza la geo para merge
         const g0 = prepareForMerge(obj.geometry);
-
-        // Si no hay position válido, ignora
         const pos = g0.getAttribute("position");
         if (!pos || !pos.count) return;
 
-        // Para collider: deja sólo position
+        // deja sólo position
         for (const key of Object.keys(g0.attributes)) {
             if (key !== "position") (g0 as any).deleteAttribute(key);
         }
 
-        // Lleva a espacio mundo y guarda
         g0.applyMatrix4(obj.matrixWorld);
         g0.computeBoundingBox?.();
         g0.computeBoundingSphere?.();
@@ -41,15 +34,14 @@ export function extractMergedMesh(
 
     if (!geoms.length) return null;
 
-    const mergeFn =
-        (BufferGeometryUtils as any).mergeGeometries ??
-        (BufferGeometryUtils as any).mergeBufferGeometries;
+    // three recientes exportan mergeGeometries; anteriores, mergeBufferGeometries (evita hoisting de Rollup)
+    const merge = ((u: any) => u['mergeGeometries'] ?? u['mergeBufferGeometries'])(BufferGeometryUtils as any);
 
-    const merged: THREE.BufferGeometry = mergeFn(geoms, /*useGroups*/ false);
+    const merged: THREE.BufferGeometry = merge(geoms, false);
     merged.computeBoundingBox?.();
     merged.computeBoundingSphere?.();
 
-    // Si está parcheado three-mesh-bvh, crea el árbol aquí
+    // si three-mesh-bvh está parcheado
     (merged as any).computeBoundsTree?.();
 
     const mat = new THREE.MeshBasicMaterial({
@@ -59,7 +51,7 @@ export function extractMergedMesh(
     });
 
     const m = new THREE.Mesh(merged, mat);
-    m.visible = false;          // fuera del render
+    m.visible = false;
     m.frustumCulled = false;
     m.matrixAutoUpdate = false;
     m.updateMatrixWorld(true);
