@@ -1,24 +1,82 @@
-<!-- FILE: index.html -->
-<!DOCTYPE html>
-<html lang="es">
+<!doctype html>
+<html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#000000" />
-  <link rel="icon" href="/vite.svg" />
-  <title>Mi Portfolio</title>
+  <meta name="color-scheme" content="dark light" />
+  <meta name="robots" content="index,follow,max-image-preview:large" />
 
-  <!-- Carga de Orbitron optimizada -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap" rel="stylesheet" />
+  <title>Shooter Timeline — 3D Portfolio & Mini-Shooter</title>
+  <meta name="description"
+    content="Interactive portfolio blending Three.js and React with a playable mini-shooter. Real-world performance: KTX2, Draco, Meshopt, progressive loading, and an editable HUD." />
+
+  <!-- Canonical (ajusta al dominio final) -->
+  <link rel="canonical" href="https://tu-dominio.tld/" />
+
+  <!-- Favicon / PWA -->
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <meta name="theme-color" content="#0b0f1a" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Shooter Timeline — 3D Portfolio & Mini-Shooter" />
+  <meta property="og:description"
+    content="Three.js + React portfolio with a playable mini-shooter. Optimized assets (KTX2/Draco/Meshopt), progressive loading, editable HUD." />
+  <meta property="og:site_name" content="Shooter Timeline" />
+  <meta property="og:url" content="https://tu-dominio.tld/" />
+  <meta property="og:image" content="https://tu-dominio.tld/og-image.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="en_US" />
+  <!-- Si quieres indicar español también:
+    <meta property="og:locale:alternate" content="es_ES" /> -->
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Shooter Timeline — 3D Portfolio & Mini-Shooter" />
+  <meta name="twitter:description"
+    content="Three.js + React portfolio with a playable mini-shooter. Optimized assets and editable HUD." />
+  <meta name="twitter:image" content="https://tu-dominio.tld/og-image.jpg" />
+
+  <!-- Performance (ajusta o elimina si no usas Google Fonts) -->
+  <!-- <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /> -->
+  <!-- <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/Inter-Variable.woff2" crossorigin> -->
+
+  <!-- Estructurados JSON-LD (ajusta name/url/perfiles) -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Person",
+          "name": "Tu Nombre",
+          "url": "https://tu-dominio.tld/",
+          "sameAs": [
+            "https://github.com/tu-usuario",
+            "https://www.linkedin.com/in/tu-usuario",
+            "mailto:tucorreo@dominio.com"
+          ],
+          "jobTitle": "Game Developer / WebGL Engineer"
+        },
+        {
+          "@type": "WebSite",
+          "name": "Shooter Timeline",
+          "url": "https://tu-dominio.tld/",
+          "description": "Interactive portfolio with a playable mini-shooter built with React and Three.js."
+        }
+      ]
+    }
+    </script>
 </head>
 
 <body>
-  <noscript>Necesitas habilitar JavaScript para ejecutar esta aplicación.</noscript>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
+  <noscript>This site needs JavaScript enabled.</noscript>
 </body>
 
 </html>

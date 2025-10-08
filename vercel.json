@@ -1,8 +1,19 @@
 {
+    "headers": [
+        {
+            "source": "/assets/(.*)\\.(glb|ktx2|wasm|data|bin)$",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=31536000, immutable"
+                }
+            ]
+        }
+    ],
     "rewrites": [
         {
             "source": "/(.*)",
-            "destination": "/"
+            "destination": "/index.html"
         }
     ]
 }

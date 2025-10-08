@@ -8,6 +8,7 @@ const has = (id: string, needle: string) => id.replace(/\\/g, '/').includes(need
 
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
+  base: '/',
   server: { host: true },
   assetsInclude: ['**/*.glb', '**/*.gltf', '**/*.wasm', '**/*.ktx2', '**/*.bin'],
   build: {
@@ -45,7 +46,6 @@ export default defineConfig({
       'three',
       '@react-three/fiber',
       '@react-three/drei',
-      'three/examples/jsm/utils/BufferGeometryUtils.js',
       'three-mesh-bvh',
     ],
   },
