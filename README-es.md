@@ -1,4 +1,5 @@
 # Shooter Timeline — Portfolio 3D + Mini-Shooter (React + Three.js)
+[🇬🇧 English](./README.md) | [🇪🇸 Español](./README-es.md)
 
 > Un portfolio interactivo que combina una intro cinematográfica, una página principal con 3D embebido y un mini-shooter jugable, todo en la web. Centrado en rendimiento real (compresión de modelos/texturas, carga progresiva) y UX (capas HUD editables, audio con ducking, overlays, etc.).
 
