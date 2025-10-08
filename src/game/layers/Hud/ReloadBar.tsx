@@ -1,16 +1,12 @@
-/*  ====================================
-    FILE: src/game/layers/Hud/ReloadBar.tsx
-    ==================================== */
-
 import React, { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
 
 type Props = {
-  /** ¿Mostrar la barra? (si false, se hace fade-out pero no se desmonta) */
+  /** ¿Mostrar la barra? (si false, fade-out pero no se desmonta) */
   reloading: boolean;
-  /** Progreso 0..1 externo; si es <=0 o >=1 se ignora y se usa fallback por tiempo. */
+  /** Progreso 0..1 externo; si es <=0 o >=1 se ignora y usamos fallback por tiempo. */
   progress: number;
   /** Posición del plano en coords ortográficas. */
   position?: [number, number, number];
@@ -37,27 +33,23 @@ export default function ReloadBar({
   const [pw, ph] = CFG.hud.reloadBar.size;
   const planeSize = [pw * responsiveScale, ph * responsiveScale] as [number, number];
 
-  // Fallback temporal si no llega progreso externo “usable”
+  // Fallback temporal si no llega progreso “usable”
   const reloadStartMsRef = useRef<number>(0);
   const prevReloadingRef = useRef<boolean>(false);
   const durationMs = Math.max(50, Number((CFG as any)?.reload?.timeMs ?? 2000));
 
   useEffect(() => {
-    if (reloading && !prevReloadingRef.current) {
-      reloadStartMsRef.current = performance.now();
-    }
+    if (reloading && !prevReloadingRef.current) reloadStartMsRef.current = performance.now();
     prevReloadingRef.current = reloading;
   }, [reloading]);
 
   const material = useMemo(() => {
     const uniforms = {
       uTime: { value: 0 },
-      uProgress: { value: 0 },   // 0..1
-      uOpacity: { value: 0 },    // fade in/out del panel completo
-      // Paleta Dials/AmmoBar
+      uProgress: { value: 0 },  // 0..1
+      uOpacity: { value: 0 },   // fade in/out panel
       uCyan: { value: new THREE.Color(CFG.hud.colors?.neonCyan ?? "#22D3EE") },
       uRed: { value: new THREE.Color(CFG.hud.colors?.dangerRed ?? "#FF3B41") },
-      // Panel
       uBase: { value: new THREE.Color("#0A0F14") },
       uEdge: { value: new THREE.Color("#22303C") },
       uRes: { value: new THREE.Vector2(planeSize[0], planeSize[1]) },
@@ -107,7 +99,7 @@ export default function ReloadBar({
       }
 
       void main(){
-        // El plano en HUD va rotado (0,PI,0), corrijo espejo aquí para IZQ->DER:
+        // El plano en HUD va rotado (0,PI,0), corrijo espejo aquí
         vec2 uv = vec2(1.0 - vUv.x, vUv.y);
 
         if (uOpacity <= 0.002) discard;
@@ -135,7 +127,7 @@ export default function ReloadBar({
         float glass = 1.0 - smoothstep(0.0, 1.0, min(vNorm, 1.0 - vNorm));
         col += track * (vec3(0.10,0.16,0.22) * glass * 0.25);
 
-        // ---- PROGRESO: IZQ→DER, ROJO→CIAN ----
+        // Progreso IZQ→DER, ROJO→CIAN
         float p     = clamp(uProgress, 0.0, 1.0);
         float xL    = trackMn.x + 0.010;
         float xR    = trackMx.x - 0.010;
@@ -189,7 +181,6 @@ export default function ReloadBar({
   useFrame((_, dt) => {
     (material.uniforms.uTime.value as number) += dt;
 
-    // ✅ Si progress externo es <=0 o >=1, usamos fallback por tiempo.
     const ext = Number(progress);
     const useExternal = Number.isFinite(ext) && ext > 0 && ext < 1;
 
@@ -204,17 +195,12 @@ export default function ReloadBar({
     const cur = material.uniforms.uProgress.value as number;
     material.uniforms.uProgress.value = THREE.MathUtils.damp(cur, targetProg, 10, dt);
 
-    // Fade in/out por estado de reloading
     const curOp = material.uniforms.uOpacity.value as number;
     const toOp = reloading ? 1 : 0;
     material.uniforms.uOpacity.value = THREE.MathUtils.damp(curOp, toOp, reloading ? 12 : 8, dt);
   });
 
-  useEffect(() => {
-    return () => {
-      try { (material as any).dispose?.(); } catch { }
-    };
-  }, [material]);
+  useEffect(() => () => { try { (material as any).dispose?.(); } catch { } }, [material]);
 
   return (
     <group>

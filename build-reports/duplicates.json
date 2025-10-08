@@ -1,29 +1,4 @@
 {
-  "createdAt": "2025-10-07T17:24:28.262Z",
-  "duplicates": [
-    [
-      "public/assets/fx/impacts.webp",
-      "public/assets/fx/impacts.webp"
-    ],
-    [
-      "public/assets/img/timeline/escudo.webp",
-      "public/assets/img/timeline/escudo.webp"
-    ],
-    [
-      "public/assets/img/timeline/skySource.webp",
-      "public/assets/img/timeline/skySource.webp"
-    ],
-    [
-      "public/assets/img/timeline/vida.webp",
-      "public/assets/img/timeline/vida.webp"
-    ],
-    [
-      "public/assets/ui/paneles.ktx2",
-      "public/assets/ui/paneles.ktx2"
-    ],
-    [
-      "public/assets/ui/paneles.webp",
-      "public/assets/ui/paneles.webp"
-    ]
-  ]
+  "createdAt": "2025-10-08T03:46:03.817Z",
+  "duplicates": []
 }

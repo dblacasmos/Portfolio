@@ -5,8 +5,10 @@ import * as THREE from "three";
 // Import con extensión .js para bundlers ESM (Vite). El shim de tipos cubre ambas rutas.
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js";
 import type { WebGLRenderer } from "three";
+
 let _ktx2: KTX2Loader | null = null;
 let _basicTL: THREE.TextureLoader | null = null;
+
 const BASE = import.meta.env?.BASE_URL ?? "/";
 const DEFAULT_BASIS_PATH = BASE + "basis/";
 
@@ -58,7 +60,7 @@ export function loadTextureSmart(
 
   if (!_ktx2 || !useKTX) return fallback();
 
-  // HEAD opcional; si tu server no acepta HEAD, elimina este bloque y llama directamente a load()
+  // HEAD opcional; si tu server no acepta HEAD, quita este bloque y llama a load() directo
   fetch(tryKTX, { method: "HEAD" })
     .then((r) => {
       if (!r.ok) throw 0;

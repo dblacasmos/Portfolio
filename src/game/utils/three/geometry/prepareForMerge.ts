@@ -1,61 +1,81 @@
+/* =======================================
+   FILE: src/game/utils/three/geometry/prepareForMerge.ts
+   ======================================= */
+
 import * as THREE from "three";
 
-/** Convierte un BufferAttribute (pos/normal/uv/color) a Float32 des-normalizando si hace falta. */
-function toFloat32(attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) {
-    const itemSize = attr.itemSize;
-    const count = attr.count;
-    const out = new THREE.Float32BufferAttribute(count * itemSize, itemSize);
-    for (let i = 0; i < count; i++) {
-        // getX/getY respetan attr.normalized → valores ya des-normalizados
-        if (itemSize >= 1) out.setX(i, (attr as any).getX(i));
-        if (itemSize >= 2) out.setY(i, (attr as any).getY(i));
-        if (itemSize >= 3) out.setZ(i, (attr as any).getZ(i));
-        if (itemSize >= 4) out.setW(i, (attr as any).getW(i));
+/**
+ * Normaliza una geometría para merge:
+ * - Quita el índice (no-indexed) aplicando duplicación de vértices.
+ * - Convierte TODOS los atributos a BufferAttribute(Float32Array, normalized=false).
+ *   (incluye InterleavedBufferAttribute y atributos cuantizados/normalizados)
+ * - Elimina grupos e índice.
+ * - Recalcula bounding box/sphere.
+ *
+ * Ojo: si luego sólo quieres `position`, bórralo fuera (lo hace extractMergedMesh).
+ */
+export function prepareForMerge(gIn: THREE.BufferGeometry): THREE.BufferGeometry {
+    // 1) Trabajamos en una copia y forzamos NO indexada.
+    const base = gIn.index ? gIn.toNonIndexed() : gIn.clone();
+
+    // 2) Atributo -> BufferAttribute Float32 “plano”
+    const toPlainFloat32 = (
+        attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute
+    ): THREE.BufferAttribute => {
+        // Interleaved -> desinterleave manual
+        if ((attr as any).isInterleavedBufferAttribute) {
+            const ia = attr as THREE.InterleavedBufferAttribute;
+            const out = new Float32Array(ia.count * ia.itemSize);
+            // getX/getY/getZ/getW están disponibles; para itemSize > 4 rellenamos 0.
+            for (let i = 0; i < ia.count; i++) {
+                for (let k = 0; k < ia.itemSize; k++) {
+                    // Acceso seguro sin usar toArray()
+                    let v = 0;
+                    if (k === 0) v = ia.getX(i);
+                    else if (k === 1) v = ia.getY(i);
+                    else if (k === 2) v = ia.getZ(i);
+                    else if (k === 3 && typeof (ia as any).getW === "function") v = (ia as any).getW(i);
+                    out[i * ia.itemSize + k] = v;
+                }
+            }
+            return new THREE.BufferAttribute(out, ia.itemSize, false);
+        }
+
+        // BufferAttribute normal
+        const a = attr as THREE.BufferAttribute;
+        // Si ya es Float32 y no está normalized, úsalo tal cual.
+        if (a.array instanceof Float32Array && a.normalized === false) return a;
+
+        const out = new Float32Array(a.count * a.itemSize);
+        for (let i = 0; i < a.count; i++) {
+            for (let k = 0; k < a.itemSize; k++) {
+                let v = 0;
+                if (k === 0) v = a.getX(i);
+                else if (k === 1) v = a.getY(i);
+                else if (k === 2) v = a.getZ(i);
+                else if (k === 3 && typeof (a as any).getW === "function") v = (a as any).getW(i);
+                out[i * a.itemSize + k] = v;
+            }
+        }
+        return new THREE.BufferAttribute(out, a.itemSize, false);
+    };
+
+    // 3) Reemplaza todos los atributos por su versión Float32 “plana”
+    for (const name of Object.keys(base.attributes)) {
+        const src = base.getAttribute(name) as any;
+        if (!src) continue;
+        base.setAttribute(name, toPlainFloat32(src));
     }
-    out.normalized = false;
-    return out;
+
+    // 4) Limpieza de grupos/índice (ya no hacen falta tras toNonIndexed)
+    base.clearGroups();
+    base.setIndex(null);
+
+    // 5) Bounds
+    base.computeBoundingBox?.();
+    base.computeBoundingSphere?.();
+
+    return base;
 }
 
-/** Clona geo, la pasa a no indexada y convierte los atributos clave a Float32. */
-export function prepareForMerge(geoIn: THREE.BufferGeometry): THREE.BufferGeometry {
-    let g = geoIn.index ? geoIn.toNonIndexed() : geoIn.clone();
-    const keep: Array<keyof THREE.BufferGeometry["attributes"]> = ["position", "normal", "uv", "color"];
-
-    for (const name of keep) {
-        const attr = g.getAttribute(name as any);
-        if (attr) g.setAttribute(name as any, toFloat32(attr));
-    }
-
-    // Quita atributos problemáticos que no estén en todas o tengan tamaños raros
-    for (const key of Object.keys(g.attributes)) {
-        const a = g.getAttribute(key);
-        if (!a || (key !== "position" && key !== "normal" && key !== "uv" && key !== "color")) {
-            g.deleteAttribute(key);
-        }
-    }
-
-    // Asegura bounding info
-    g.computeBoundingBox();
-    g.computeBoundingSphere();
-    return g;
-}
-
-/** Calcula el conjunto común de atributos y lo aplica a todas (elimina los que no coinciden). */
-export function harmonizeAttributesForMerge(geos: THREE.BufferGeometry[]): THREE.BufferGeometry[] {
-    const names = ["position", "normal", "uv", "color"];
-    const common = new Set<string>(names);
-    for (const g of geos) {
-        for (const n of names) {
-            if (!g.getAttribute(n)) common.delete(n);
-        }
-    }
-    const out: THREE.BufferGeometry[] = [];
-    for (const g of geos) {
-        const cg = g.clone();
-        for (const n of names) {
-            if (!common.has(n)) cg.deleteAttribute(n);
-        }
-        out.push(cg);
-    }
-    return out;
-}
+export default prepareForMerge;

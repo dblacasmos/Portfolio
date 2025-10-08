@@ -1,7 +1,3 @@
-/*  ====================================
-    FILE: src/game/layers/Hud/AmmoBar.tsx
-    ==================================== */
-
 import React, { useLayoutEffect, useMemo, useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
@@ -11,18 +7,19 @@ type Props = {
     mag: number;                          // balas en cargador
     magSize?: number;                     // capacidad del cargador
     reserve: number;                      // balas en reserva
-    reloading: boolean;                   // estado de recarga (solo para animación visual)
-    position: [number, number, number];   // posición en HUD (m)
-    size?: number;                        // ancho del panel (m)
+    reloading: boolean;                   // estado de recarga (solo anim visual)
+    position: [number, number, number];   // posición HUD (m)
+    size?: number;                        // ancho panel (m)
     rotation?: [number, number, number];  // rotación del plano
-    uiScale?: number;                     // nitidez interna (relativa)
+    uiScale?: number;                     // nitidez interna
     stretchX?: number;                    // estirar en X (1 = original)
 };
 
-const C_CYAN = CFG.hud.colors.neonCyan;     // tono shield
-const C_RED = CFG.hud.colors.dangerRed;     // tono vida
-const C_ORANGE = "#ff8a00";                 // puente rojo→cian (estética dials)
+const C_CYAN = CFG.hud.colors.neonCyan;
+const C_RED = CFG.hud.colors.dangerRed;
+const C_ORANGE = "#ff8a00";
 
+/** LERP de color hex sencillo */
 function lerpHex(a: string, b: string, t: number) {
     const ah = a.replace("#", ""), bh = b.replace("#", "");
     const ar = parseInt(ah.slice(0, 2), 16), ag = parseInt(ah.slice(2, 4), 16), ab = parseInt(ah.slice(4, 6), 16);
@@ -36,9 +33,7 @@ function lerpHex(a: string, b: string, t: number) {
 /** rampa 3 puntos: rojo -> naranja -> cian */
 function rampAmmoColor(frac01: number) {
     const t = Math.max(0, Math.min(1, frac01));
-    if (t < 0.5) {
-        return lerpHex(C_RED, C_ORANGE, t / 0.5);
-    }
+    if (t < 0.5) return lerpHex(C_RED, C_ORANGE, t / 0.5);
     return lerpHex(C_ORANGE, C_CYAN, (t - 0.5) / 0.5);
 }
 
@@ -57,7 +52,7 @@ export function AmmoBar({
     const aspect = typeof window !== "undefined" ? window.innerWidth / window.innerHeight : 16 / 9;
     const responsiveScale = CFG.hud.ui.scaleForAspect(aspect);
 
-    // === OVERLAY procedural tipo "Pacific Rim" (scanlines + sweep + parpadeo crítico)
+    // === Overlay procedural (scanlines + sweep + pulsos) ===
     const overlayRef = useRef<THREE.ShaderMaterial | null>(null);
     const overlayColor = useRef(new THREE.Color(C_CYAN));
     const critical = (mag / Math.max(1, magSize)) < 0.2;
@@ -67,7 +62,7 @@ export function AmmoBar({
         (overlayRef.current.uniforms.uTime.value as number) += dt;
         (overlayRef.current.uniforms.uReload.value as number) = reloading ? 1 : 0;
         (overlayRef.current.uniforms.uCrit.value as number) = critical ? 1 : 0;
-        // color ya se actualiza en useLayoutEffect cuando cambian cantidades
+        // El color se sincroniza cuando cambian cantidades (useLayoutEffect de draw).
     });
 
     const { map, glowMap, planeSize, draw } = useMemo(() => {
@@ -80,7 +75,7 @@ export function AmmoBar({
 
         const planeSize: [number, number] = [size * responsiveScale, size * responsiveScale * (H0 / W0)];
 
-        // Canvas base (nitidez plena)
+        // Canvas base
         const canvas = document.createElement("canvas");
         canvas.width = Math.round(W * DPR);
         canvas.height = Math.round(H * DPR);
@@ -88,16 +83,16 @@ export function AmmoBar({
         ctx.scale(DPR, DPR);
         ctx.imageSmoothingEnabled = true;
 
-        // Canvas glow (media resolución para ahorrar VRAM)
+        // Canvas de glow (menos resolución = ahorra VRAM)
         const glowCanvas = document.createElement("canvas");
-        const GDR = Math.max(1, Math.round(DPR * 0.6)); // ~40% menos VRAM, suficiente al ir con blur
+        const GDR = Math.max(1, Math.round(DPR * 0.6));
         glowCanvas.width = Math.round(W * GDR);
         glowCanvas.height = Math.round(H * GDR);
         const gctx = glowCanvas.getContext("2d")!;
         gctx.scale(GDR, GDR);
         gctx.imageSmoothingEnabled = true;
 
-        // Texturas (sin mips; lineal; sin flips raros)
+        // Texturas
         const tex = new THREE.CanvasTexture(canvas);
         tex.flipY = false;
         tex.wrapS = THREE.ClampToEdgeWrapping;
@@ -112,7 +107,7 @@ export function AmmoBar({
         glowTex.minFilter = THREE.LinearFilter; glowTex.magFilter = THREE.LinearFilter;
         glowTex.generateMipmaps = false; (glowTex as any).colorSpace = THREE.SRGBColorSpace;
 
-        // Grosores y glow del trazo base
+        // Grosores
         const SW = CFG.hud.ammo.stroke * K;
         const GLOW = CFG.hud.ammo.glow * K;
 
@@ -124,7 +119,7 @@ export function AmmoBar({
             ctx.restore();
         };
 
-        // Emisión en canvas glow (mezclado aditivo en un mesh encima)
+        // Emisión en canvas glow
         const glowFill = (path: Path2D, color: string, blur = 22 * K, alpha = 0.65) => {
             gctx.save();
             gctx.globalAlpha = alpha;
@@ -151,11 +146,11 @@ export function AmmoBar({
             ctx.clearRect(0, 0, W, H);
             gctx.clearRect(0, 0, W, H);
 
-            // --- Color dinámico (rojo→naranja→cian) ---
+            // Color dinámico (rojo→naranja→cian)
             const frac = Math.max(0, Math.min(1, mSize ? m / mSize : 0));
             const color = rampAmmoColor(frac);
 
-            // --- Triángulo izquierdo relleno ---
+            // Triángulo izquierdo (placa)
             const tri = new Path2D();
             tri.moveTo(sx(12), sy(186));
             tri.lineTo(sx(148), sy(40));
@@ -167,9 +162,9 @@ export function AmmoBar({
             ctx.fillStyle = color; ctx.fill(tri);
             ctx.restore();
             stroke(tri, color);
-            glowFill(tri, color); // emisión
+            glowFill(tri, color);
 
-            // --- Texto mag/total centrado ---
+            // Texto mag/total
             const total = m + r;
             const label = `${m}/${total}`;
             const cx = (sx(12) + sx(148) + sx(284)) / 3;
@@ -184,7 +179,7 @@ export function AmmoBar({
             ctx.fillStyle = "#000"; ctx.fillText(label, cx, cy);
             ctx.restore();
 
-            // Emisión suave del texto
+            // Emisión del texto
             gctx.save();
             gctx.globalAlpha = 0.35;
             gctx.shadowColor = color; gctx.shadowBlur = 10 * K;
@@ -194,7 +189,7 @@ export function AmmoBar({
             gctx.fillText(label, cx, cy);
             gctx.restore();
 
-            // --- Pieza superior ---
+            // Superior
             const top = new Path2D();
             top.moveTo(sx(170), sy(44));
             top.lineTo(sx(368), sy(44));
@@ -206,9 +201,9 @@ export function AmmoBar({
             top.lineTo(sx(210), sy(88));
             top.closePath();
             ctx.fillStyle = color; ctx.fill(top); stroke(top, color);
-            glowFill(top, color, 18 * K, 0.5); // emisión
+            glowFill(top, color, 18 * K, 0.5);
 
-            // --- Barra inferior contorneada ---
+            // Barra inferior (pista)
             const bottom = new Path2D();
             bottom.moveTo(sx(277), sy(126));
             bottom.lineTo(sx(730), sy(126));
@@ -218,10 +213,9 @@ export function AmmoBar({
             bottom.lineTo(sx(240), sy(126));
             bottom.closePath();
             stroke(bottom, color);
-            // pista oscura interior
             ctx.save(); ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fill(bottom); ctx.restore();
 
-            // --- Segmentos (paralelogramos) ---
+            // Segmentos
             const pad = sx(10);
             const x0 = sx(316), x1 = sx(746);
             const y0 = sy(146), y1 = sy(170);
@@ -254,7 +248,7 @@ export function AmmoBar({
                 }
             }
 
-            // ⚠️ Señalética crítica (chevrons) si quedan <20% balas
+            // Señal crítica
             if (frac < 0.2) {
                 const chevron = new Path2D();
                 chevron.moveTo(x0 - sx(18), y0);
@@ -268,24 +262,27 @@ export function AmmoBar({
             (tex as any).needsUpdate = true;
             (glowTex as any).needsUpdate = true;
 
-            // Devuelve el color actual (para overlay procedural)
-            return color;
+            return color; // devuelvo color actual para overlay procedural
         }
 
         return { map: tex, glowMap: glowTex, planeSize, draw };
     }, [DPR, size, uiScale, stretchX, responsiveScale]);
 
-    // primer pintado + redibujos cuando cambian datos
+    // Primer pintado + redibujos
     useLayoutEffect(() => {
         const c = (draw as any)(mag, magSize, reserve) as string | void;
         if (typeof c === "string") overlayColor.current.set(c);
     }, [mag, magSize, reserve, draw]);
 
-    // limpieza de texturas al desmontar
-    useEffect(() => () => { try { map?.dispose(); } catch { } }, [map]);
-    useEffect(() => () => { try { glowMap?.dispose(); } catch { } }, [glowMap]);
+    // Limpieza de texturas en un único efecto
+    useEffect(() => {
+        return () => {
+            try { map?.dispose(); } catch { }
+            try { glowMap?.dispose(); } catch { }
+        };
+    }, [map, glowMap]);
 
-    // === Overlay procedural (scanlines + sweep + pulso crítico + pulso recarga) ===
+    // === Overlay procedural ===
     const overlayVS = /* glsl */`
     varying vec2 vUv;
     void main() {
@@ -302,26 +299,20 @@ export function AmmoBar({
     uniform float uCrit;   // 1 si crítico
     uniform float uReload; // 1 si recargando
 
-    // Scanlines horizontales
     float scan(vec2 uv){
       float l = abs(fract(uv.y*160.0 + uTime*0.35) - 0.5);
       return smoothstep(0.48, 0.5, l);
     }
-    // Barrido diagonal
     float sweep(vec2 uv){
       float d = fract((uv.x+uv.y)*0.75 + uTime*0.6);
       return smoothstep(0.80, 0.98, d);
     }
 
     void main(){
-      // base suave
       float s = (1.0 - scan(vUv)) * 0.08;
       float w = sweep(vUv) * 0.12;
 
-      // pulso crítico (respira)
       float crit = uCrit * (0.08 + 0.07 * (0.5 + 0.5 * sin(uTime * 8.0)));
-
-      // pulso recarga (latido más rápido)
       float reload = uReload * (0.06 + 0.05 * (0.5 + 0.5 * sin(uTime * 12.0)));
 
       float a = s + w + crit + reload;
@@ -343,11 +334,10 @@ export function AmmoBar({
             uCrit: { value: critical ? 1 : 0 },
             uReload: { value: reloading ? 1 : 0 },
         }
-    }), []); // se instancia una sola vez
+    }), []); // instanciado una vez
 
-    // Sincroniza color del overlay cuando cambie el color de la barra (al redibujar)
+    // Sync color overlay al redibujar
     useLayoutEffect(() => {
-        if (!overlayMat) return;
         (overlayMat.uniforms.uColor.value as THREE.Color).copy(overlayColor.current);
     }, [overlayMat, mag, magSize, reserve]);
 
@@ -373,7 +363,7 @@ export function AmmoBar({
                 />
             </mesh>
 
-            {/* Overlay de emisión (solo zonas coloreadas) */}
+            {/* Emisión (glow) */}
             <mesh
                 position={position}
                 rotation={rotation}
@@ -394,7 +384,7 @@ export function AmmoBar({
                 />
             </mesh>
 
-            {/* Overlay procedural: scanlines + sweep + pulsos */}
+            {/* Overlay procedural */}
             <mesh
                 position={position}
                 rotation={rotation}

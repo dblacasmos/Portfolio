@@ -26,16 +26,16 @@ for (const root of roots) {
         }
     }
     // 2) Borrar carpetas *.norm_work en el nivel inmediato del root
-    for (const e of fs.readdirSync(root)) {
-        const p = path.join(root, e);
-        try {
+    try {
+        for (const e of fs.readdirSync(root)) {
+            const p = path.join(root, e);
             if (fs.statSync(p).isDirectory() && e.endsWith(".norm_work")) {
                 rmrf(p);
                 console.log("CLEAN dir", rel(repoRoot, p));
                 removedNormDirs++;
             }
-        } catch { }
-    }
+        }
+    } catch { }
 }
 
 console.log(`Finalize models → renamed: ${renamed}, removed .norm.glb: ${removedNorm}, removed .norm_work dirs: ${removedNormDirs}`);

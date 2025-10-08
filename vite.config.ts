@@ -1,48 +1,44 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import tsconfigPaths from 'vite-tsconfig-paths';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tsconfigPaths from 'vite-tsconfig-paths'
+import path from 'node:path'
+
+// Normaliza para windows/unix
+const has = (id: string, needle: string) => id.replace(/\\/g, '/').includes(needle)
 
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
   server: { host: true },
-  assetsInclude: ["**/*.glb", "**/*.gltf", "**/*.wasm", "**/*.ktx2", "**/*.bin"],
+  assetsInclude: ['**/*.glb', '**/*.gltf', '**/*.wasm', '**/*.ktx2', '**/*.bin'],
   build: {
-    // sube el umbral de aviso; three + gltf suele pasarse de 500 KB
-    chunkSizeWarningLimit: 2000,
+    target: 'es2022',
+    chunkSizeWarningLimit: 2000, // three+gltf se pasa del umbral por defecto
     rollupOptions: {
       output: {
-        // Split basado en ruta: más robusto con dependencias transitivas
         manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined;
-          // three núcleo
-          if (id.includes('/three/')) return 'three';
-          // react-three
-          if (id.includes('@react-three/fiber') || id.includes('@react-three/drei')) return 'r3f';
-          // audio
-          if (id.includes('/howler/')) return 'howler';
-          // utilidades 3D (BufferGeometryUtils, BVH, stdlib)
+          if (!has(id, 'node_modules')) return undefined
+          if (has(id, 'node_modules/three/')) return 'three'
+          if (has(id, '@react-three/fiber') || has(id, '@react-three/drei')) return 'r3f'
+          if (has(id, '/howler/')) return 'howler'
           if (
-            id.includes('three-mesh-bvh') ||
-            id.includes('three-stdlib') ||
-            id.includes('examples/jsm/utils/BufferGeometryUtils')
-          ) return 'three-utils';
-          // resto de vendor
-          return 'vendor';
+            has(id, 'three-mesh-bvh') ||
+            has(id, 'three-stdlib') ||
+            has(id, 'examples/jsm/utils/BufferGeometryUtils')
+          ) return 'three-utils'
+          return 'vendor'
         },
-        // nombres legibles de assets/chunks en dist
         entryFileNames: `assets/[name]-[hash].js`,
         chunkFileNames: `assets/[name]-[hash].js`,
         assetFileNames: (assetInfo) => {
-          const name = assetInfo.name ?? '';
-          if (/\.(glb|gltf|bin|ktx2|wasm)$/i.test(name)) return 'assets/models/[name]-[hash][extname]';
-          if (/\.(mp3|wav|ogg)$/i.test(name)) return 'assets/audio/[name]-[hash][extname]';
-          if (/\.(png|jpe?g|webp|avif)$/i.test(name)) return 'assets/textures/[name]-[hash][extname]';
-          return 'assets/[name]-[hash][extname]';
+          const name = assetInfo.name ?? ''
+          if (/\.(glb|gltf|bin|ktx2|wasm)$/i.test(name)) return 'assets/models/[name]-[hash][extname]'
+          if (/\.(mp3|wav|ogg)$/i.test(name)) return 'assets/audio/[name]-[hash][extname]'
+          if (/\.(png|jpe?g|webp|avif|ktx2)$/i.test(name)) return 'assets/textures/[name]-[hash][extname]'
+          return 'assets/[name]-[hash][extname]'
         },
       },
     },
-    // útil si quieres investigar pesos en prod
-    // sourcemap: true,
+    // sourcemap: true, // útil para analizar pesos en prod
   },
   optimizeDeps: {
     include: [
@@ -50,7 +46,12 @@ export default defineConfig({
       '@react-three/fiber',
       '@react-three/drei',
       'three/examples/jsm/utils/BufferGeometryUtils.js',
-      'three-mesh-bvh'
+      'three-mesh-bvh',
     ],
-  }
-});
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+    },
+  },
+})

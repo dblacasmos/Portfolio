@@ -3,7 +3,7 @@
    ==================================== */
 import { CFG } from "@/constants/config";
 
-/** Pura: calcula clamp 2D en coords ortográficas [-aspect..+aspect]x[-1..+1] con márgenes seguros. */
+/** Pura: clamp 2D en coords ortográficas [-aspect..+aspect]x[-1..+1] con márgenes seguros. */
 export function clampToSafe(
     x: number,
     y: number,
@@ -26,7 +26,7 @@ export function snap(v: number, step = CFG.hud.ui.snapStep) {
     return Math.round(v / step) * step;
 }
 
-/** Pura: factor de escala responsive basado en el aspect ratio (reusa la función de config). */
+/** Pura: factor de escala responsive basado en el aspect ratio (reusa config). */
 export function responsiveScale(aspect: number) {
     return CFG.hud.ui.scaleForAspect(aspect);
 }

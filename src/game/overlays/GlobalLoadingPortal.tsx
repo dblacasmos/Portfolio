@@ -41,6 +41,11 @@ const STAGE_MIN: Record<string, number> = {
 function ensureMount() {
     if (mountEl && root) return;
     mountEl = document.createElement("div");
+    // Accesible y sin desplazar layout
+    mountEl.setAttribute("aria-live", "polite");
+    mountEl.style.position = "fixed";
+    mountEl.style.inset = "0";
+    mountEl.style.zIndex = "2147483646";
     document.body.appendChild(mountEl);
     root = createRoot(mountEl);
 }
@@ -81,10 +86,7 @@ function loop() {
 }
 
 function stopLoop() {
-    if (rafId != null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-    }
+    if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
 }
 
 function armWatchdog() {
@@ -123,15 +125,11 @@ export function showGlobalLoadingOverlay(opts?: Options) {
 export function setGlobalLoadingProgress(p: number) {
     if (!active) return;
     externalProgress = Math.max(0, Math.min(1, p));
-    // el loop se encarga de re-renderizar
-    // Si ya estamos al 100%, cierra cuando se cumpla el minMs.
+    // El loop re-renderiza; si llega a 100%, cierra tras cumplir minMs.
     if (externalProgress >= 0.999) {
         const elapsed = performance.now() - bornAt;
         const wait = Math.max(0, minMs - elapsed);
-        window.setTimeout(() => {
-            // Podría haberse cerrado ya por watchdog o por otro camino.
-            if (active) hideGlobalLoadingOverlay();
-        }, wait);
+        window.setTimeout(() => { if (active) hideGlobalLoadingOverlay(); }, wait);
     }
 }
 
@@ -139,9 +137,7 @@ export function setGlobalLoadingProgress(p: number) {
 export function markGlobalLoadingStage(name: string) {
     if (!active) return;
     const floor = STAGE_MIN[name] ?? 0;
-    if (floor > reachedStageFloor) {
-        reachedStageFloor = floor;
-    }
+    if (floor > reachedStageFloor) { reachedStageFloor = floor; }
     // el loop lo recogerá
 }
 
@@ -155,15 +151,11 @@ export function hideGlobalLoadingOverlay() {
     const doAsyncUnmount = () => {
         setTimeout(() => {
             requestAnimationFrame(() => {
-                try {
-                    try { root?.render(null as any); } catch { }
-                    root?.unmount();
-                } catch { }
+                try { try { root?.render(null as any); } catch { } root?.unmount(); } catch { }
                 if (mountEl?.parentNode) mountEl.parentNode.removeChild(mountEl);
                 stopLoop();
                 if (watchdogId != null) { window.clearTimeout(watchdogId); watchdogId = null; }
-                root = null;
-                mountEl = null;
+                root = null; mountEl = null;
 
                 active = false;
                 externalProgress = 0;
@@ -176,13 +168,18 @@ export function hideGlobalLoadingOverlay() {
         }, 0);
     };
 
-    if (wait > 0) {
-        window.setTimeout(doAsyncUnmount, wait);
-    } else {
-        doAsyncUnmount();
-    }
+    if (wait > 0) { window.setTimeout(doAsyncUnmount, wait); }
+    else { doAsyncUnmount(); }
 }
 
 export function isGlobalLoadingActive() {
     return active;
 }
+
+export default {
+    showGlobalLoadingOverlay,
+    setGlobalLoadingProgress,
+    markGlobalLoadingStage,
+    hideGlobalLoadingOverlay,
+    isGlobalLoadingActive,
+};

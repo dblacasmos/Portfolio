@@ -1,3 +1,6 @@
+// =======================================
+// FILE: src/game/utils/loadClampedTexture.ts
+// =======================================
 import * as THREE from "three";
 
 /**
@@ -9,30 +12,23 @@ import * as THREE from "three";
 const cache = new Map<string, Promise<THREE.Texture>>();
 
 export type LoadClampedOptions = {
-    maxSize?: number;            // px, lado mayor (p.ej. 1024)
-    colorSpace?: THREE.ColorSpace; // por defecto: SRGB
-    anisotropy?: number;         // por defecto: 4
-    generateMipmaps?: boolean;   // por defecto: true
-    /** Filtro de MINIFICACIÓN (cuando un texel < un píxel) */
-    minFilter?: THREE.MinificationTextureFilter;   // p.ej. THREE.LinearMipmapLinearFilter (por defecto)
-    /** Filtro de MAGNIFICACIÓN (cuando un texel > un píxel) */
-    magFilter?: THREE.MagnificationTextureFilter;  // p.ej. THREE.LinearFilter (por defecto)
+    maxSize?: number;               // px, lado mayor (p.ej. 1024)
+    colorSpace?: THREE.ColorSpace;  // por defecto: SRGB
+    anisotropy?: number;            // por defecto: 4
+    generateMipmaps?: boolean;      // por defecto: true
+    minFilter?: THREE.MinificationTextureFilter;   // p.ej. LinearMipmapLinearFilter (por defecto)
+    magFilter?: THREE.MagnificationTextureFilter;  // p.ej. LinearFilter (por defecto)
 };
-
-// --- Guards de tipos seguros para filtros (añádelos tras los tipos de arriba) ---
-const isMin = (f: number): f is THREE.MinificationTextureFilter =>
-    f === THREE.NearestFilter || f === THREE.LinearFilter ||
-    f === THREE.NearestMipmapNearestFilter || f === THREE.NearestMipmapLinearFilter ||
-    f === THREE.LinearMipmapNearestFilter || f === THREE.LinearMipmapLinearFilter;
-
-const isMag = (f: number): f is THREE.MagnificationTextureFilter =>
-    f === THREE.NearestFilter || f === THREE.LinearFilter;
-
 
 export function loadClampedTexture(
     url: string,
     opts: LoadClampedOptions = {}
 ): Promise<THREE.Texture> {
+    // SSR guard: sólo en cliente
+    if (typeof window === "undefined") {
+        return Promise.reject(new Error("loadClampedTexture sólo está disponible en cliente."));
+    }
+
     const key = `${url}|${opts.maxSize ?? 1024}|${opts.colorSpace ?? "sRGB"}|${opts.anisotropy ?? 4}`;
     const hit = cache.get(key);
     if (hit) return hit;
@@ -49,33 +45,25 @@ export function loadClampedTexture(
 
                 let useTex: THREE.Texture = t;
                 if (w > max || h > max) {
+                    // Reescala en canvas (rápido y suficiente para UI/fondos)
                     const scale = Math.min(max / Math.max(1, w), max / Math.max(1, h));
                     const tw = Math.max(1, Math.floor(w * scale));
                     const th = Math.max(1, Math.floor(h * scale));
                     const canvas = document.createElement("canvas");
-                    canvas.width = tw;
-                    canvas.height = th;
+                    canvas.width = tw; canvas.height = th;
                     const ctx = canvas.getContext("2d")!;
                     ctx.drawImage(img, 0, 0, tw, th);
                     const ct = new THREE.CanvasTexture(canvas);
                     useTex = ct;
-                    // liberar textura original
+                    // libera la original
                     try { t.dispose(); } catch { }
                 }
 
                 (useTex as any).colorSpace = opts.colorSpace ?? THREE.SRGBColorSpace;
-                // Narrowing explícito: asignamos solo el tipo correcto para cada propiedad
-                const minF: THREE.MinificationTextureFilter =
-                    opts.minFilter ?? THREE.LinearMipmapLinearFilter;
-                const magF: THREE.MagnificationTextureFilter =
-                    opts.magFilter ?? THREE.LinearFilter;
-                useTex.minFilter = minF;
-                useTex.magFilter = magF;
+                useTex.minFilter = opts.minFilter ?? THREE.LinearMipmapLinearFilter;
+                useTex.magFilter = opts.magFilter ?? THREE.LinearFilter;
                 useTex.generateMipmaps = opts.generateMipmaps ?? true;
-                useTex.anisotropy = Math.min(
-                    opts.anisotropy ?? 4,
-                    (THREE as any).WebGL1Renderer ? 4 : 16
-                );
+                useTex.anisotropy = Math.max(1, Math.min(opts.anisotropy ?? 4, 16));
                 useTex.wrapS = THREE.ClampToEdgeWrapping;
                 useTex.wrapT = THREE.ClampToEdgeWrapping;
                 useTex.needsUpdate = true;

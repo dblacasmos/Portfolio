@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import Hero from "./Hero";
 import { ASSETS } from "../../constants/assets";
 import { enterFullscreen } from "../../game/utils/immersive";
-import { hardCleanupBeforeMain } from "../../game/utils/cleanupMain";
 import { useRouteCleanup } from "@/hooks/useRouteCleanup";
 
 /** Reproduce un <video> probando varias rutas hasta que alguna cargue */
@@ -23,15 +22,15 @@ function BgVideo({ sources }: { sources: string[] }) {
       loop
       muted
       playsInline
+      preload="auto"
       onError={() => {
         // avanza al siguiente candidato si falla
         if (idx < sources.length - 1) setIdx((i) => i + 1);
         else console.error("bgMain: ninguna fuente válida", sources);
       }}
     >
-      {/* probamos mp4 con el src actual */}
       <source key={src} src={src} type="video/mp4" />
-      {/* fallback (algunos navegadores lo requieren) */}
+      {/* fallback sin type para navegadores “tiquismiquis” */}
       <source key={src + "#noType"} src={src} />
     </video>
   );
@@ -51,7 +50,6 @@ function useLoopMusic(
 ) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const cleanupRef = useRef<() => void>(() => { });
-  // ✅ permitir null aquí
   const resumeHandlerRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -83,7 +81,7 @@ function useLoopMusic(
       if (resume) {
         window.removeEventListener("pointerdown", resume);
         window.removeEventListener("keydown", resume);
-        resumeHandlerRef.current = null; // ✅ null, no undefined
+        resumeHandlerRef.current = null;
       }
     };
 
@@ -145,9 +143,7 @@ function useLoopMusic(
       audioRef.current = null;
     };
 
-    return () => {
-      cleanupRef.current();
-    };
+    return () => cleanupRef.current();
   }, [url, targetVolume, fadeInMs, fadeOutMs, hiddenVolume]);
 
   // Setter de volumen en caliente (opcional)
@@ -195,10 +191,10 @@ export default function Main() {
     }
   }, []);
 
-  // Lista de rutas candidatas (la 1ª es la tuya “correcta”)
+  // Rutas candidatas (la 1ª es la tuya “correcta”)
   const bgCandidates = useMemo(
     () => [
-      ASSETS.video.bgMain,              // /assets/video/bgMain.mp4  (tu ruta)
+      ASSETS.video.bgMain,              // /assets/video/bgMain.mp4
       "/assets/media/video/bgMain.mp4", // fallback alterno
     ],
     []
@@ -206,7 +202,7 @@ export default function Main() {
 
   // Música de fondo en Main
   useLoopMusic(ASSETS.audio?.mainDrums, {
-    targetVolume: 0.35, // ajusta a gusto
+    targetVolume: 0.35,
     fadeInMs: 600,
     fadeOutMs: 400,
     hiddenVolume: 0.12,
@@ -226,6 +222,7 @@ export default function Main() {
   return (
     <div id="main-fs-root" data-immersive-root className="relative w-full min-h-[100dvh] overflow-hidden">
       <BgVideo sources={bgCandidates} />
+      {/* Capa para posibles eventos/clicks globales */}
       <div className="absolute top-0 left-0 w-full h-full z-10" />
       <motion.main
         className="relative z-10 w-full h-full flex flex-col items-center justify-start text-cyan-400 text-center p-4 pt-5"

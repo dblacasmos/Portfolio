@@ -64,11 +64,20 @@ function baseFromCfg() {
     return { pos, scale };
 }
 
-function loadLS(): Partial<State> {
+function readProfiles(): Record<string, HudLayoutExport> {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem(LS_PROFILES) || "{}") || {}; } catch { return {}; }
+}
+function writeProfiles(map: Record<string, HudLayoutExport>) {
+    if (typeof window === "undefined") return;
+    try { localStorage.setItem(LS_PROFILES, JSON.stringify(map)); } catch { }
+}
+
+function loadLS(): { pos: State["pos"]; scale: State["scale"] } {
     const seed = baseFromCfg();
     if (typeof window !== "undefined") {
         try {
-            // 1) Si hay perfil activo, tiene prioridad
+            // Perfil activo
             const active = localStorage.getItem(LS_ACTIVE) || "";
             if (active) {
                 const profiles = readProfiles();
@@ -77,21 +86,21 @@ function loadLS(): Partial<State> {
                     return {
                         pos: { ...seed.pos, ...(lay.ortho ?? {}) },
                         scale: { ...seed.scale, ...(lay.scale ?? {}) },
-                    } as any;
+                    };
                 }
             }
-            // 2) Fallback: último layout suelto
+            // Último layout suelto
             const raw = localStorage.getItem(LS_KEY);
             if (raw) {
                 const parsed = JSON.parse(raw);
                 return {
                     pos: { ...seed.pos, ...(parsed.ortho ?? {}) },
                     scale: { ...seed.scale, ...(parsed.scale ?? {}) },
-                } as any;
+                };
             }
-        } catch { /* noop: seed abajo */ }
+        } catch { /* seed abajo */ }
     }
-    return seed as any;
+    return seed;
 }
 
 function saveLS(s: Pick<State, "pos" | "scale">) {
@@ -99,18 +108,9 @@ function saveLS(s: Pick<State, "pos" | "scale">) {
     try { localStorage.setItem(LS_KEY, JSON.stringify({ ortho: s.pos, scale: s.scale })); } catch { }
 }
 
-/** Dispara flash 1s en editor */
+/** Toast corto en el editor */
 function flash(text: string) {
     try { window.dispatchEvent(new CustomEvent("hud:toast", { detail: { text } })); } catch { }
-}
-
-function readProfiles(): Record<string, HudLayoutExport> {
-    if (typeof window === "undefined") return {};
-    try { return JSON.parse(localStorage.getItem(LS_PROFILES) || "{}") || {}; } catch { return {}; }
-}
-function writeProfiles(map: Record<string, HudLayoutExport>) {
-    if (typeof window === "undefined") return;
-    try { localStorage.setItem(LS_PROFILES, JSON.stringify(map)); } catch { }
 }
 
 /** Límites de escala por widget (para SHIFT+rueda) */
@@ -122,13 +122,15 @@ const MAX: Record<OrthoId, number> = {
     crosshair: 3, ammo: 3, health: 3, shield: 3, reload: 3, counter: 3, radar3d: 4,
 };
 
+const SEED = loadLS();
+
 export const useHudEditorStore = create<State>((set, get) => ({
     enabled: false,
     dragMode: "move",
     dragging: { kind: null, id: null },
 
-    pos: loadLS().pos ?? {},
-    scale: loadLS().scale ?? {},
+    pos: SEED.pos ?? {},
+    scale: SEED.scale ?? {},
 
     reloadPreview: 0.7,
     selected: null,
@@ -226,7 +228,7 @@ export const useHudEditorStore = create<State>((set, get) => ({
     },
 }));
 
-// ► Al importar el store en el cliente, aplica inmediatamente el layout a CFG
+// Aplica inmediatamente el layout a CFG al importar en cliente
 try {
     if (typeof window !== "undefined") {
         const st = useHudEditorStore.getState();

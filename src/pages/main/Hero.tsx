@@ -28,7 +28,7 @@ function useAdaptiveDprRange(): [number, number] {
   return lowMem ? [1, 1.25] : [1, 1.5];
 }
 
-/* ============ Sonido simple (usa buttonSound por defecto) ============ */
+/* ============ Sonido simple ============ */
 function useSound(url?: string, volume = 1) {
   const ref = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
@@ -205,7 +205,7 @@ function FuturisticPanel({
 function RobotModel({ onBounds }: { onBounds: (box: THREE.Box3) => void }) {
   const gltf = useDracoGLTF(ASSETS.models.robot, {
     dracoPath: CFG.decoders.dracoPath,
-    meshopt: true
+    meshopt: true,
   });
   const scene = (gltf as any)?.scene as THREE.Object3D | undefined;
   const inited = useRef(false);
@@ -277,10 +277,8 @@ export default function Hero() {
     });
   };
 
-  // → TIMELINE: ahora deja toda la media al propio Timeline (VRAM friendly)
-  const goToTimeline = () => {
-    navigate("/timeline");
-  };
+  // → TIMELINE: deja la media al propio Timeline (VRAM friendly)
+  const goToTimeline = () => navigate("/timeline");
 
   const openBlog = () => { };
   const openTestimonials = () => { };
@@ -350,7 +348,7 @@ export default function Hero() {
 }
 
 // Precarga del GLB con decoders
-const __preloadRobot = () => (useDracoGLTF as any).preload(CFG.models.robot, {
+const __preloadRobot = () => (useDracoGLTF as any).preload(ASSETS.models.robot, {
   dracoPath: CFG.decoders.dracoPath,
   meshopt: true,
 });

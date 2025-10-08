@@ -1,6 +1,3 @@
-// ====================================
-// FILE: src/game/layers/Hud/Radar.tsx
-// ====================================
 import React, { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -10,8 +7,8 @@ import { CFG } from "@/constants/config";
 /**
  * Radar HUD – disco + anillos + brújula + blips.
  * - Flecha cyan (jugador) ligeramente más pequeña.
- * - Flechas rojas (enemigos) un poco más grandes (pero menores que la cyan).
- * - Barrido más visible y, además, ilumina temporalmente los blips que cruza.
+ * - Flechas rojas (enemigos) algo más grandes (pero menores que la cyan).
+ * - Barrido más visible que además ilumina temporalmente los blips.
  */
 
 export type RadarProps = {
@@ -22,7 +19,7 @@ export type RadarProps = {
     zoomMul?: number;
     getEnemyMeshes?: () => THREE.Object3D[] | null;
     getPoiMeshes?: () => THREE.Object3D[] | null;
-    getEndDoorMesh?: () => THREE.Object3D | null; // ⬅ EndDoor (punto amarillo)
+    getEndDoorMesh?: () => THREE.Object3D | null; // ⬅ EndDoor (amarillo)
     endDoorVisible?: boolean;                     // ⬅ se activa al 5/5
     fillAlpha?: number;
     viewWorldWidth?: number;
@@ -106,9 +103,8 @@ function makeOverlayRingsMaterial(cyan: THREE.Color, red: THREE.Color, ringThick
             uSweepOn: { value: 1.0 },
             uRingThick: { value: ringThickness },
             uSectors: { value: sectors },
-            // ▶ control de visibilidad del barrido
-            uSweepWidth: { value: 1.35 }, // antes 0.9
-            uSweepGain: { value: 1.15 },  // ganancia extra
+            uSweepWidth: { value: 1.35 },
+            uSweepGain: { value: 1.15 },
         },
         vertexShader: /*glsl*/`
       varying vec2 vP;
@@ -125,7 +121,7 @@ function makeOverlayRingsMaterial(cyan: THREE.Color, red: THREE.Color, ringThick
 
       float ring(vec2 p,float r,float w){ float d=abs(length(p)-r); return smoothstep(w,0.0,d); }
 
-      // ⚠ flecha cyan del jugador — más pequeña
+      // Flecha del jugador (más pequeña)
       float arrow(vec2 p,float ang,float len,float baseW){
         float s=sin(-ang), c=cos(-ang);
         vec2 q=vec2(c*p.x - s*p.y, s*p.x + c*p.y);
@@ -169,14 +165,12 @@ function makeOverlayRingsMaterial(cyan: THREE.Color, red: THREE.Color, ringThick
         float ang=atan(p.x,p.y);
         float a0=mod(uTime*0.6, 6.2831853);
 
-        // ▶ barrido más visible (ancho y ganancia configurables)
         float dA=abs(atan(sin(ang-a0), cos(ang-a0)));
         float sweepCore = smoothstep(uSweepWidth, 0.0, dA);
         float sweepBand = smoothstep(uCircleR, uCircleR-0.12, r);
         float sweep = sweepCore * sweepBand * uSweepOn;
         float sweepGlow = smoothstep(uSweepWidth*1.6, uSweepWidth*0.6, dA) * sweepBand * 0.35;
 
-        // ▶ flecha cyan del jugador — más pequeña: len/baseW reducidos
         float arr = arrow(p,uHeading,0.16,0.05);
 
         float dot = smoothstep(0.045,0.0,r);
@@ -192,7 +186,6 @@ function makeOverlayRingsMaterial(cyan: THREE.Color, red: THREE.Color, ringThick
     });
 }
 
-// Shader de puntos (enemigos/POIs) con iluminación por barrido
 function makeCircleClippedPointsMaterial(enemySizePx: number, poiSizePx: number, gain: number) {
     return new THREE.ShaderMaterial({
         transparent: true,
@@ -208,14 +201,13 @@ function makeCircleClippedPointsMaterial(enemySizePx: number, poiSizePx: number,
             uEnemySizePx: { value: enemySizePx },
             uPoiSizePx: { value: poiSizePx },
             uGain: { value: gain },
-            // ▶ mismos controles del barrido que el overlay
             uSweepOn: { value: 1.0 },
             uSweepWidth: { value: 1.35 },
             uSweepGain: { value: 1.15 },
         },
         vertexShader: /*glsl*/`
-      attribute float aType; // 0=enemigo, 1=poi genérico, 2=endDoor
-      attribute float aPing; // s desde "descubrimiento"
+      attribute float aType; // 0=enemigo, 1=poi, 2=endDoor
+      attribute float aPing; // s desde “descubrimiento”
       attribute float aYaw;  // orientación mundo del enemigo (rad)
       varying float vType; varying float vPing; varying vec2 vW; varying float vYaw;
       uniform float uDpr, uEnemySizePx, uPoiSizePx;
@@ -223,11 +215,9 @@ function makeCircleClippedPointsMaterial(enemySizePx: number, poiSizePx: number,
         vec4 wp=modelMatrix*vec4(position,1.0);
         vW=wp.xy; vType=aType; vPing=aPing; vYaw=aYaw;
         gl_Position=projectionMatrix*viewMatrix*wp;
-        // flags numéricas (evita bool en WebGL1)
         float isEnemy   = step(vType, 0.5);
-        float isEndDoor = step(1.5, vType);    // vType >= 1.5 → 1
+        float isEndDoor = step(1.5, vType);
         float isPoi     = (1.0 - isEnemy) * (1.0 - isEndDoor);
-        // EndDoor usa tamaño de dron
         float sizePx = isEnemy * uEnemySizePx
                      + isPoi   * uPoiSizePx
                      + isEndDoor * uEnemySizePx;
@@ -240,39 +230,28 @@ function makeCircleClippedPointsMaterial(enemySizePx: number, poiSizePx: number,
       uniform float uSweepOn, uSweepWidth, uSweepGain;
       const vec3 RED=vec3(1.0,0.12,0.12), YELL=vec3(1.0,0.9,0.35);
 
-      // Triángulo tipo "flecha" orientado (apunta hacia +Y local)
       float arrowShape(vec2 p){
         if(p.y < -1.0 || p.y > 1.0) return 0.0;
         float halfW = mix(0.6, 0.2, (p.y + 1.0) * 0.5);
         return step(abs(p.x), halfW);
       }
-
-      // Shortest angular distance
-      float angDist(float a, float b){
-        return abs(atan(sin(a-b), cos(a-b)));
-      }
+      float angDist(float a, float b){ return abs(atan(sin(a-b), cos(a-b))); }
 
       void main(){
-        // Posición normalizada dentro del radar
         vec2 q=(vW-uCenter)/uScale;
         float r = length(q);
         if(r>uR) discard;
 
-        vec2 pc=gl_PointCoord*2.0-1.0; // [-1..1]
+        vec2 pc=gl_PointCoord*2.0-1.0;
 
-        // Ángulo del punto y ángulo del barrido (sincronizado con overlay: a0 = mod(uTime*0.6, 2PI))
         float ang = atan(q.y, q.x);
         float a0  = mod(uTime*0.6, 6.2831853);
         float dA  = angDist(ang, a0);
-
-        // Máscara de barrido: más cerca del haz → más boost
         float sweepMask = smoothstep(uSweepWidth, 0.0, dA) * uSweepOn;
 
         if(vType < 0.5){
-          // ENEMIGO → flecha roja
           float s=sin(-vYaw), c=cos(-vYaw);
           vec2 pr=vec2(c*pc.x - s*pc.y, s*pc.x + c*pc.y);
-
           float a = arrowShape(pr);
           if(a<=0.0) discard;
 
@@ -282,7 +261,6 @@ function makeCircleClippedPointsMaterial(enemySizePx: number, poiSizePx: number,
             pingAmp=(0.55+0.45*sin(6.2831*(uTime*1.2)))*ph;
           }
 
-          // ▶ alpha boost por barrido
           float alpha = (0.65 + 0.35*a) * clamp(uGain, 0.2, 2.0) + 0.5*pingAmp;
           alpha *= (1.0 + uSweepGain * sweepMask);
 
@@ -291,32 +269,28 @@ function makeCircleClippedPointsMaterial(enemySizePx: number, poiSizePx: number,
           return;
         }
 
-        // POI/EndDoor → punto circular
         float rr=dot(pc,pc); if(rr>1.0) discard;
         float core=smoothstep(1.0,0.0,rr);
 
-        float isEndDoor = step(1.5, vType);  // 1 si vType>=1.5
+        float isEndDoor = step(1.5, vType);
         float pulse = 0.5 + 0.5*sin(uTime*6.0);
-        // más brillo para EndDoor
         float baseA = mix((0.55+0.45*core), (0.90 + 0.30*pulse), isEndDoor);
         float alpha = baseA*clamp(uGain,0.2,2.0);
         alpha *= (1.0 + uSweepGain * sweepMask);
 
         vec3 col = YELL * mix((0.45+0.75*core), (0.85 + 0.25*pulse), isEndDoor);
 
-        // Halo fino para EndDoor (controlado por isEndDoor)
         float ring = smoothstep(1.0, 0.86, rr) * smoothstep(0.88, 1.0, rr);
         col   += YELL * (0.6 * ring * isEndDoor);
         alpha  = max(alpha, 0.65*ring * isEndDoor);
 
-        // Evita alfa demasiado bajo por mezclas → asegura visibilidad
         alpha = max(alpha, 0.35 * isEndDoor);
         gl_FragColor = vec4(col, alpha);
       }`,
     });
 }
 
-/* ---------- Geometría para ticks de brújula (cada 10°) ---------- */
+/* ---------- Geometría para ticks de brújula ---------- */
 function makeCompassTicksGeometry(circleR: number) {
     const positions: number[] = [];
     for (let deg = 0; deg < 360; deg += 10) {
@@ -360,13 +334,10 @@ const Radar: React.FC<RadarProps> = ({
 
     const toPx = (norm?: number, fallbackPx = 6) => typeof norm === "number" ? Math.max(1, Math.round(norm * 180)) : fallbackPx;
 
-    // Enemigos un poco más grandes por defecto (antes ~8 px)
     const enemySizePx: number = tuning.enemyPointSizePx ?? toPx(tuning.enemyPointSize, 11);
-    // cuando EndDoor está visible, usa el mismo tamaño que los drones
     const poiSizePx: number =
         endDoorVisible ? enemySizePx : (tuning.poiPointSizePx ?? toPx(tuning.poiPointSize, 6));
 
-    // Ganancia del sweep y ancho (comparten overlay & puntos)
     const sweepGain = (CFG as any)?.hud?.radar?.sweepGain ?? 1.15;
     const sweepWidth = (CFG as any)?.hud?.radar?.sweepWidth ?? 1.35;
 
@@ -375,7 +346,7 @@ const Radar: React.FC<RadarProps> = ({
     const matOverlay = useMemo(() => makeOverlayRingsMaterial(CYAN.clone(), RED.clone(), ringThickness), [CYAN, RED, ringThickness]);
     const matPoints = useMemo(() => makeCircleClippedPointsMaterial(enemySizePx, poiSizePx, (CFG as any)?.hud?.radar?.defaults?.gain ?? 0.98), [enemySizePx, poiSizePx]);
 
-    // Configura uniforms del barrido en ambos materiales
+    // Uniforms barrido coherentes en overlay + puntos
     useEffect(() => {
         (matOverlay.uniforms.uSweepOn as any).value = sweepEnabled ? 1.0 : 0.0;
         (matOverlay.uniforms.uSweepGain as any).value = sweepGain;
@@ -386,14 +357,16 @@ const Radar: React.FC<RadarProps> = ({
         (matPoints.uniforms.uSweepWidth as any).value = sweepWidth;
     }, [matOverlay, matPoints, sweepEnabled, sweepGain, sweepWidth]);
 
-    // Mantén sincronizado el tamaño de los POIs (EndDoor = tamaño de dron cuando visible)
+    // Tamaños POIs (EndDoor = mismo tamaño que dron cuando visible)
     useEffect(() => {
         (matPoints.uniforms.uEnemySizePx as any).value = enemySizePx;
         (matPoints.uniforms.uPoiSizePx as any).value = poiSizePx;
     }, [matPoints, enemySizePx, poiSizePx]);
 
+    // Geometría brújula (reutilizada → antes se creaba dos veces)
     const compassGeom = useMemo(() => makeCompassTicksGeometry(circleR), [circleR]);
     useEffect(() => () => compassGeom.dispose(), [compassGeom]);
+
     const compassMat = useMemo(() => {
         const m = new THREE.LineBasicMaterial({ color: CYAN, transparent: true, opacity: 0.85 });
         (m as any).depthTest = false; (m as any).depthWrite = false; (m as any).toneMapped = false;
@@ -422,10 +395,8 @@ const Radar: React.FC<RadarProps> = ({
         const p = getPlayer2D?.();
         if (!p) return;
 
-        // Flecha/heading en overlay (cyan)
         (matOverlay.uniforms.uHeading as any).value = -p.headingRad;
 
-        // Zoom y mapeo mundo -> [-1..1]
         const diameter = Math.max(10, (viewWorldWidth) / Math.max(0.001, zoomMul || 1));
         const worldToMini = (2 * circleR) / diameter;
 
@@ -435,7 +406,7 @@ const Radar: React.FC<RadarProps> = ({
         }
     });
 
-    // Geometría dinámica: enemigos / POIs
+    // Geometría dinámica (enemigos/POIs)
     const aType = useRef<THREE.BufferAttribute | null>(null);
     const aPing = useRef<THREE.BufferAttribute | null>(null);
     const aYaw = useRef<THREE.BufferAttribute | null>(null);
@@ -469,7 +440,6 @@ const Radar: React.FC<RadarProps> = ({
         const tmpW = new THREE.Vector3();
         const p = getPlayer2D?.();
 
-        // reset sectores
         const secs = sectorsRef.current;
         for (let i = 0; i < secs.length; i++) secs[i] = 0;
 
@@ -488,7 +458,6 @@ const Radar: React.FC<RadarProps> = ({
                 outPing.push(0);
             }
 
-            // yaw del dron (0 apunta hacia +Z=arriba del radar)
             const yaw = (o as any)?.userData?.yaw ?? 0;
             outYaw.push(yaw);
 
@@ -510,8 +479,7 @@ const Radar: React.FC<RadarProps> = ({
         for (const o of enemies) pushEnemy(o);
         for (const o of pois) pushPoi(o);
 
-        // Marca EndDoor cuando está visible (5/5). Se envía como tipo 2 (especial).
-        // Fallback global por si no nos pasan getEndDoorMesh / endDoorVisible vía props.
+        // EndDoor (tipo 2)
         const globalEndDoor: THREE.Object3D | null = (window as any).__endDoorMesh ?? null;
         const endDoorGetter = getEndDoorMesh ?? (() => globalEndDoor);
         const endDoor = endDoorGetter?.();
@@ -519,15 +487,14 @@ const Radar: React.FC<RadarProps> = ({
         if (endDoor && (endDoorVisible || globalVisible || endDoor.visible)) {
             endDoor.getWorldPosition(tmpW);
             outPos.push(tmpW.x, tmpW.z, 0);
-            outType.push(2);     // ⬅ tipo especial EndDoor
+            outType.push(2);
             outPing.push(0);
             outYaw.push(0);
         }
 
-        // si sólo hay EndDoor, asegúrate de dibujar
         const g = ptsGeo.current;
         if (!outPos.length && endDoor && (endDoorVisible || globalVisible || endDoor.visible)) {
-            g.setDrawRange(0, 0); // forzaremos abajo con ensure()
+            g.setDrawRange(0, 0); // se asegura abajo con ensure()
         }
 
         let maxC = 0; for (let i = 0; i < 12; i++) maxC = Math.max(maxC, secs[i]);
@@ -561,8 +528,6 @@ const Radar: React.FC<RadarProps> = ({
 
     const diameterMeters = Math.max(10, (viewWorldWidth) / Math.max(0.001, zoomMul || 1));
     const radiusMeters = diameterMeters * 0.5;
-    const labelValues = [radiusMeters * (1 / 3), radiusMeters * (2 / 3), radiusMeters];
-    const labelRadii = [0.92 * (1 / 3), 0.92 * (2 / 3), 0.92];
 
     if (!width || !height) return null;
     const halfW = width * 0.5, halfH = height * 0.5;
@@ -583,7 +548,7 @@ const Radar: React.FC<RadarProps> = ({
                     <primitive attach="material" object={matBase} />
                 </mesh>
 
-                {/* Contenido: blips */}
+                {/* Blips */}
                 <group ref={groupContent}>
                     <points frustumCulled={false}>
                         <primitive attach="geometry" object={ptsGeo.current} />
@@ -605,10 +570,10 @@ const Radar: React.FC<RadarProps> = ({
                     <Text position={[0.92 * 1.08, 0, 0]} font={orbitronFont} fontSize={0.12} color={CYAN.getStyle()} anchorX="center" anchorY="middle" renderOrder={OVERLAY_ORDER + 3}>E</Text>
                 </group>
 
-                {/* Ticks de brújula */}
+                {/* Ticks de brújula (reutilizo geometría ya creada) */}
                 <lineSegments frustumCulled={false} renderOrder={OVERLAY_ORDER + 2}>
-                    <primitive attach="geometry" object={useMemo(() => makeCompassTicksGeometry(0.92), [])} />
-                    <lineBasicMaterial color={CYAN.getStyle()} transparent opacity={0.85} depthTest={false} depthWrite={false} />
+                    <primitive attach="geometry" object={compassGeom} />
+                    <primitive attach="material" object={compassMat} />
                 </lineSegments>
 
                 {/* Grados */}

@@ -1,3 +1,4 @@
+// src/game/utils/three/ktx2/ktx2.d.ts
 // Tipos mínimos para KTX2Loader tanto con y sin extensión ".js"
 declare module 'three/examples/jsm/loaders/KTX2Loader' {
     import type { Loader, LoadingManager, CompressedTexture, WebGLRenderer } from 'three';

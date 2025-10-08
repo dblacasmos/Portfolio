@@ -18,7 +18,7 @@ function requestGamePointerLock() {
     } catch { }
 }
 
-/** Overlay de edición HUD */
+/** Overlay de edición HUD (visualiza grid, botones de guardar/cargar y evita salidas accidentales con ESC). */
 const HudEditOverlay: React.FC<Props> = ({ exportLayout }) => {
     const enabled = useHudEditorStore((s) => s.enabled);
     const setEnabled = useHudEditorStore((s) => s.setEnabled);
@@ -65,16 +65,14 @@ const HudEditOverlay: React.FC<Props> = ({ exportLayout }) => {
         if (!enabled) return;
 
         try {
-            setMenuOpen(false);                  // cerrar menú si estuviera
+            setMenuOpen(false);
             document.body.classList.remove("hide-cursor");
-            document.body.classList.add("show-cursor");
-            document.body.classList.add("hud-cursor");
-            document.body.classList.add("hud-editing"); // activa reglas CSS (incluido canvas inherit)
+            document.body.classList.add("show-cursor", "hud-cursor", "hud-editing");
         } catch { }
 
         const stopEsc = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
-                // no se sale con ESC; solo con el botón "FINALIZAR EDITAR"
+                // No se cierra con ESC; usar el botón "FINALIZAR EDITAR"
                 e.stopPropagation();
             }
         };
@@ -86,15 +84,13 @@ const HudEditOverlay: React.FC<Props> = ({ exportLayout }) => {
         };
     }, [enabled, setMenuOpen]);
 
-    const handleReset = () => {
-        try { resetAll(); applyToCfg(); } catch { }
-    };
+    const handleReset = () => { try { resetAll(); applyToCfg(); } catch { } };
     const finish = () => {
         try { applyToCfg(); } catch { }
         setSelected(null);
         setHovered(null);
         setEnabled(false);
-        requestGamePointerLock(); // volver al juego con pointer lock
+        requestGamePointerLock();
     };
     const handleSaveAsk = () => { setShowLoad(false); setShowSave(true); };
     const handleLoadAsk = () => {
@@ -112,6 +108,7 @@ const HudEditOverlay: React.FC<Props> = ({ exportLayout }) => {
             if (saveTimer.current) clearTimeout(saveTimer.current);
             saveTimer.current = setTimeout(() => setSavedBlink(0), 1000);
             setShowSave(false);
+            // Copia al portapapeles por comodidad
             const json = JSON.stringify(exportLayout(), null, 2);
             navigator.clipboard?.writeText?.(json).catch(() => { });
         } catch { }
@@ -129,17 +126,13 @@ const HudEditOverlay: React.FC<Props> = ({ exportLayout }) => {
 
     if (!enabled) return null;
 
-    // NUEVO: portar al root inmersivo, no a document.body
+    // Portar al root inmersivo si existe (mantiene overlays en fullscreen)
     const portalRoot =
         (typeof document !== "undefined" &&
             document.querySelector("[data-immersive-root]")) as HTMLElement | null;
 
     return createPortal(
-        <div
-            className="fixed inset-0 z-[1000] pointer-events-none"
-            style={gridStyle}
-            data-hud-edit-overlay=""
-        >
+        <div className="fixed inset-0 z-[1000] pointer-events-none" style={gridStyle} data-hud-edit-overlay="">
             <div className="pointer-events-auto absolute top-2 left-2 flex flex-col gap-2">
                 <div className="flex flex-wrap gap-2">
                     <button

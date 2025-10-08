@@ -13,7 +13,7 @@ export type Breakpoints = {
 
 export type HudResponsive = {
     aspect: number;               // width / height
-    dpr: number;                  // device pixel ratio (clamped en config si procede)
+    dpr: number;                  // device pixel ratio (clamped)
     scale: number;                // responsiveScale = CFG.hud.ui.scaleForAspect(aspect)
     bp: Breakpoints;              // flags por breakpoint
     clampToSafe: (x: number, y: number, w: number, h: number) => { x: number; y: number };
@@ -28,7 +28,14 @@ export function useHudResponsive(): HudResponsive {
     const { size, gl } = useThree();
 
     const aspect = size.width / Math.max(1, size.height);
-    const dpr = gl.getPixelRatio?.() ?? (typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
+
+    // Limita el DPR para no saturar móviles y portátiles
+    const maxDpr = Math.max(1, (CFG as any)?.render?.maxDpr ?? 2);
+    const rawDpr =
+        gl.getPixelRatio?.() ??
+        (typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
+    const dpr = Math.min(maxDpr, rawDpr);
+
     const scale = useMemo(() => CFG.hud.ui.scaleForAspect(aspect), [aspect]);
 
     const bp: Breakpoints = useMemo(
@@ -40,7 +47,7 @@ export function useHudResponsive(): HudResponsive {
         [size.width]
     );
 
-    // Ensanchar tipos a number para evitar literales
+    // Ensancha tipos a number (evita literales)
     const safeX: number = Number(CFG.hud.ui.safeX ?? 0);
     const safeY: number = Number(CFG.hud.ui.safeY ?? 0);
     const snapStep: number = Number(CFG.hud.ui.snapStep ?? 0);

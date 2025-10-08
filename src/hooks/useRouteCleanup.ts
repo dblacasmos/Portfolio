@@ -1,10 +1,13 @@
-// src/hooks/useRouteCleanup.ts
+// =======================================
+// FILE: src/hooks/useRouteCleanup.ts
+// =======================================
 import { useCallback, useEffect } from "react";
 import {
     hardCleanupBeforeMain,
     softCleanupMedia,
     type KeepOpts,
 } from "@/game/utils/cleanupMain";
+import { audioManager } from "@/game/utils/audio/audio";
 
 export type RouteCleanupMode = "hard" | "soft";
 export type RouteCleanupOptions = KeepOpts & {
@@ -17,11 +20,11 @@ export type RouteCleanupOptions = KeepOpts & {
 };
 
 /**
- * Hook para limpiar media/VRAM al cambiar de pantalla.
+ * Limpia media/VRAM al cambiar de pantalla.
  * - 'soft': pausa/descarga <video>/<audio>, cancela TTS y sonidos.
  * - 'hard': además suelta WebGL y canvases huérfanos.
  *
- * Devuelve `run()` por si quieres invocarlo de forma imperativa antes de navegar.
+ * Devuelve `run()` para disparo manual antes de navegar.
  */
 export function useRouteCleanup(
     mode: RouteCleanupMode = "soft",
@@ -33,6 +36,11 @@ export function useRouteCleanup(
         if (!when) return;
         if (mode === "hard") hardCleanupBeforeMain(keep);
         else softCleanupMedia(keep);
+        // Garantiza audio activo tras la limpieza
+        try {
+            audioManager.setGlobalMute(false);
+            audioManager.ensureStarted?.();
+        } catch { }
     }, [when, mode, keep.keepIds, keep.keepClasses, keep.keepSelectors, keep.keepPredicate]);
 
     // Auto en mount

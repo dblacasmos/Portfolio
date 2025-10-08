@@ -2,7 +2,7 @@
    FILE: src/game/utils/three/layers.ts
    ==================================== */
 import * as THREE from "three";
-import CFG from "@/constants/config";
+import { CFG } from "@/constants/config";
 
 export const LAYERS = CFG.layers;
 

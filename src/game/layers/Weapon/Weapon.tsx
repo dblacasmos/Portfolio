@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
 import { setLayerRecursive } from "../../utils/three/layers";
-import { tuneMaterials } from "../../utils/three/tuneMaterials";
+import { tuneMaterials } from "../../utils/textures/tuneMaterials";
 import { isKTX2Ready } from "@/game/utils/three/ktx2/ktx2";
 
 export type WeaponAPI = { flash: () => void };
@@ -17,10 +17,9 @@ export const Weapon = forwardRef<WeaponAPI, WeaponProps>(function WeaponImpl(
     { hand = "right" },
     ref
 ) {
-    const url = CFG.weapon.modelUrl;
     const { scene } = useDracoGLTF(CFG.models.weapon, {
         dracoPath: CFG.decoders.dracoPath,
-        meshopt: true
+        meshopt: true,
     }) as any;
 
     const rootRef = useRef<THREE.Group>(null!);
@@ -93,13 +92,13 @@ export const Weapon = forwardRef<WeaponAPI, WeaponProps>(function WeaponImpl(
         const fit = THREE.MathUtils.clamp(1.2 / diag, 0.02, 50);
         gun.scale.setScalar(fit * (CFG.weapon.scale ?? 1));
 
-        // Rotación/offset EXACTOS del CFG (no invertimos nada; el espejo lo hace el wrapper)
+        // Rotación/offset exactos del CFG (el espejo lo hace el wrapper)
         const [rx, ry, rz] = CFG.weapon.rotation;
         const [ox, oy, oz] = CFG.weapon.modelOffset;
         gun.rotation.set(rx, ry, rz);
         gun.position.add(new THREE.Vector3(ox, oy, oz));
 
-        // Materiales seguros con espejo (DoubleSide para evitar backface al scale.x < 0)
+        // Materiales seguros al espejar (DoubleSide para evitar backface con scale.x<0)
         gun.traverse((o: any) => {
             if (!o.isMesh) return;
             o.frustumCulled = false;
@@ -206,10 +205,11 @@ export const Weapon = forwardRef<WeaponAPI, WeaponProps>(function WeaponImpl(
     );
 });
 
-const __preloadWeapon = () => (useDracoGLTF as any).preload(CFG.models.weapon, {
-    dracoPath: CFG.decoders.dracoPath,
-    meshopt: true,
-});
+const __preloadWeapon = () =>
+    (useDracoGLTF as any).preload(CFG.models.weapon, {
+        dracoPath: CFG.decoders.dracoPath,
+        meshopt: true,
+    });
 if (isKTX2Ready()) {
     __preloadWeapon();
 } else if (typeof window !== "undefined") {

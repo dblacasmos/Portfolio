@@ -14,16 +14,13 @@ export type { Laser };
 type LaserSystemProps = {
     lasers: Laser[];
     setLasers: React.Dispatch<React.SetStateAction<Laser[]>>;
-    renderOrder?: number;              // sobre escena, bajo arma/HUD
-    layer?: number;                    // por defecto: SHOTS
-    alwaysVisible?: boolean;           // si true, no hace depthTest (overlay)
-    coreRadius?: number;               // radio del núcleo del haz
-    glowRadius?: number;               // radio del halo (>= coreRadius)
-    /**
-   * hitTest: devuelve el punto de impacto (si lo hay) entre 'from' y 'to'.
-   * Úsalo para colisionar con paredes. Si devuelve null/undefined, se usa 'to' original.
-   * Ejemplo: (from, to) => raycastBVH(from, to) ?? null
-   */
+    renderOrder?: number;
+    layer?: number;
+    /** Si true: no hace depthTest (overlay por delante del mundo). */
+    alwaysVisible?: boolean;
+    coreRadius?: number;
+    glowRadius?: number;
+    /** Punto de impacto a partir de from→to (para colisionar con paredes). */
     hitTest?: (from: THREE.Vector3, to: THREE.Vector3) => THREE.Vector3 | null | undefined;
 };
 
@@ -42,31 +39,26 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
     glowRadius = DEFAULTS.glowRadius,
     hitTest,
 }) => {
-    // ————— Geometría compartida: cilindro unidad (largo=1), se escala a la longitud real
+    // Geometría compartida: cilindro (orientado a +Z)
     const unitCylinder = useMemo(() => {
-        // openEnded false -> tapas redondeadas con el shader
         const g = new THREE.CylinderGeometry(1, 1, 1, 16, 1, true);
-        // Orientamos el cilindro en +Z para facilitar "look-at"
         g.rotateX(Math.PI / 2);
         return g;
     }, []);
 
-    // Sprite para flashes (quad 1x1 en XY)
-    const unitQuad = useMemo(() => {
-        const g = new THREE.PlaneGeometry(1, 1);
-        return g;
-    }, []);
+    // Quad 1x1 para flashes
+    const unitQuad = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
-    // ————— Material del haz: núcleo (más opaco)
+    // Material del núcleo
     const coreMat = useMemo(() => {
         const mat = new THREE.ShaderMaterial({
             transparent: true,
             depthWrite: false,
-            depthTest: !alwaysVisible ? true : false,
+            depthTest: !alwaysVisible,
             blending: THREE.AdditiveBlending,
             uniforms: {
                 uTime: { value: 0 },
-                uColor: { value: new THREE.Color(0x00ff66) }, // se sobreescribe por-láser
+                uColor: { value: new THREE.Color(0x00ff66) },
                 uRadius: { value: coreRadius },
                 uIntensity: { value: 1.0 },
             },
@@ -88,33 +80,21 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
         uniform float uIntensity;
         uniform float uTime;
 
-        // Gradial radial en sección transversal (x,y del cilindro tras el rotateX)
         float radialMask(vec2 p, float r){
-          float d = length(p) / r;      // 0 centro, 1 borde
-          // núcleo nítido con borde suave
+          float d = length(p) / r;
           return clamp(1.0 - smoothstep(0.85, 1.0, d), 0.0, 1.0);
         }
-
-        // Atenuación suave al inicio y fin (cap-taper)
         float endTaper(float z){
-          // z en [-0.5, +0.5] aprox tras el escalado de instancia
           float a = smoothstep(-0.5, -0.45, z);
           float b = 1.0 - smoothstep(0.45, 0.5, z);
           return a * b;
         }
-
         void main(){
-          // vPos: x,y = sección; z = eje largo
           float taper = endTaper(vPos.z);
           float core = radialMask(vPos.xy, uRadius);
-
-          // rayado sutil animado a lo largo del eje z
           float stripes = 0.75 + 0.25 * sin(80.0*(vPos.z + 0.5) + 6.0*uTime);
-
           float alpha = core * taper * stripes * uIntensity;
-          vec3 col = uColor;
-
-          gl_FragColor = vec4(col, alpha);
+          gl_FragColor = vec4(uColor, alpha);
         }
       `,
             toneMapped: false as any,
@@ -122,12 +102,12 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
         return mat;
     }, [alwaysVisible, coreRadius]);
 
-    // ————— Material del halo: más ancho, más suave
+    // Material del halo
     const glowMat = useMemo(() => {
         const mat = new THREE.ShaderMaterial({
             transparent: true,
             depthWrite: false,
-            depthTest: !alwaysVisible ? true : false,
+            depthTest: !alwaysVisible,
             blending: THREE.AdditiveBlending,
             uniforms: {
                 uTime: { value: 0 },
@@ -154,8 +134,7 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
         uniform float uTime;
 
         float radialGlow(vec2 p, float r){
-          float d = length(p) / r; // 0 centro, 1 borde
-          // halo más suave y más extendido
+          float d = length(p) / r;
           return 1.0 - smoothstep(0.2, 1.0, d);
         }
         float endTaper(float z){
@@ -163,18 +142,12 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
           float b = 1.0 - smoothstep(0.45, 0.5, z);
           return a * b;
         }
-
         void main(){
           float taper = endTaper(vPos.z);
           float glow = radialGlow(vPos.xy, uRadius);
-
-          // flicker leve global
           float flicker = 0.9 + 0.1 * sin(10.0*uTime);
-
           float alpha = glow * taper * uIntensity * flicker;
-          vec3 col = uColor;
-
-          gl_FragColor = vec4(col, alpha);
+          gl_FragColor = vec4(uColor, alpha);
         }
       `,
             toneMapped: false as any,
@@ -182,12 +155,12 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
         return mat;
     }, [alwaysVisible, glowRadius]);
 
-    // ————— Material para flashes (billboard)
+    // Material para flashes
     const flashMat = useMemo(() => {
         const mat = new THREE.ShaderMaterial({
             transparent: true,
             depthWrite: false,
-            depthTest: !alwaysVisible ? true : false,
+            depthTest: !alwaysVisible,
             blending: THREE.AdditiveBlending,
             uniforms: {
                 uColor: { value: new THREE.Color(0x00ff66) },
@@ -196,8 +169,7 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
             vertexShader: `
         varying vec2 vUv;
         void main(){
-          vUv = uv * 2.0 - 1.0; // [-1,1]
-          // face camera (billboard): ignoramos rotación del objeto manteniendo translate
+          vUv = uv * 2.0 - 1.0;
           vec4 worldPos = modelMatrix * vec4(0.0,0.0,0.0,1.0);
           vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
           vec3 up    = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
@@ -214,7 +186,6 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
         void main(){
           float d = length(vUv);
           float ring = smoothstep(1.0, 0.0, d);
-          // suave con un poco de pulso
           float pulse = 0.85 + 0.15 * sin(25.0*uTime);
           float alpha = ring * pulse;
           gl_FragColor = vec4(uColor, alpha);
@@ -225,7 +196,7 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
         return mat;
     }, [alwaysVisible]);
 
-    // ————— Avance de tiempo para los shaders
+    // Avance de tiempo en shaders + decay/crecimiento de lasers
     useFrame((_, dt) => {
         (coreMat.uniforms.uTime.value as number) += dt;
         (glowMat.uniforms.uTime.value as number) += dt;
@@ -237,14 +208,13 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
                 .map((l) => ({
                     ...l,
                     ttl: l.ttl - dt,
-                    // crecer en unidades de mundo (hasta longitud total real; se clamp-ea al dibujar)
                     growT: l.growT + l.growSpeed * dt,
                 }))
                 .filter((l) => l.ttl > 0)
         );
     });
 
-    // Limpieza
+    // Limpieza de recursos
     useEffect(() => {
         return () => {
             unitCylinder.dispose();
@@ -262,29 +232,27 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
             onUpdate={(g) => setLayerRecursive(g, layer)}
         >
             {lasers.map((l) => {
-                // 1) Resolver punto de impacto real (si hay hitTest)
+                // 1) Resolver impacto real
                 const desiredTo = (() => {
                     const h = hitTest?.(l.from, l.to);
                     return h ? h : l.to;
                 })();
                 const dirFull = new THREE.Vector3().subVectors(desiredTo, l.from);
                 const fullLen = Math.max(0.0001, dirFull.length());
-                const dirN = dirFull.clone().divideScalar(fullLen); // normalizado
+                const dirN = dirFull.clone().divideScalar(fullLen);
 
-                // 2) Longitud visible animada (crece desde el cañón)
+                // 2) Longitud visible animada
                 const visLen = Math.min(l.growT, fullLen);
-                const currentTip = new THREE.Vector3().copy(l.from).addScaledVector(dirN, visLen);
 
-                // 3) Orientación y posición del segmento visible
+                // 3) Transform
                 const mid = new THREE.Vector3().copy(l.from).addScaledVector(dirN, visLen * 0.5);
                 const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dirN);
 
-                // Colores por tipo
                 const color = l.color === "green" ? 0x00ff66 : 0xff3333;
 
                 return (
                     <group key={l.id} position={mid} quaternion={q} renderOrder={renderOrder} frustumCulled={false}>
-                        {/* —— Núcleo */}
+                        {/* Núcleo */}
                         <mesh geometry={unitCylinder} frustumCulled={false} scale={[coreRadius, coreRadius, visLen]}>
                             <primitive
                                 attach="material"
@@ -295,7 +263,7 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
                             />
                         </mesh>
 
-                        {/* —— Halo */}
+                        {/* Halo */}
                         <mesh geometry={unitCylinder} frustumCulled={false} scale={[glowRadius, glowRadius, visLen]}>
                             <primitive
                                 attach="material"
@@ -306,7 +274,7 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
                             />
                         </mesh>
 
-                        {/* —— Muzzle flash (más pequeño, en el cañón) */}
+                        {/* Muzzle flash */}
                         <group position={new THREE.Vector3(0, 0, -visLen * 0.5)}>
                             <mesh geometry={unitQuad} frustumCulled={false} renderOrder={renderOrder + 1} scale={[coreRadius * 1.6, coreRadius * 1.6, 1]}>
                                 <primitive
@@ -319,8 +287,7 @@ export const LaserSystem: React.FC<LaserSystemProps> = ({
                             </mesh>
                         </group>
 
-                        {/* —— Glow en la punta: si aún no llegó al impacto, muestra la punta viajando;
-                        si ya llegó (visLen == fullLen), actúa como impact glow */}
+                        {/* Glow en la punta (o impacto) */}
                         <group position={new THREE.Vector3(0, 0, visLen * 0.5)}>
                             <mesh
                                 geometry={unitQuad}

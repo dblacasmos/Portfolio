@@ -7,14 +7,14 @@ import * as THREE from "three";
 import Hud from "../Hud/Hud";
 import { useAmmo } from "../../../hooks/useUiAmmo";
 import { useKeyboard } from "../../../hooks/useKeyboard";
-import { ColliderEnvBVH } from "../../utils/three/colliderEnvBVH";
+import { ColliderEnvBVH } from "../../utils/collision/colliderEnvBVH";
 import { CFG } from "@/constants/config";
 import Weapon from "../Weapon/Weapon";
 import { audioManager } from "../../utils/audio/audio";
 import { useGameStore } from "../../utils/state/store";
 import { useHudEditorStore } from "../../utils/state/hudEditor";
 import { setLayerRecursive } from "@/game/utils/three/layers";
-import { exitImmersive, enterImmersive, isFullscreen, enterFullscreen, exitFullscreen } from "@/game/utils/immersive";
+import { isFullscreen, enterFullscreen, exitFullscreen } from "@/game/utils/immersive";
 import { ASSETS } from "@/constants/assets";
 
 type DebugFlags = { withWeapon?: boolean; withHud?: boolean };
@@ -23,14 +23,14 @@ type Props = {
     env: React.MutableRefObject<ColliderEnvBVH | null>;
     onShoot: (from: THREE.Vector3, to: THREE.Vector3) => void;
     startAt?: THREE.Vector3;
-    /** NUEVO: objetivo inicial de mirada (mundo). Si se pasa, la cámara mira hacia aquí en el spawn. */
+    /** Si se pasa, la cámara mira hacia aquí al nacer. */
     startLookAt?: THREE.Vector3;
     debug?: DebugFlags;
     uiLocked?: boolean;
     getEnemyMeshes?: () => THREE.Object3D[] | null;
 };
 
-// ---- CFG consts (…)
+// ---- CFG consts
 const SPEED_BASE = CFG.move.speed;
 const SPRINT_MUL = CFG.move.sprintMul;
 const EYE_HEIGHT_STAND = CFG.move.standHeight;
@@ -41,7 +41,7 @@ const DT_CLAMP = CFG.move.dtClampMs / 1000;
 const GROUND_SKIN = 0.005;
 const MAX_SUBSTEP = CFG.collision?.maxSubstep ?? 0.15;
 
-// Animación arma
+// Arma
 const FIRE_COOLDOWN_MS = 120;
 const RECOIL_TIME = 0.11;
 const RECOIL_BACK = 0.06;
@@ -77,35 +77,29 @@ const Player = ({
     const editEnabled = useHudEditorStore((s) => s.enabled);
     const menuOpen = useGameStore((s) => s.menuOpen);
     const setMenuOpen = useGameStore((s) => s.setMenuOpen);
-    const handRaw = useGameStore((s) => s.hand); // "right" | "left" (o valor inesperado)
-    const hand = handRaw === "left" ? "left" : "right"; // "right" | "left"
+    const handRaw = useGameStore((s) => s.hand);
+    const hand = handRaw === "left" ? "left" : "right";
 
     const { camera, invalidate, gl } = useThree();
 
-    // === HUD: “crosshair sobre dron”
+    // HUD: “crosshair sobre dron”
     const setCrosshairOnDrone = useGameStore((s) => s.setCrosshairOnDrone);
     const overTargetFromStore = useGameStore((s) => s.crosshairOnDrone);
 
     // Estado físico/cámara
     const pos = useRef(new THREE.Vector3(startAt?.x ?? 0, startAt?.y ?? 0.1, startAt?.z ?? 0));
-    const baseY = useRef(startAt?.y ?? 2);
     const velY = useRef(0);
     const grounded = useRef(false);
 
-    // ⚠️ SHIFT = crouch (mantener)
+    // Crouch con SHIFT (mantener)
     const [crouch, setCrouch] = useState(false);
     const radius = () => (crouch ? (CFG.collision?.radiusCrouch ?? 0.22) : (CFG.collision?.radiusStand ?? 0.26));
     const eye = () => (crouch ? EYE_HEIGHT_CROUCH : EYE_HEIGHT_STAND);
 
     // heading para HUD/radar
     const headingRad = useRef(0);
-
     const getPlayer2D = useCallback(
-        () => ({
-            x: pos.current.x,
-            y: pos.current.z,
-            headingRad: headingRad.current,
-        }),
+        () => ({ x: pos.current.x, y: pos.current.z, headingRad: headingRad.current }),
         []
     );
 
@@ -131,29 +125,21 @@ const Player = ({
     const tmpMove = useMemo(() => new THREE.Vector3(), []);
     const tmpDir = useMemo(() => new THREE.Vector3(), []);
     const tmpEnd = useMemo(() => new THREE.Vector3(), []);
-    const eulerYXZ = useMemo(() => new THREE.Euler(0, 0, 0, "YXZ"), []);
 
     useEffect(() => {
         raycaster.layers.set(CFG.layers.WORLD);
         raycasterEnemies.layers.set(CFG.layers.ENEMIES);
-        // ✅ cam obligatoria si algún hijo es Sprite
         raycaster.camera = camera as THREE.Camera;
         raycasterEnemies.camera = camera as THREE.Camera;
     }, [camera, raycaster, raycasterEnemies]);
 
     // Reducir consumo con menús/overlays
-    useEffect(() => {
-        invalidate();
-    }, [menuOpen, invalidate]);
-
-    // Repaint cuando cambia la mano (si menú abierto)
-    useEffect(() => {
-        invalidate();
-    }, [hand, invalidate]);
+    useEffect(() => { invalidate(); }, [menuOpen, invalidate]);
+    // Repaint cuando cambia la mano (útil si hay menú)
+    useEffect(() => { invalidate(); }, [hand, invalidate]);
 
     // ---------- Pointer Lock ----------
     const requestingLockRef = useRef(false);
-
     useEffect(() => {
         const onLockChange = () => {
             requestingLockRef.current = false;
@@ -161,9 +147,7 @@ const Player = ({
             document.body.classList.toggle("hide-cursor", locked);
             if (locked && menuOpen) setMenuOpen(false);
         };
-        const onLockError = () => {
-            requestingLockRef.current = false;
-        };
+        const onLockError = () => { requestingLockRef.current = false; };
         document.addEventListener("pointerlockchange", onLockChange);
         document.addEventListener("pointerlockerror", onLockError);
         return () => {
@@ -172,12 +156,12 @@ const Player = ({
         };
     }, [gl, menuOpen, setMenuOpen]);
 
-    // ESC → salir de inmersivo
+    // ESC → abrir menú (y liberar lock)
     useEffect(() => {
         const onEsc = (e: KeyboardEvent) => {
             if (e.key !== "Escape") return;
             e.preventDefault();
-            try { exitImmersive(); } catch { }
+            try { document.exitPointerLock(); } catch { }
             setMenuOpen(true);
         };
         document.addEventListener("keydown", onEsc);
@@ -211,7 +195,7 @@ const Player = ({
             if (menuOpen || editEnabled || uiLocked) return;
             const locked = document.pointerLockElement === el;
 
-            // Disparo (LMB)
+            // Disparo
             if (e.button === 0) {
                 if (!locked && !requestingLockRef.current) {
                     try { requestingLockRef.current = true; el.requestPointerLock(); } catch { requestingLockRef.current = false; }
@@ -222,7 +206,7 @@ const Player = ({
                 return;
             }
 
-            // Zoom (RMB)
+            // Zoom
             if (e.button === 2) {
                 if (!locked) return;
                 if (ADS_MODE === "hold") {
@@ -263,9 +247,7 @@ const Player = ({
     useEffect(() => {
         if (menuOpen || editEnabled || uiLocked) {
             try { if (document.pointerLockElement) document.exitPointerLock(); } catch { }
-            if (zoomTarget.current !== 0) {
-                zoomTarget.current = 0; playServoOut();
-            }
+            if (zoomTarget.current !== 0) { zoomTarget.current = 0; playServoOut(); }
             zoomHeld.current = false;
         }
     }, [menuOpen, editEnabled, uiLocked]);
@@ -281,14 +263,14 @@ const Player = ({
             const dy = ev.movementY || 0;
             if (!dx && !dy) return;
 
-            const eulerYXZ = new THREE.Euler(0, 0, 0, "YXZ");
-            eulerYXZ.setFromQuaternion(camera.quaternion);
-            eulerYXZ.y -= dx * SENS;
-            eulerYXZ.x -= dy * SENS;
+            const euler = new THREE.Euler(0, 0, 0, "YXZ");
+            euler.setFromQuaternion(camera.quaternion);
+            euler.y -= dx * SENS;
+            euler.x -= dy * SENS;
 
             const LIM = Math.PI / 2 - 0.01;
-            eulerYXZ.x = Math.max(-LIM, Math.min(LIM, eulerYXZ.x));
-            (camera as THREE.PerspectiveCamera).quaternion.setFromEuler(eulerYXZ);
+            euler.x = Math.max(-LIM, Math.min(LIM, euler.x));
+            (camera as THREE.PerspectiveCamera).quaternion.setFromEuler(euler);
 
             swayTargetX.current += -dx * 0.0006;
             swayTargetY.current += -dy * 0.0006;
@@ -307,13 +289,9 @@ const Player = ({
     useEffect(() => {
         if (startAt) {
             pos.current.copy(startAt);
-            baseY.current = startAt.y;
             (camera as THREE.PerspectiveCamera).position.copy(startAt);
         }
-        if (startLookAt) {
-            // Aseguramos que la orientación inicial mira hacia el interior (o donde se pida)
-            (camera as THREE.PerspectiveCamera).lookAt(startLookAt);
-        }
+        if (startLookAt) (camera as THREE.PerspectiveCamera).lookAt(startLookAt);
     }, [startAt, startLookAt, camera]);
 
     // Rig arma → capa WEAPON
@@ -344,31 +322,31 @@ const Player = ({
     const stepSrcRef = useRef<AudioBufferSourceNode | null>(null);
     const primedRef = useRef(false);
     useEffect(() => {
-        audioManager.loadMany?.(
-          [
-            // Música y SFX ya existentes
-            CFG.audio.musicCity.src,
-            CFG.audio.reload.src,
-            CFG.audio.step.src,
-            CFG.audio.shot.src,
-            ((CFG as any)?.audio?.zoomIn?.src) ?? ((CFG as any)?.audio?.zoomServoIn?.src) ?? "",
-            ((CFG as any)?.audio?.zoomOut?.src) ?? ((CFG as any)?.audio?.zoomServoOut?.src) ?? "",
-            // 🔊 Necesarios en gameplay
+        // Preload consistente: música (si hay) + SFX de gameplay
+        const preloadUrls: string[] = [
+            (CFG as any)?.audio?.musicCity?.src ?? "",
+            ASSETS.audio.step,
+            ASSETS.audio.reload,
             ASSETS.audio.shotLaser,
             ASSETS.audio.explosionDron,
-          ].filter(Boolean) as string[]
-        );
+            ((CFG as any)?.audio?.zoomIn?.src) ?? ((CFG as any)?.audio?.zoomServoIn?.src) ?? "",
+            ((CFG as any)?.audio?.zoomOut?.src) ?? ((CFG as any)?.audio?.zoomServoOut?.src) ?? "",
+        ].filter(Boolean);
+        try { audioManager.loadMany?.(preloadUrls); } catch { }
     }, []);
     const primeAudio = () => {
         if (primedRef.current) return;
         primedRef.current = true;
         audioManager
             .ensureStarted?.()
-            ?.then(() => (audioManager as any)?.playMusic?.(CFG.audio.musicCity.src, true))
+            ?.then(() => {
+                const music = (CFG as any)?.audio?.musicCity?.src as string | undefined;
+                if (music) (audioManager as any)?.playMusic?.(music, true);
+            })
             .catch(() => { primedRef.current = false; });
     };
 
-    // ==== Teclado ====
+    // ==== Teclado – uso hook + fallback manual (seguro en todos los navegadores) ====
     const keys = useKeyboard({
         onDown: (e) => {
             if (menuOpen || editEnabled || uiLocked) return;
@@ -382,7 +360,7 @@ const Player = ({
                 reload();
             }
 
-            // Ajuste vida/escudo debug
+            // Ajustes debug rápidos
             if (e.code === "BracketLeft") setHealth((h) => Math.max(0, h - 10));
             if (e.code === "BracketRight") setShield((s) => Math.max(0, s - 10));
 
@@ -395,21 +373,14 @@ const Player = ({
         ignoreTyping: true,
     });
 
-    // Fallback teclas (incluye M para robustez del radar)
     const manualKeys = useRef<Record<string, boolean>>({});
     useEffect(() => {
         const d = (e: KeyboardEvent) => {
             if (menuOpen || editEnabled || uiLocked) return;
             manualKeys.current[e.code] = true;
             if (e.code === "Space" && grounded.current) velY.current = JUMP_SPEED;
-
-            // SHIFT = crouch
             if (e.code === "ShiftLeft" || e.code === "ShiftRight") setCrouch(true);
-
-            if (e.code === "KeyR") {
-                if (!reloading) triggerReloadAnim();
-                reload();
-            }
+            if (e.code === "KeyR") { if (!reloading) triggerReloadAnim(); reload(); }
         };
         const u = (e: KeyboardEvent) => {
             manualKeys.current[e.code] = false;
@@ -477,7 +448,7 @@ const Player = ({
         rig.translateY(sy * halfH);
         rig.renderOrder = 10000;
 
-        // 2) Movimiento (bobbing + sway)
+        // Movimiento (bobbing + sway)
         const isDown = (code: string) => !!(keys.current[code] || manualKeys.current[code]);
         const moving = isDown("KeyW") || isDown("KeyS") || isDown("KeyQ") || isDown("KeyE");
         const sprint = isDown("KeyV") ? SPRINT_MUL : 1; // V = correr
@@ -506,7 +477,7 @@ const Player = ({
 
         rY += THREE.MathUtils.clamp(swayX.current, -0.12, 0.12) * SWAY_AMP * 2;
         rX += THREE.MathUtils.clamp(swayY.current, -0.12, 0.12) * SWAY_AMP * 2;
-        offX *= signX;
+        if (hand === "left") offX *= -1;
 
         if (recoilActive.current) {
             recoilT.current += dt / RECOIL_TIME;
@@ -558,7 +529,7 @@ const Player = ({
 
         lastShotMs.current = now;
         triggerRecoil();
-        (audioManager as any)?.playSfx?.(CFG.audio.shot.src);
+        (audioManager as any)?.playSfx?.(ASSETS.audio.shotLaser);
 
         (camera as THREE.PerspectiveCamera).getWorldDirection(tmpDir).normalize();
         const origin = (camera as THREE.PerspectiveCamera).position;
@@ -577,7 +548,7 @@ const Player = ({
 
         window.dispatchEvent(new CustomEvent("weapon:shot", { detail: { power: 1 } }));
 
-        // 👉 delegamos a Game.tsx para chequear hit contra drones
+        // Delegamos a Game.tsx el hit test contra drones
         onShoot(origin.clone(), tmpEnd.clone());
     };
 
@@ -589,7 +560,7 @@ const Player = ({
         }
     }, [mag, reserve, reloading, reload]);
 
-    useEffect(() => { if (reloading) (audioManager as any)?.playSfx?.(CFG.audio.reload.src); }, [reloading]);
+    useEffect(() => { if (reloading) (audioManager as any)?.playSfx?.(ASSETS.audio.reload); }, [reloading]);
 
     const isDown = (code: string) => !!(keys.current[code] || manualKeys.current[code]);
 
@@ -687,24 +658,22 @@ const Player = ({
 
         (camera as THREE.PerspectiveCamera).position.copy(pos.current);
 
-        // pasos
+        // pasos (loop while moving, solo en suelo)
         const movingKeys = isDown("KeyW") || isDown("KeyS") || isDown("KeyQ") || isDown("KeyE");
         const canPlaySteps = !uiLocked && movingKeys && grounded.current;
         const isPlaying = !!stepSrcRef.current;
-        if (canPlaySteps && !isPlaying) stepSrcRef.current = (audioManager as any)?.playSfxLoop?.(CFG.audio.step.src);
+        if (canPlaySteps && !isPlaying) stepSrcRef.current = (audioManager as any)?.playSfxLoop?.(ASSETS.audio.step);
         else if (!canPlaySteps && isPlaying) {
             (audioManager as any)?.stop?.(stepSrcRef.current);
             stepSrcRef.current = null;
         }
     });
 
-    // === Raycast del crosshair contra ENEMIES para HUD + highlight (con LOS check) ===
+    // Raycast del crosshair contra ENEMIES para HUD + highlight (con LOS real)
     useFrame(() => {
         if (menuOpen || editEnabled || uiLocked) {
             if (overTargetFromStore) setCrosshairOnDrone(false);
-            try {
-                window.dispatchEvent(new CustomEvent("aim:over-drone", { detail: { id: null } }));
-            } catch { }
+            try { window.dispatchEvent(new CustomEvent("aim:over-drone", { detail: { id: null } })); } catch { }
             return;
         }
 
@@ -712,7 +681,6 @@ const Player = ({
         const dir = new THREE.Vector3();
         cam.getWorldDirection(dir).normalize();
 
-        // ✅ Necesario para raycastear Sprites (aunque luego los ignoramos)
         raycasterEnemies.camera = cam;
         raycasterEnemies.set(cam.position, dir);
         raycasterEnemies.far = 500;
@@ -734,11 +702,11 @@ const Player = ({
                 let obj: any = h.object;
                 let id: number | null = null;
                 while (obj && id == null) {
-                    if (obj.userData?.droneId) id = obj.userData.droneId as number;
+                    if (obj.userData?.droneId != null) id = obj.userData.droneId as number;
                     obj = obj.parent;
                 }
 
-                // 🔎 Línea de visión real: si hay pared/ground antes que el dron, NO marcar
+                // Línea de visión real
                 if (id != null) {
                     const envRef = env.current;
                     let blocked = false;
@@ -755,12 +723,10 @@ const Player = ({
         }
 
         setCrosshairOnDrone(hoverId != null);
-        try {
-            window.dispatchEvent(new CustomEvent("aim:over-drone", { detail: { id: hoverId } }));
-        } catch { }
+        try { window.dispatchEvent(new CustomEvent("aim:over-drone", { detail: { id: hoverId } })); } catch { }
     });
 
-    // Interpolación de FOV (zoom ADS)
+    // Interpolación de FOV (ADS)
     useFrame((_, dt) => {
         const cam = camera as THREE.PerspectiveCamera;
         if (baseFovRef.current == null) baseFovRef.current = cam.fov;
@@ -796,14 +762,13 @@ const Player = ({
         };
     }, []);
 
-    // ====== Tecla "F" para alternar fullscreen ======
+    // Tecla "F" → fullscreen del contenedor del canvas
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.code === "KeyF") {
                 e.preventDefault();
-                if (isFullscreen()) {
-                    exitFullscreen();
-                } else {
+                if (isFullscreen()) exitFullscreen();
+                else {
                     const host = gl.domElement.parentElement ?? document.documentElement;
                     enterFullscreen(host);
                 }
@@ -848,7 +813,6 @@ const Player = ({
                     getPlayer2D={getPlayer2D}
                     env={{ walls: env.current?.walls ?? null, ground: env.current?.ground ?? null }}
                     getEnemyMeshes={getEnemyMeshes}
-                    // ✅ ahora el HUD sabe si el crosshair pisa un dron
                     overTarget={overTargetFromStore}
                 />
             )}

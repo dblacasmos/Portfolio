@@ -8,6 +8,12 @@ export type VoiceSelectProps = {
     title?: string;
 };
 
+/**
+ * Selector compacto de voces TTS.
+ * - Cierra al hacer click fuera o pulsar ESC
+ * - Listado simple y accesible (role="listbox")
+ * - Reutilizable por cualquier overlay
+ */
 const VoiceSelect: React.FC<VoiceSelectProps> = ({ voices, selectedURI, onPick, title = "Seleccionar voz (ES)" }) => {
     const [open, setOpen] = React.useState(false);
     const ref = React.useRef<HTMLDivElement | null>(null);
@@ -71,7 +77,8 @@ const VoiceSelect: React.FC<VoiceSelectProps> = ({ voices, selectedURI, onPick, 
                                         aria-selected={selected}
                                         onClick={() => { onPick(v.voiceURI); setOpen(false); }}
                                         className={`w-full text-left px-2 py-1.5 text-[11px] transition
-                                ${selected ? "bg-cyan-400/15 text-cyan-100" : "text-white/90 hover:bg-cyan-400/10 hover:text-cyan-100"}`}
+                                ${selected ? "bg-cyan-400/15 text-cyan-100"
+                                                : "text-white/90 hover:bg-cyan-400/10 hover:text-cyan-100"}`}
                                     >
                                         <div className="flex items-center justify-between">
                                             <span className="truncate">{v.name || v.voiceURI}</span>

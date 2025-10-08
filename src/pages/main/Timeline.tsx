@@ -15,7 +15,7 @@ import {
 } from "../../game/overlays/GlobalLoadingPortal";
 import { hardCleanupBeforeMain } from "../../game/utils/cleanupMain";
 
-/* ---------- Utilidades VRAM ---------- */
+/* ---------- Utils VRAM ---------- */
 function disposeVideo(el: HTMLVideoElement | null) {
   if (!el) return;
   try { el.pause(); } catch { }
@@ -43,7 +43,7 @@ function useManagedAudio(
   return ref;
 }
 
-/* ---------- LORE Capítulo 2 (narración + glow rojo) ---------- */
+/* ---------- LORE Capítulo 2 ---------- */
 const LORE_TITLE = "CAPÍTULO 2: TIMELINE";
 const LORE_NARRATION =
   "Tras el Portfolio, mi despliegue cambia de plano. Entro en la TIMELINE, un registro vivo donde cada combate, cada decisión y cada avance quedan anclados al tiempo. " +
@@ -51,51 +51,45 @@ const LORE_NARRATION =
   "el reloj, implacable, dicta la estrategia. Completo misiones, aseguro datos y pulso mi hoja de personaje sin ceder el control. Aquí, la disciplina militar se alía con el diseño del código: " +
   "rápido, claro y letal. Si fallamos, registramos; si vencemos, evolucionamos.";
 
-/* ---------- Página ---------- */
 export default function Timeline() {
   const nav = useNavigate();
   const { search } = useLocation();
   const params = useMemo(() => new URLSearchParams(search), [search]);
   const playClick = useUiClick();
 
-  // Fases: cap2 → transition → followup → transition2 → menu
+  // Fases principales del flujo
   const [phase, setPhase] = useState<"cap2" | "transition" | "followup" | "transition2" | "menu">("cap2");
 
-  // Sincronías
+  // Sincronías de TTS/Crawl
   const [crawlDuration, setCrawlDuration] = useState<number>(104);
   const [ttsActive, setTtsActive] = useState(false);
-  const [ttsRate, setTtsRate] = useState<number>(1.20);
+  const [ttsRate, setTtsRate] = useState<number>(1.2);
   const [cap2Done, setCap2Done] = useState(false);
 
-  // Timings de transiciones / paneles
-  const TRANSITION_DURATION_MS = 800;           // fundidos a negro
-  const PANELS_DELAY_AFTER_TRANSITION_MS = 900; // espera antes de paneles tras la transición
-
-  // Hacemos el crawl bastante más largo que la música
+  // Timings de transiciones/paneles
+  const TRANSITION_DURATION_MS = 800;
+  const PANELS_DELAY_AFTER_TRANSITION_MS = 900;
   const CRAWL_SLOW_FACTOR = 4.8;
 
-  // Media refs
+  // Media
   const cap2VideoRef = useRef<HTMLVideoElement | null>(null);
   const followVideoRef = useRef<HTMLVideoElement | null>(null);
   const cap2MusicRef = useManagedAudio(ASSETS.audio?.capDos, { volume: 0.45, loop: false });
 
-  // ESC: cortar media activa y avanzar el flujo (cap2 → transition, followup → transition2)
+  // ESC: cortar media activa y avanzar de fase
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.preventDefault(); e.stopPropagation();
 
       if (phase === "cap2") {
-        // CAP.2: vídeo + música + TTS → pasar a transición
         try { const v = cap2VideoRef.current; v && (v.pause(), disposeVideo(v)); } catch { }
         try { const m = cap2MusicRef.current; m && (m.pause(), (m.currentTime = 0)); } catch { }
         try { window.speechSynthesis?.cancel(); } catch { }
         setPhase("transition");
         return;
       }
-
       if (phase === "followup") {
-        // FOLLOWUP: video1 → pasar a transición2
         try {
           const v = followVideoRef.current;
           if (v) { v.pause(); v.muted = true; disposeVideo(v); }
@@ -103,14 +97,12 @@ export default function Timeline() {
         setPhase("transition2");
         return;
       }
-      // En otras fases (transition, transition2, menu) no hacemos nada
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [phase, cap2MusicRef]);
 
-
-  // Precache del juego
+  // Precarga del juego
   useEffect(() => { import("../../game/Game").catch(() => { }); }, []);
 
   // Fullscreen al entrar
@@ -131,12 +123,10 @@ export default function Timeline() {
       acc += sentences[i].length;
       if (acc >= target) { cut = i; break; }
     }
-    const p1 = sentences.slice(0, cut + 1).join(" ");
-    const p2 = sentences.slice(cut + 1).join(" ");
-    return [p1, p2];
+    return [sentences.slice(0, cut + 1).join(" "), sentences.slice(cut + 1).join(" ")];
   }, []);
 
-  // Calcular rate del TTS para encajar con duración de la música
+  // Ajusta rate TTS para que “quede cerca” de la música
   function tuneRateForTargetSeconds(text: string, targetSec: number) {
     const words = (text.match(/\S+/g) || []).length;
     const baseWps = 3; // ~180 wpm cuando rate=1.0
@@ -144,12 +134,11 @@ export default function Timeline() {
     const biasedTarget = targetSec * 0.98;
     const raw = words / (baseWps * biasedTarget);
     const withBias = raw * 1.06;
-    const desiredRate = Math.max(0.7, Math.min(1.6, withBias));
-    return desiredRate;
+    return Math.max(0.7, Math.min(1.6, withBias));
   }
   const TTS_SPEED_BOOST = 1.15;
 
-  // Sincronizar crawl con duración real del audio
+  // Mide duración de la música y sincroniza crawl/tts
   useEffect(() => {
     const a = cap2MusicRef.current;
     if (!a) return;
@@ -166,7 +155,7 @@ export default function Timeline() {
     return () => a.removeEventListener("loadedmetadata", onMeta);
   }, [cap2MusicRef, narrationParagraphs]);
 
-  // Reproducir cinemática CAP.2 (vídeo + música + TTS)
+  // CAP.2: vídeo + música + TTS
   useEffect(() => {
     if (phase !== "cap2") return;
     const v = cap2VideoRef.current;
@@ -174,10 +163,12 @@ export default function Timeline() {
 
     if (v) {
       try {
-        v.muted = true;     // autoplay-friendly
+        v.muted = true; // autoplay-friendly
         v.currentTime = 0;
-        v.loop = true;      // mantenemos el loop mientras dura el TTS
+        v.loop = true;
         v.play().catch(() => { });
+        // Unmute suave
+        setTimeout(() => { try { v.muted = false; v.volume = 1; } catch { } }, 150);
       } catch { }
     }
     try { m?.play().catch(() => { }); } catch { }
@@ -187,29 +178,21 @@ export default function Timeline() {
       const synth = window.speechSynthesis;
       const utter = new SpeechSynthesisUtterance(`${LORE_TITLE}. ${narrationParagraphs.join(" ")}`);
       utter.lang = "es-ES";
-      utter.rate = Math.max(0.7, Math.min(1.6, (ttsRate ?? 1.0) * 1.20)); // un poco más rápido
+      utter.rate = Math.max(0.7, Math.min(1.6, (ttsRate ?? 1.0) * 1.2));
       utter.pitch = 0.95;
 
-      utter.onstart = () => {
-        setTtsActive(true);
-        if (m) m.volume = 0.25;
-      };
-      utter.onend = () => {
-        setTtsActive(false);
-        if (m) m.volume = 0.45;
-        setCap2Done(true);
-      };
+      utter.onstart = () => { setTtsActive(true); if (m) m.volume = 0.25; };
+      utter.onend = () => { setTtsActive(false); if (m) m.volume = 0.45; setCap2Done(true); };
 
       const pickVoice = () => {
         const voices = synth.getVoices();
-        const maleEs = voices.find(
-          v => /es-ES/.test(v.lang) && /male|hombre|Miguel|Jorge|Diego|Enrique/i.test(v.name)
-        );
-        const anyEs = voices.find(v => /es-ES/i.test(v.lang)) || voices.find(v => /es/i.test(v.lang));
+        const maleEs = voices.find((v) => /es-ES/.test(v.lang) && /male|hombre|Miguel|Jorge|Diego|Enrique/i.test(v.name));
+        const anyEs = voices.find((v) => /es-ES/i.test(v.lang)) || voices.find((v) => /es/i.test(v.lang));
         utter.voice = (maleEs || anyEs || null) as SpeechSynthesisVoice | null;
         synth.cancel();
         synth.speak(utter);
       };
+
       if (synth.getVoices().length === 0) {
         const onVoices = () => { pickVoice(); synth.removeEventListener("voiceschanged", onVoices); };
         synth.addEventListener("voiceschanged", onVoices);
@@ -221,41 +204,34 @@ export default function Timeline() {
     }
   }, [phase, cap2MusicRef, ttsRate, narrationParagraphs]);
 
-  // Fallback de seguridad si TTS falla (cuando termine el crawl largo)
+  // Fallback: si el TTS no dispara onend, cierra al acabar el crawl largo
   useEffect(() => {
     if (phase !== "cap2") return;
     const total = Math.max(5, crawlDuration) * 1000 + 200;
-    const safetyTimer = setTimeout(() => setCap2Done(true), total);
+    const safetyTimer = window.setTimeout(() => setCap2Done(true), total);
     return () => clearTimeout(safetyTimer);
   }, [phase, crawlDuration]);
 
-  // Al acabar CAP.2 (TTS): cerrar media y lanzar transición → followup
+  // Fin de CAP.2 → transición negra
   useEffect(() => {
     if (phase !== "cap2" || !cap2Done) return;
     setCap2Done(false);
-
-    // Cerrar vídeo/audio CAP.2
-    const v = cap2VideoRef.current;
-    if (v) disposeVideo(v);
-    const m = cap2MusicRef.current;
-    if (m) { try { m.pause(); m.currentTime = 0; } catch { } }
-
-    // Transición a negro (800 ms) y pasamos a followup en otro efecto
+    try { disposeVideo(cap2VideoRef.current); } catch { }
+    const m = cap2MusicRef.current; if (m) { try { m.pause(); m.currentTime = 0; } catch { } }
     setPhase("transition");
   }, [cap2Done, phase, cap2MusicRef]);
 
-  // Cuando estamos en transición, tras 800ms pasamos a followup
+  // Transición → followup
   useEffect(() => {
     if (phase !== "transition") return;
     const t = window.setTimeout(() => setPhase("followup"), TRANSITION_DURATION_MS);
     return () => clearTimeout(t);
-  }, [phase, TRANSITION_DURATION_MS]);
+  }, [phase]);
 
-  // FOLLOWUP: reproducir video1; al terminar → fade audio y pasar a transition2
+  // FOLLOWUP: reproduce video1; al terminar → transición2
   useEffect(() => {
     if (phase !== "followup") return;
     const v = followVideoRef.current;
-
     let watchdogTimer: number | undefined;
 
     const fadeAndGoTransition2 = () => {
@@ -271,18 +247,14 @@ export default function Timeline() {
         else {
           try { v.pause(); } catch { }
           try { v.muted = true; } catch { }
-          setPhase("transition2"); // ← solo cambio de fase; NADA de timers aquí
+          setPhase("transition2");
         }
       };
       requestAnimationFrame(step);
     };
 
-    const onEnded = () => {
-      if (watchdogTimer) clearTimeout(watchdogTimer);
-      fadeAndGoTransition2();
-    };
+    const onEnded = () => { if (watchdogTimer) clearTimeout(watchdogTimer); fadeAndGoTransition2(); };
 
-    // Arranque seguro
     if (v) {
       try {
         v.muted = true;
@@ -293,13 +265,11 @@ export default function Timeline() {
       } catch { }
     }
 
-    // 'ended' + watchdog por si no dispara
     v?.addEventListener("ended", onEnded, { once: true });
+
     const armWatchdog = () => {
       const dur = v?.duration;
-      const ms = (Number.isFinite(dur) && (dur as number) > 0)
-        ? Math.ceil((dur as number) * 1000) + 150
-        : 15000;
+      const ms = (Number.isFinite(dur) && (dur as number) > 0) ? Math.ceil((dur as number) * 1000) + 150 : 15000;
       watchdogTimer = window.setTimeout(onEnded, ms);
     };
     if (v) {
@@ -315,15 +285,15 @@ export default function Timeline() {
     };
   }, [phase]);
 
-  // TRANSITION2 → tras la transición (800ms) + 900ms de espera → paneles (menu)
+  // TRANSITION2 → espera y paneles
   useEffect(() => {
     if (phase !== "transition2") return;
-    const t = window.setTimeout(() => {
-      setPhase("menu");
-    }, TRANSITION_DURATION_MS + PANELS_DELAY_AFTER_TRANSITION_MS);
+    const t = window.setTimeout(
+      () => setPhase("menu"),
+      TRANSITION_DURATION_MS + PANELS_DELAY_AFTER_TRANSITION_MS
+    );
     return () => clearTimeout(t);
-  }, [phase, TRANSITION_DURATION_MS, PANELS_DELAY_AFTER_TRANSITION_MS]);
-
+  }, [phase]);
 
   // Limpieza global
   useEffect(() => {
@@ -334,81 +304,73 @@ export default function Timeline() {
     };
   }, []);
 
-  // Parámetros de vista
+  // Parámetros de vista vía querystring
   const showControls = params.get("view") === "controles";
   const showAudio = params.get("view") === "audio";
   const pushView = (v: string | null) => {
     const p = new URLSearchParams(window.location.search);
-    if (v) p.set("view", v); else p.delete("view");
+    if (v) p.set("view", v);
+    else p.delete("view");
     nav({ pathname: "/timeline", search: p.toString() ? `?${p.toString()}` : "" });
   };
 
-  // INICIAR
+  // Iniciar juego con limpieza agresiva
   async function purgeAppCaches() {
     try {
       if ("caches" in window) {
         const keys = await caches.keys();
-        await Promise.all(keys.map(k => caches.delete(k)));
+        await Promise.all(keys.map((k) => caches.delete(k)));
       }
     } catch { }
     try {
       if ("serviceWorker" in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(r => r.unregister().catch(() => { })));
+        await Promise.all(regs.map((r) => r.unregister().catch(() => { })));
       }
     } catch { }
     try {
       const prefixes = ["Intro:", "Main:", "Game:", "INTRO_", "MAIN_", "GAME_"];
-      Object.keys(localStorage).forEach(k => { if (prefixes.some(p => k.startsWith(p))) localStorage.removeItem(k); });
-      Object.keys(sessionStorage).forEach(k => { if (prefixes.some(p => k.startsWith(p))) sessionStorage.removeItem(k); });
+      Object.keys(localStorage).forEach((k) => { if (prefixes.some((p) => k.startsWith(p))) localStorage.removeItem(k); });
+      Object.keys(sessionStorage).forEach((k) => { if (prefixes.some((p) => k.startsWith(p))) sessionStorage.removeItem(k); });
     } catch { }
-    try {
-      navigator.serviceWorker?.controller?.postMessage?.({ type: "PURGE_APP_CACHES" });
-    } catch { }
+    try { navigator.serviceWorker?.controller?.postMessage?.({ type: "PURGE_APP_CACHES" }); } catch { }
   }
+
   const startGame = async () => {
     playClick();
     try { await purgeAppCaches(); } catch { }
-    // 🔧 Limpia TODO lo anterior (Intro/Timeline) para liberar decoders/VRAM
-    hardCleanupBeforeMain({
-      // Si quisieras conservar algo concreto, añádelo aquí.
-      // keepIds: ["algún-id-a-preservar"],
-      // keepClasses: ["keep-alive"],
-      // keepSelectors: ['video[data-persist]'],
-    });
+    // Libera VRAM/decoders de pantallas previas
+    hardCleanupBeforeMain({});
     const canvas = document.querySelector("canvas") as HTMLElement | null;
     enterImmersive((canvas ?? document.documentElement) as HTMLElement);
-    // Abre overlay con watchdog de 15s
+
+    // Overlay con watchdog
     showGlobalLoadingOverlay({ minMs: 4000, maxMs: 15000 });
     markGlobalLoadingStage("navigating");
     setGlobalLoadingProgress(0.02);
     nav("/game", { replace: true });
 
-    // Plan B: si en ~9s no se cerró, ciérralo (además del watchdog global).
-    window.setTimeout(() => {
-      try { hideGlobalLoadingOverlay(); } catch { }
-    }, 9000);
+    // Plan B
+    window.setTimeout(() => { try { hideGlobalLoadingOverlay(); } catch { } }, 9000);
   };
+
   const openControls = () => { playClick(); pushView("controles"); };
   const openAudio = () => { playClick(); pushView("audio"); };
   const goMain = () => { playClick(); nav("/main"); };
   const closePanels = () => { playClick(); pushView(null); };
 
-  // Rutas de vídeo (memo para evitar recalcular)
   const cap2VideoSrcs = useMemo(() => [ASSETS.video?.capDos], []);
   const followVideoSrcs = useMemo(() => [ASSETS.video?.video1], []);
 
   return (
     <div data-immersive-root className="fixed inset-0 overflow-hidden bg-black">
-      {/* ---------- Fase 1: CAP.2 (vídeo + audio capDos) ---------- */}
+      {/* ---------- Fase 1: CAP.2 ---------- */}
       <AnimatePresence initial={false}>
         {phase === "cap2" && (
           <motion.div
             key="cap2"
             className="absolute inset-0"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.6 }}
           >
             <video
@@ -418,7 +380,7 @@ export default function Timeline() {
               onError={(e) => console.warn("capDos error", e)}
             >
               {cap2VideoSrcs.filter(Boolean).map((src) => (
-                <source key={src} src={src} type="video/mp4" />
+                <source key={src} src={src!} type="video/mp4" />
               ))}
             </video>
             <div className="absolute inset-0 z-10 bg-gradient-to-b from-black/75 via-black/20 to-black/80 pointer-events-none" />
@@ -426,7 +388,7 @@ export default function Timeline() {
         )}
       </AnimatePresence>
 
-      {/* ======= CRAWL Star Wars por encima del vídeo ======= */}
+      {/* ---------- CRAWL rojo sobre el vídeo ---------- */}
       <AnimatePresence>
         {phase === "cap2" && (
           <motion.div
@@ -434,12 +396,9 @@ export default function Timeline() {
             className="fixed inset-0 z-[2147483647] overflow-hidden pointer-events-none"
             aria-label="Crawl estilo Star Wars"
             style={{ isolation: "isolate" }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
           >
-            {/* Fondo suave para contraste */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/20 to-black/80" />
             <div className="relative w-full h-full grid place-items-center">
               <div className="w-full max-w-[1100px] px-6 md:px-10 [perspective:650px]">
@@ -448,8 +407,7 @@ export default function Timeline() {
                   style={{
                     fontFamily: "'Orbitron', system-ui, sans-serif",
                     color: "#ff4d4d",
-                    textShadow:
-                      "0 0 2px rgba(255,80,80,1), 0 0 12px rgba(255,80,80,0.8), 0 0 22px rgba(255,80,80,0.6)",
+                    textShadow: "0 0 2px rgba(255,80,80,1), 0 0 12px rgba(255,80,80,0.8), 0 0 22px rgba(255,80,80,0.6)",
                     WebkitTextStroke: "0.5px rgba(0,0,0,0.35)",
                   }}
                   initial={{ rotateX: 12, y: "90vh", scale: 1, opacity: 0 }}
@@ -465,8 +423,7 @@ export default function Timeline() {
                     className="mb-8 font-extrabold uppercase"
                     style={{
                       fontSize: "clamp(2rem, 2.2vw + 1.6rem, 3.25rem)",
-                      textShadow:
-                        "0 0 2px rgba(255,80,80,1), 0 0 14px rgba(255,80,80,0.85), 0 0 28px rgba(255,80,80,0.65)",
+                      textShadow: "0 0 2px rgba(255,80,80,1), 0 0 14px rgba(255,80,80,0.85), 0 0 28px rgba(255,80,80,0.65)",
                     }}
                   >
                     {LORE_TITLE}
@@ -487,21 +444,19 @@ export default function Timeline() {
         )}
       </AnimatePresence>
 
-      {/* ---------- Transición negra suave (CAP.2 → video1) ---------- */}
+      {/* ---------- Transición a negro (cap2 → video1) ---------- */}
       <AnimatePresence initial={false}>
         {phase === "transition" && (
           <motion.div
             key="xfade"
             className="absolute inset-0 bg-black z-30"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.95 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 0.95 }} exit={{ opacity: 0 }}
             transition={{ duration: TRANSITION_DURATION_MS / 1000, ease: "easeInOut" }}
           />
         )}
       </AnimatePresence>
 
-      {/* ---------- Fase 2: video1 (followup) ---------- */}
+      {/* ---------- Fase 2: followup (video1) ---------- */}
       <AnimatePresence initial={false}>
         {phase === "followup" && (
           <motion.div
@@ -518,7 +473,7 @@ export default function Timeline() {
               onError={(e) => console.warn("video1 error", e)}
             >
               {followVideoSrcs.filter(Boolean).map((src) => (
-                <source key={src} src={src} type="video/mp4" />
+                <source key={src} src={src!} type="video/mp4" />
               ))}
             </video>
             <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/40 pointer-events-none" />
@@ -526,15 +481,13 @@ export default function Timeline() {
         )}
       </AnimatePresence>
 
-      {/* ---------- Transición negra suave #2 (tras video1) ---------- */}
+      {/* ---------- Transición a negro (video1 → paneles) ---------- */}
       <AnimatePresence initial={false}>
         {phase === "transition2" && (
           <motion.div
             key="xfade2"
             className="absolute inset-0 bg-black z-30"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.95 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 0.95 }} exit={{ opacity: 0 }}
             transition={{ duration: TRANSITION_DURATION_MS / 1000, ease: "easeInOut" }}
           />
         )}
@@ -591,7 +544,7 @@ export default function Timeline() {
   );
 }
 
-/* ================= Panels ================= */
+/* ================ Panels ================ */
 function ControlsPanel({ onClose }: { onClose: () => void }) {
   const pairs: Array<[string, string]> = [
     ["Avanzar", "W"], ["Retroceder", "S"], ["Paso Lateral Izq.", "Q"], ["Paso Lateral Der.", "E"],
@@ -622,9 +575,7 @@ function ControlsPanel({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <div className="mt-3 flex justify-end gap-2">
-        <button onClick={onClose} className="btn-ghost h-9 px-3 text-[13px]">
-          Cerrar
-        </button>
+        <button onClick={onClose} className="btn-ghost h-9 px-3 text-[13px]">Cerrar</button>
       </div>
     </div>
   );
@@ -650,9 +601,6 @@ function AudioPanel({ onClose }: { onClose: () => void }) {
     try { a.volume = Math.max(0, Math.min(1, vol)); a.currentTime = 0; a.play(); } catch { }
   };
 
-  const handleMusic = (v: number) => setMusic(v);
-  const handleSfx = (v: number) => previewSfx(v);
-
   return (
     <div id="audio-panel" className="panel-glass mt-4 sm:mt-5 p-2.5 sm:p-3 text-white overflow-visible">
       <div className="grid gap-3 sm:gap-3.5 md:grid-cols-2">
@@ -661,8 +609,8 @@ function AudioPanel({ onClose }: { onClose: () => void }) {
             <input
               type="range" min={0} max={1} step={0.01}
               value={music}
-              onChange={(e) => handleMusic(parseFloat(e.target.value))}
-              onInput={(e) => handleMusic(parseFloat((e.target as HTMLInputElement).value))}
+              onChange={(e) => setMusic(parseFloat(e.target.value))}
+              onInput={(e) => setMusic(parseFloat((e.target as HTMLInputElement).value))}
               className="w-full sm:w-44 accent-cyan-300"
             />
           </Row>
@@ -672,20 +620,21 @@ function AudioPanel({ onClose }: { onClose: () => void }) {
             <input
               type="range" min={0} max={1} step={0.01}
               value={sfx}
-              onChange={(e) => handleSfx(parseFloat(e.target.value))}
-              onInput={(e) => handleSfx(parseFloat((e.target as HTMLInputElement).value))}
+              onChange={(e) => previewSfx(parseFloat(e.target.value))}
+              onInput={(e) => previewSfx(parseFloat((e.target as HTMLInputElement).value))}
               className="w-full sm:w-44 accent-cyan-300"
             />
           </Row>
         </Section>
 
         <div className="md:col-span-2 flex flex-col sm:flex-row gap-2 sm:gap-3 justify-between">
-          <button onClick={() => { handleMusic(DEFAULTS.music); handleSfx(DEFAULTS.sfx); }} className="btn-ghost h-9 text-[13px] px-3">
+          <button
+            onClick={() => { setMusic(DEFAULTS.music); previewSfx(DEFAULTS.sfx); }}
+            className="btn-ghost h-9 text-[13px] px-3"
+          >
             Restablecer
           </button>
-          <button onClick={onClose} className="btn-metal h-9 text-[13px] px-3">
-            Cerrar
-          </button>
+          <button onClick={onClose} className="btn-metal h-9 text-[13px] px-3">Cerrar</button>
         </div>
       </div>
       <audio ref={beepRef} src={ASSETS.audio.buttonSound} preload="auto" style={{ display: "none" }} />

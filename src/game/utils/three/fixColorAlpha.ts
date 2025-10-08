@@ -5,8 +5,7 @@ import * as THREE from "three";
 
 /**
  * Parche defensivo: si alguien pasa "rgba(r,g,b,a)" a THREE.Color,
- * ignoramos el alfa para evitar el warning ruidoso.
- * El alfa debe gestionarse con material.opacity / transparent.
+ * ignoramos el alfa para evitar el warning ruidoso. El alfa va en material.opacity.
  */
 let patched = false;
 export function patchThreeColorAlphaWarning() {

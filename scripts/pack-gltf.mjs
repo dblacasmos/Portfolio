@@ -1,4 +1,9 @@
-// scripts/pack-gltf.mjs (v6: usa 'copy' por extensión .gltf/.glb; sin --separate/--embed)
+// scripts/pack-gltf.mjs (v7)
+// - Normaliza texturas .webp/.avif -> .png cuando procede
+// - Aplica ETC1S/UASTC según heurística
+// - prune + dedup + quantize
+// - Draco y Meshopt → “best-of” (elige el menor)
+// - Evita reempaquetar si la salida está al día
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -11,30 +16,28 @@ import { Minimatch } from "minimatch";
 const repoRoot = process.cwd();
 const roots = findExistingRoots(cfg.modelDirs.map((p) => path.join(repoRoot, p)));
 const limit = pLimit(cfg.concurrency);
-const summary = []; // Recolecta métricas por modelo
+const summary = [];
 
 const isWin = process.platform === "win32";
-const NPM = "npx"; // usamos npx siempre para estabilidad en Win
+const NPM = "npx";
 const GLTF = ["-y", "@gltf-transform/cli"];
 
 function run(cmd, args, opts = {}) {
   return new Promise((res, rej) => {
     const ps = spawn(cmd, args, { stdio: "inherit", shell: isWin, ...opts });
-    ps.on("close", (c) => c === 0 ? res() : rej(new Error(cmd + " " + args.join(" "))));
+    ps.on("close", (c) => (c === 0 ? res() : rej(new Error(`${cmd} ${args.join(" ")}`))));
   });
 }
 
-// Utilidades para detectar punteros LFS y fallar con mensaje claro
+// Punteros LFS: mensaje claro si el archivo no es el binario real
 function isLFSPointer(file) {
   try {
     const head = fs.readFileSync(file, "utf8");
     return head.startsWith("version https://git-lfs.github.com/spec/v1");
   } catch {
-    // Si no se puede leer como texto, asumimos que es binario real
     return false;
   }
 }
-
 function assertNotLFSPointer(file) {
   if (isLFSPointer(file)) {
     throw new Error(`El archivo parece un puntero de Git LFS: ${file}
@@ -46,7 +49,7 @@ function rmrf(p) { try { fs.rmSync(p, { recursive: true, force: true }); } catch
 function unlink(p) { try { fs.unlinkSync(p); } catch { } }
 
 async function normalizeTextures(modelPath) {
-  if (!cfg.models?.normalizeWebPInModels) return modelPath; // opcional
+  if (!cfg.models?.normalizeWebPInModels) return modelPath;
   assertNotLFSPointer(modelPath);
   const dir = path.dirname(modelPath);
   const base = path.basename(modelPath, path.extname(modelPath));
@@ -54,14 +57,16 @@ async function normalizeTextures(modelPath) {
   const outGLTF = path.join(work, base + ".gltf");
   const backGLB = path.join(dir, base + ".norm.glb");
   fs.mkdirSync(work, { recursive: true });
-  // 1) convertir a .gltf (el CLI infiere por extensión)
+
+  // 1) .glb/.gltf -> .gltf (CLI infiere por extensión)
   await run(NPM, [...GLTF, "copy", modelPath, outGLTF]);
-  // 1.1) validar que la salida es JSON antes de parsear
+
   const text = fs.readFileSync(outGLTF, "utf-8");
   if (!text.trim().startsWith("{")) {
     throw new Error(`La salida ${outGLTF} no es JSON. Verifica que ${modelPath} sea válido (no puntero LFS / no corrupto).`);
   }
-  // 2) reemplazar *.webp/*.avif -> *.png y ajustar JSON
+
+  // 2) Sustituir .webp/.avif a .png dentro del .gltf y del filesystem del work
   const gltf = JSON.parse(text);
   if (Array.isArray(gltf.images)) {
     for (const img of gltf.images) {
@@ -79,27 +84,26 @@ async function normalizeTextures(modelPath) {
     }
     fs.writeFileSync(outGLTF, JSON.stringify(gltf, null, 2));
   }
-  // 3) volver a .glb embebido (el CLI infiere por extensión)
+
+  // 3) Volver a .glb embebido
   await run(NPM, [...GLTF, "copy", outGLTF, backGLB]);
-  // Limpieza del workdir
+
+  // Limpieza
   rmrf(work);
-  // Si quedó un *.gltf “huérfano” junto al modelo original, elimínalo
   try {
     const strayGLTF = path.join(dir, base + ".gltf");
     if (fs.existsSync(strayGLTF)) fs.rmSync(strayGLTF, { force: true });
   } catch { }
+
   return backGLB;
 }
 
 async function pack(input) {
-  // Comprobación temprana: evitar procesar punteros LFS (mensaje claro)
   assertNotLFSPointer(input);
-  // helper de tamaños
+
   const safeSize = (p) => { try { return fs.statSync(p).size; } catch { return 0; } };
   const kb = (n) => (n > 0 ? (n / 1024).toFixed(2) : "-");
-  const mb = (n) => (n > 0 ? (n / (1024 * 1024)).toFixed(2) : "-");
 
-  // Normaliza texturas a PNG para que etc1s funcione con todas
   const normalized = await normalizeTextures(input);
   const dir = path.dirname(input);
   const base = path.basename(input, path.extname(input));
@@ -107,45 +111,46 @@ async function pack(input) {
   const t1 = path.join(dir, base + ".tmp1.glb");
   const t2 = path.join(dir, base + ".tmp2.glb");
 
-  // No reprocesar si ya existe y es más nuevo que el *normalizado*
+  // Saltar si ya está al día (comparado contra normalizado)
   const FORCE = process.env.PACK_FORCE === "1" || process.argv.includes("--force");
   if (!FORCE && fs.existsSync(out)) {
-    const srcM = fs.statSync(normalized).mtimeMs;           // <<< clave: mirar normalized
-    const outM = fs.statSync(out).mtimeMs;
-    if (outM >= srcM) {
-      console.log("SKIP ", rel(process.cwd(), out), "(up to date)");
-      // Aún así, añadimos una fila de resumen
-      summary.push({
-        name: rel(repoRoot, input),
-        inSize: safeSize(input),
-        normSize: safeSize(normalized),
-        dracoSize: 0,
-        meshoptSize: 0,
-        packedSize: safeSize(out)
-      });
-      return;
-    }
+    try {
+      const srcM = fs.statSync(normalized).mtimeMs;
+      const outM = fs.statSync(out).mtimeMs;
+      if (outM >= srcM) {
+        console.log("SKIP ", rel(process.cwd(), out), "(up to date)");
+        summary.push({
+          name: rel(repoRoot, input),
+          inSize: safeSize(input),
+          normSize: safeSize(normalized),
+          dracoSize: 0,
+          meshoptSize: 0,
+          packedSize: safeSize(out)
+        });
+        return;
+      }
+    } catch { }
   }
 
-  // Decidir KTX2: ETC1S (alto ahorro) o UASTC (alta fidelidad)
+  // UASTC vs ETC1S (gltf-transform v4)
   const useUASTC =
     (cfg.uastcInclude || []).some((rx) =>
       rx instanceof RegExp ? rx.test(input) : new Minimatch(String(rx)).match(input)
     );
+
   if (useUASTC) {
-    const q = cfg.ktx2?.uastcQuality ?? 128;    // 0..255 (gltf-transform v4)
-    const zl = cfg.ktx2?.zstdLevel ?? 18;      // compresión contenedor
+    const q = cfg.ktx2?.uastcQuality ?? 128; // 0..255
+    const zl = cfg.ktx2?.zstdLevel ?? 18;
     await run(NPM, [...GLTF, "uastc", normalized, t1, "--level", String(q), "--zstd", String(zl)]);
   } else {
-    // ETC1S en gltf-transform v4: --quality (1..255)
-    const quality = cfg.ktx2?.etc1sQLevel ?? 200;
+    const quality = cfg.ktx2?.etc1sQLevel ?? 200; // 1..255
     await run(NPM, [...GLTF, "etc1s", normalized, t1, "--quality", String(quality)]);
   }
 
   await run(NPM, [...GLTF, "prune", t1, t2]);
   await run(NPM, [...GLTF, "dedup", t2, t1]);
 
-  // Cuantización para bajar VRAM de buffers (KHR_mesh_quantization) ===
+  // Cuantización (KHR_mesh_quantization)
   const qPosBits = cfg.quantize?.positionBits;
   const qNormBits = cfg.quantize?.normalBits;
   const qUvBits = cfg.quantize?.texcoordBits;
@@ -156,10 +161,10 @@ async function pack(input) {
     if (Number.isFinite(qUvBits)) qArgs.push("--quantizeTexcoord", String(qUvBits));
     await run(NPM, [...GLTF, ...qArgs]);
   } else {
-    // si está desactivado, pasa t1 -> t2 sin cambios
     fs.renameSync(t1, t2);
   }
 
+  // Draco (ojo con UVs fuera de [0,1] → deja texcoordBits en null)
   const qPos = cfg.draco?.positionBits ?? 14;
   const qUv = cfg.draco?.texcoordBits;
   {
@@ -168,34 +173,32 @@ async function pack(input) {
     await run(NPM, [...GLTF, ...args]);
   }
 
-  // --- best-of: aplicar meshopt y quedarnos con el más pequeño ---
+  // Meshopt y “best-of”
   const mopt = path.join(dir, base + ".mopt.glb");
   await run(NPM, [...GLTF, "meshopt", t1, mopt]);
+
   try {
     const szDraco = safeSize(t1);
     const szMopt = safeSize(mopt);
-    const _kb = (n) => (n / 1024).toFixed(2);
-    console.log(`best-of: draco=${_kb(szDraco)} KB vs meshopt=${_kb(szMopt)} KB`);
+    console.log(`best-of: draco=${kb(szDraco)} KB vs meshopt=${kb(szMopt)} KB`);
     if (szMopt > 0 && (szDraco === 0 || szMopt < szDraco)) {
-      fs.renameSync(mopt, out);        // Meshopt gana
-      fs.rmSync(t1, { force: true });  // limpia el otro
+      fs.renameSync(mopt, out);        // gana Meshopt
+      fs.rmSync(t1, { force: true });
     } else {
-      fs.renameSync(t1, out);          // Draco gana
+      fs.renameSync(t1, out);          // gana Draco
       fs.rmSync(mopt, { force: true });
     }
   } catch (e) {
     console.warn("best-of compare failed:", e?.message ?? e);
-    // fallback seguro: conservar Draco
     try { fs.renameSync(t1, out); fs.rmSync(mopt, { force: true }); } catch { }
   }
 
-  // Registrar métricas en el resumen ---
   summary.push({
     name: rel(repoRoot, input),
     inSize: safeSize(input),
     normSize: safeSize(normalized),
-    dracoSize: safeSize(path.join(dir, base + ".tmp1.glb")),  // si draco ganó, es out antes del rename; si no, lo renombramos, pero no pasa nada si 0
-    meshoptSize: safeSize(path.join(dir, base + ".mopt.glb")),// 0 si fue eliminado
+    dracoSize: safeSize(path.join(dir, base + ".tmp1.glb")),
+    meshoptSize: safeSize(path.join(dir, base + ".mopt.glb")),
     packedSize: safeSize(out)
   });
 
@@ -208,25 +211,26 @@ const inputs = new Set();
 for (const root of roots) {
   for (const f of walk(root)) {
     if (!MODEL_RX.test(f)) continue;
-    // Salta cualquier cosa en *.norm_work
     if (f.includes(".norm_work")) continue;
-    // Salta temporales tipo *.norm.glb
     if (/\.norm\.(glb|gltf)$/i.test(f)) continue;
     const base = path.basename(f);
-    if (cfg.models?.skipPacked && /\.packed(\.|$)/i.test(base)) continue; // NO re-empaquetar ya packed
+    if (cfg.models?.skipPacked && /\.packed(\.|$)/i.test(base)) continue;
     inputs.add(path.resolve(f));
   }
 }
-const tasks = []; for (const f of inputs) { tasks.push(limit(() => pack(f))); }
+
+const tasks = [];
+for (const f of inputs) tasks.push(limit(() => pack(f)));
 await Promise.all(tasks);
 
-// Imprimir resumen tabular ===
+// Resumen tabular (ligero y útil)
 if (summary.length) {
   const pad = (s, n) => String(s).padEnd(n);
   const fmt = (n) => n ? (n / 1024).toFixed(2) + " KB" : "-";
   const tSum = summary.reduce((a, s) => a + s.inSize, 0);
   const pSum = summary.reduce((a, s) => a + s.packedSize, 0);
   const saved = tSum > 0 ? ((1 - pSum / tSum) * 100) : 0;
+
   console.log("\n=== Build Size Summary ===");
   console.log(pad("Model", 48), pad("In", 10), pad("Norm", 10), pad("Draco", 10), pad("Meshopt", 10), pad("Packed", 10), "Saved");
   for (const s of summary) {

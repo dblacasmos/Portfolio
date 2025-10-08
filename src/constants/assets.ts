@@ -6,8 +6,7 @@
 ============================================================ */
 
 export const ASSETS = {
-
-    // Modelos
+    // Modelos (GLB ya optimizados con KTX2/Draco/Meshopt)
     models: {
         city: "/assets/models/CyberpunkCity.ktx2.glb",
         drone: "/assets/models/drone.ktx2.glb",
@@ -23,11 +22,12 @@ export const ASSETS = {
             skySource: "/assets/img/timeline/skySource.webp",
         },
         ui: {
+            // Nota: para backgrounds CSS usamos PNG/WEBP (los navegadores no soportan KTX2 en CSS)
             paneles: "/assets/ui/paneles.png",
         },
     },
 
-    // Efectos
+    // Efectos 2D
     fx: {
         impacts: "/assets/fx/impacts.webp",
     },
@@ -65,6 +65,7 @@ export const ASSETS = {
     // Decoders (GLTF/DRACO)
     decoders: {
         dracoPath: "/assets/draco/",
+        basisPath: "/assets/basis/",
     },
 } as const;
 

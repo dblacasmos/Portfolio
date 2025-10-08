@@ -23,12 +23,11 @@ const SINGLETON_KEY = "__app_loading_overlay_singleton__";
 const RobotVideo = React.memo(function RobotVideo() {
     const ref = React.useRef<HTMLVideoElement | null>(null);
 
-    // Intenta forzar play (p/ iOS/Android con autoplay+muted)
+    // Fuerza play (autoplay+muted en móvil)
     React.useEffect(() => {
         const v = ref.current;
         if (!v) return;
         const tryPlay = () => v.play().catch(() => void 0);
-        // En algunos navegadores el primer frame llega tarde; reintento al canplay
         v.addEventListener("canplay", tryPlay, { once: true });
         tryPlay();
         return () => v.removeEventListener("canplay", tryPlay);
@@ -44,7 +43,6 @@ const RobotVideo = React.memo(function RobotVideo() {
             playsInline
             preload="auto"
             className="w-full h-full object-cover"
-            // Evita cambios de UI externos
             controls={false}
             disablePictureInPicture
         />
@@ -61,37 +59,30 @@ function LoadingOverlayImpl({
     const setLoadingPct =
         useGameStore((s) => (s as any).setLoadingPct) as undefined | ((n: number) => void);
 
-    // ---- Singleton guard (NO returns condicionales antes de los demás hooks) ----
+    // ---- Singleton guard (orden de hooks estable) ----
     const [allowed, setAllowed] = React.useState<boolean>(() => {
         if (typeof window === "undefined") return true;
-        return !(window as any)[SINGLETON_KEY]; // si ya existe, no debería mostrarse
+        return !(window as any)[SINGLETON_KEY];
     });
     React.useEffect(() => {
         if (typeof window === "undefined") return;
         if ((window as any)[SINGLETON_KEY]) {
-            // otro overlay ya está activo
             setAllowed(false);
             return;
         }
         (window as any)[SINGLETON_KEY] = true;
         setAllowed(true);
         return () => {
-            // liberar el guard al desmontar
             if ((window as any)[SINGLETON_KEY]) delete (window as any)[SINGLETON_KEY];
         };
     }, []);
 
-    // === Handshake: este overlay real ha montado y PINTADO al menos 1 frame ===
+    // Handshake: montado y primer paint
     React.useLayoutEffect(() => {
         (window as any).__ingameOverlayMounted = true;
-        let raf1 = 0,
-            raf2 = 0;
-        const markPainted = () => {
-            (window as any).__ingameOverlayPainted = true;
-        };
-        raf1 = requestAnimationFrame(() => {
-            raf2 = requestAnimationFrame(markPainted);
-        });
+        let raf1 = 0, raf2 = 0;
+        const markPainted = () => { (window as any).__ingameOverlayPainted = true; };
+        raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(markPainted); });
         return () => {
             if (raf1) cancelAnimationFrame(raf1);
             if (raf2) cancelAnimationFrame(raf2);
@@ -100,7 +91,7 @@ function LoadingOverlayImpl({
         };
     }, []);
 
-    // ---- Progreso mostrado (suavizado, monótono, sin RAF perpetuo) ----
+    // ---- Progreso mostrado (suavizado y monótono) ----
     const [pct, setPct] = React.useState(0);
     const startRef = React.useRef<number | null>(null);
     const doneRef = React.useRef(false);
@@ -128,9 +119,7 @@ function LoadingOverlayImpl({
     }, [progress01]);
 
     React.useEffect(() => {
-        try {
-            setLoadingPct?.(Math.round(pct));
-        } catch { }
+        try { setLoadingPct?.(Math.round(pct)); } catch { }
     }, [pct, setLoadingPct]);
 
     React.useEffect(() => {
@@ -161,7 +150,6 @@ function LoadingOverlayImpl({
     const sysIdx = Math.min(sys.length - 1, Math.floor((pct / 100) * sys.length));
     const reached100 = pct >= 100 - 0.25;
 
-    // Si no está permitido, devolvemos null al final (hooks ya montados → orden estable)
     if (!allowed) return null;
 
     const bgClass = transparentBg ? "bg-transparent backdrop-blur-0" : "bg-black/75 backdrop-blur-md";
@@ -182,10 +170,10 @@ function LoadingOverlayImpl({
 
                     <div className="relative rounded-2xl bg-[rgba(8,15,25,.78)] border border-cyan-400/30 shadow-[0_0_40px_rgba(56,189,248,.18)_inset]">
                         <div className="grid grid-cols-1 md:grid-cols-[minmax(280px,380px)_1fr]">
-                            {/* COLUMNA IZQ: vídeo (aislado del render loop del overlay) */}
+                            {/* IZQ: vídeo (aislado) */}
                             <div className="relative bg-black md:h-full">
                                 <RobotVideo />
-                                {/* Overlays dinámicos POR ENCIMA del video (estos sí pueden re-renderizar) */}
+                                {/* Overlays dinámicos por encima del vídeo */}
                                 <div className="pointer-events-none absolute inset-0">
                                     <div className="absolute inset-0 opacity-[.16] [background:repeating-linear-gradient(transparent_0_2px,rgba(255,255,255,.08)_2px_3px)]" />
                                     <div className="absolute top-3 left-3 text-[11px] tracking-[.35em] text-cyan-200/90">
@@ -205,7 +193,7 @@ function LoadingOverlayImpl({
                                 </div>
                             </div>
 
-                            {/* COLUMNA DER: progreso */}
+                            {/* DER: progreso */}
                             <div className="relative p-5 sm:p-6">
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="text-[15px] sm:text-base font-semibold text-white/95 flex items-center gap-2">
@@ -223,7 +211,7 @@ function LoadingOverlayImpl({
                                         <Ring pct={pct} size={120} stroke={10} glow />
                                     </div>
                                     <div>
-                                        <div className="text-[42px] sm:text-[56px] leading-none font-extrabold tracking-tight text-white drop-shadow">
+                                        <div className="text-[36px] sm:text-[48px] md:text-[56px] leading-none font-extrabold tracking-tight text-white drop-shadow">
                                             {Math.round(pct)}
                                             <span className="text-cyan-300">%</span>
                                         </div>

@@ -3,9 +3,14 @@
     ========================= */
 import { ASSETS } from "./assets";
 
+/**
+ * Config global del juego.
+ * - Mantén aquí valores por defecto y ajustes “de diseño”.
+ * - Evita lógica: solo datos y funciones puras (p.ej. scaleForAspect).
+ */
 export const CFG = {
     // ===========================
-    // GAMEPLAY (valores por defecto)
+    // GAMEPLAY (valores base)
     // ===========================
     gameplay: {
         dronesTotal: 5,
@@ -27,31 +32,31 @@ export const CFG = {
         sfxVolume: 0.8,
         uiVolume: 0.9,
 
-        // Ducking cuando se abre el menú
+        // Ducking al abrir menú
         duckMenu: {
             musicTo: 0.2,
             sfxTo: 0.1,
         },
 
-        // Si true, mutea global mientras loadingPct está entre 1..99
+        // Si true, mutea mientras loadingPct ∈ (0,100)
         muteDuringLoading: true,
 
-        // Clips usados por Player/HUD — sincronizados con ASSETS
+        // Clips base (coinciden con ASSETS)
         musicCity: { src: ASSETS.audio.musicCity, loop: true, volume: 0.2 },
         reload: { src: ASSETS.audio.reload, loop: true, volume: 0.8 },
         step: { src: ASSETS.audio.step, loop: true, volume: 0.8 },
         shot: { src: ASSETS.audio.shotLaser, volume: 0.8 },
 
-        // Sonidos UI
+        // UI
         ui: {
             click: ASSETS.audio.buttonSound,
             open: ASSETS.audio.openPortfolio,
         },
 
-        // Sonidos sFx
+        // SFX (ganancias por tipo)
         sfx: {
             explosionDronVolume: 0.9,
-            portalVolume: 0.9,
+            portalVolume: 0.9, // usado por el portal si no hay override en endDoor
         },
     },
 
@@ -69,7 +74,11 @@ export const CFG = {
         headBob: { frequency: 8.0 },
     },
 
-    look: { sensitivity: 0.0015 },
+    // Mirada y modo ADS (leído por readAdsMode / readHand)
+    look: {
+        sensitivity: 0.0015,
+        adsMode: "toggle" as "hold" | "toggle",
+    },
 
     controls: {
         nearWallLook: { minFactor: 0.25, strength: 1.0 },
@@ -79,28 +88,26 @@ export const CFG = {
     // COLISIÓN / CÁPSULA
     // ===========================
     collision: {
-        /** Radio en pie */
+        /** Radio de la cápsula de pie (m) */
         radiusStand: 0.04,
-        /** Radio en cuclillas */
+        /** Radio en cuclillas (m) — algo menor para “pasillos” */
         radiusCrouch: 0.22,
 
         /**
-         * Te permite acercarte más a paredes sin “chocar” tan pronto.
-         * A mayor wallPadding → menor radio efectivo contra paredes.
-         * (Se clampéa para no bajar de 0.05m de radio efectivo).
+         * Te permite acercarte más a paredes sin bloquear tan pronto.
+         * A mayor wallPadding → menor radio efectivo contra walls.
          */
         wallPadding: 0.02,
 
-        /** Máximo tamaño del subpaso al resolver sliding. */
+        /** Tamaño máximo del sub-paso al resolver sliding. */
         maxSubstep: 0.15,
 
-        /** Separación mínima tras resolver colisión. */
+        /** Separación mínima tras una colisión. */
         separationEps: 0.001,
 
         /**
-         * ► NUEVO: altura mínima (Y) de triángulos de "walls" con los que colisiona el player.
-         * Cualquier pared por debajo de este Y se ignora (bordillos, raíles bajos, etc).
-         * Sube/baja este valor para “recortar” qué obstáculos te paran.
+         * Altura mínima Y de triángulos de walls con los que colisiona el player.
+         * Sirve para ignorar bordillos o obstáculos bajos.
          */
         minWallY: 0.05,
     },
@@ -114,7 +121,7 @@ export const CFG = {
     // ARMA EN OVERLAY
     // ===========================
     weapon: {
-        screenPos: [0.64, -0.10] as [number, number],
+        screenPos: [0.64, -0.1] as [number, number],
         screenDistance: 1.1,
         scale: 0.8,
         rotation: [0.0, 0.16, 0] as [number, number, number],
@@ -132,27 +139,24 @@ export const CFG = {
     // ===========================
     player: {
         /**
-         * Distancia hacia dentro desde la pared invisible (en metros).
+         * Distancia hacia dentro desde la pared invisible (m).
          * Aumenta si notas conflictos con la colisión del borde.
          */
         spawnEdgeInset: 3.0,
 
-        /**
-         * Lado del que aparece el jugador:
-         * "east" ( +X ), "west" ( -X ), "north" ( +Z ), "south" ( -Z )
-         */
+        /** Lado desde el que aparece el jugador. */
         spawnSide: "east" as "east" | "west" | "north" | "south",
 
-        /**
-         * ► NUEVO: desplazamiento lateral a lo largo del borde (metros).
-         * Positivo = a la DERECHA de donde miras; Negativo = a la izquierda.
-         * Útil para salir "un poco más hacia la derecha".
-         */
+        /** Desplazamiento lateral a lo largo del borde (m). */
         spawnLateralOffset: 0,
 
-        // (legacy – no se usa aquí, lo mantengo por compatibilidad)
+        // Preferencia de mano para UI/arma (leído por readHand())
+        hand: "right" as "right" | "left",
+
+        // (legacy – compat)
         spawnForwardFromSpawnTex: 8,
     },
+
     // ===========================
     // RECARGA / MUNICIÓN
     // ===========================
@@ -166,16 +170,25 @@ export const CFG = {
     // ENDDOOR / PUNTO DE RECOGIDA
     // ===========================
     endDoor: {
+        // Si necesitas verlo siempre en debug:
+        devForceVisible: false, // ← EndDoor.tsx revisa este flag
+        // alias (compat): si alguien usa el viejo nombre, respeta
         devAlwaysVisible: false,
+
+        url: (ASSETS as any)?.video?.endDoor ?? "/assets/video/endDoor.mp4",
+
         width: 1.6,
         minHeight: 0.9,
         heightAboveGround: 0.4,
-        inset: 2.1,          // “1 paso” (metros). Si prefieres tu 3.5, déjalo tal cual.
-        lateralOffset: -0.2,  // desplazamiento a lo largo de la pared
+        inset: 2.1,          // distancia desde la pared (m)
+        lateralOffset: -0.2, // desplazamiento a lo largo de la pared
 
         // Bucle perfecto del final (sin saltos)
-        tailSeconds: 3.0,  // duración del tramo a loopear
-        tailFps: 30,       // FPS del bucle (memoria aprox: tailSeconds * tailFps frames)
+        tailSeconds: 3.0, // tramo a loopear
+        tailFps: 30,      // FPS del loop (mem = tailSeconds * tailFps frames)
+
+        // Volumen del portal (override local del de audio.sfx.portalVolume)
+        portalVolume: 0.9,
 
         // Chroma key (fondo azul)
         key: {
@@ -192,10 +205,10 @@ export const CFG = {
     lasers: { viewTiltMeters: 1.2 },
 
     // ===========================
-    // EXPLOSION / EFECTOS
+    // FX (explosión, etc.)
     // ===========================
     fx: {
-        explosionSize: 4.2, // ← ajusta aquí el tamaño global del billboard de explosión
+        explosionSize: 4.2,
     },
 
     // ===========================
@@ -213,6 +226,7 @@ export const CFG = {
             orbitronUrl: "/assets/fonts/Orbitron.ttf",
         },
         ui: {
+            // Límite de DPR para no sobrecargar móviles
             dprMax: 1.5,
             scale: 1.0,
             breakpoints: { mobileMaxPx: 640, tabletMaxPx: 1024 },
@@ -224,6 +238,7 @@ export const CFG = {
             snapThreshold: 0.015,
             showGuides: true,
 
+            // Escala responsive empleada por useHudResponsive()
             scaleForAspect: (aspect: number) => {
                 if (aspect < 0.65) return 0.85 as const;
                 if (aspect < 1.0) return 0.95 as const;
@@ -233,8 +248,7 @@ export const CFG = {
 
         // ------------ DestroyDroneCard (DOM overlay tipo MissionCard) --------------
         destroyDroneCard: {
-            /* ===== Contenedor principal (fondo rojo translúcido) ===== */
-            // Tamaño/posición
+            // Contenedor (fondo rojo translúcido)
             widthPx: 1000,
             heightPct: 84,
             marginTopPx: 40,
@@ -242,7 +256,6 @@ export const CFG = {
             marginBottom: 40,
             yOffsetPx: 0,
 
-            // Fondo/bordes
             cardBgColor: "#9e2940",
             cardBgOpacity: 0.35,
             cardBorderColor: "rgba(248,113,113,0.35)",
@@ -252,36 +265,36 @@ export const CFG = {
             contentPadX: 20,
             contentPadY: 20,
 
-            /* ===== Layout interno ===== */
+            // Layout interno
             gapX: 16,
 
-            /* ===== Panel de vídeo (izquierda) ===== */
+            // Panel de vídeo (izquierda)
             videoWidthPx: 400,
             videoBgColor: "#062e3a",
-            videoBgOpacity: 0.70,
+            videoBgOpacity: 0.7,
             videoMarginTopPx: 0,
             videoMarginLeftPx: 0,
             videoMarginBottomPx: 20,
 
-            /* ===== Panel de texto (derecha) ===== */
-            textWidthPx: null as null | number, // ← si null, se calcula
+            // Panel de texto (derecha)
+            textWidthPx: null as null | number, // si null, se calcula
             textBgColor: "#062e3a",
-            textBgOpacity: 0.70,
+            textBgOpacity: 0.7,
             textMarginTopPx: 0,
             textMarginRightPx: 0,
             textMarginBottomPx: 20,
 
-            /* ===== Tipografía y color ===== */
-            fontUrl: "/assets/fonts/Orbitron.tss", // DOM: se usa font-family; .tss se ignora
+            // Tipografía
+            fontUrl: "/assets/fonts/Orbitron.ttf",
             fontFamily:
                 "'Orbitron', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, sans-serif",
             textColor: "#7ef9ff",
-            textSizePx: 11,
+            textSizePx: 12,
             lineHeight: 1.5,
             textPaddingX: 16,
             textPaddingY: 16,
 
-            /* ===== Etiquetas y UI ===== */
+            // Etiquetas y UI
             headerSpeakingBg: "rgba(52,211,153,0.15)",
             headerSpeakingRing: "rgba(110,231,183,0.30)",
             headerIdleBg: "rgba(255,255,255,0.10)",
@@ -296,10 +309,10 @@ export const CFG = {
                 audio: {
                     zoomIn: { src: "/audio/servo_in.mp3" },
                     zoomOut: { src: "/audio/servo_out.mp3" },
-                }
+                },
             },
             canvasPx: [512, 512],
-            size: 0.10,
+            size: 0.1,
             opacity: 0.95,
             additive: true,
             color: "#57F527",
@@ -339,17 +352,15 @@ export const CFG = {
             viewWorldWidth: 100,
             fillAlphaDefault: 0.38,
             sweepOn: true,
-            sweepSpeed: 2.8,   // velocidad barrido
-            sweepGain: 1.15,   // brillo del barrido
-            sweepWidth: 0.85,  // grosor angular del barrido
-            triggerRadius: 2.6, // distancia en metros para activar el “teleport” a Main
+            sweepSpeed: 2.8,
+            sweepGain: 1.15,
+            sweepWidth: 0.85,
+            triggerRadius: 2.6,
 
             tuning: {
                 gridCells: 16,
                 gridLineWidthPx: 1.0,
                 enemyPointSizePx: 11,
-                // poiPointSizePx: 6,
-                // ringThickness: 0.06,
             },
 
             layoutOverrides: {
@@ -369,12 +380,12 @@ export const CFG = {
             stroke: 2.0,
             glow: 16.0,
             fontMagLabelPx: 56,
-            offset: { right: 1.70, bottom: 0.02 },
+            offset: { right: 1.7, bottom: 0.02 },
         },
 
         // ---------- Diales ----------
         dials: {
-            size: 0.30,
+            size: 0.3,
             texturePx: 712,
             healthColor: "#ff2d2d",
             shieldColor: "#22d3ee",
@@ -382,8 +393,8 @@ export const CFG = {
                 vida: ASSETS.img.timeline.vida,
                 escudo: ASSETS.img.timeline.escudo,
             },
-            health: { left: 1.40, bottom: 0.02 },
-            shield: { left: 2.40, bottom: 0.02 },
+            health: { left: 1.4, bottom: 0.02 },
+            shield: { left: 2.4, bottom: 0.02 },
         },
 
         // ---------- Barra de recarga ----------
@@ -391,7 +402,7 @@ export const CFG = {
             canvasPx: [820, 180] as [number, number],
             size: [0.63, 0.14] as [number, number],
             x: -0.01,
-            y: -0.70,
+            y: -0.7,
             cornerPx: 12,
             label: "RECARGANDO…",
         },
@@ -407,50 +418,49 @@ export const CFG = {
             paddingY: 4,
             roundedPx: 12,
             canvasPx: [340, 92],
-            size: 0.40,
+            size: 0.4,
         },
 
         // ---------- Overrides de layout ----------
         layoutOverrides: {
-            ortho: {} as Partial<Record<
-                "crosshair" | "ammo" | "health" | "shield" | "reload" | "counter" | "radar3d",
-                { x: number; y: number }
-            >>,
+            ortho: {} as Partial<
+                Record<
+                    "crosshair" | "ammo" | "health" | "shield" | "reload" | "counter" | "radar3d",
+                    { x: number; y: number }
+                >
+            >,
             scale: {
                 radar3d: 0.5,
-            } as Partial<Record<
-                "crosshair" | "ammo" | "health" | "shield" | "reload" | "counter" | "radar3d",
-                number
-            >>,
+            } as Partial<Record<"crosshair" | "ammo" | "health" | "shield" | "reload" | "counter" | "radar3d", number>>,
         },
     },
 
     // ===========================
-    // ESCENA / DOMO / PARED
+    // ESCENA / BOUNDS
     // ===========================
     bounds: {
         height: 0,
         heightExtra: 0.3,
-        wallThicknessIn: 0.2,   // grosor hacia DENTRO de la ciudad (en metros)
-        wallOffsetOut: 0.0,     // empuje extra hacia FUERA del AABB (opcional)
-        margin: 1
+        wallThicknessIn: 0.2, // hacia dentro
+        wallOffsetOut: 0.0,   // hacia fuera del AABB
+        margin: 1,
     },
 
     city: {
         size: { x: 1024, z: 1024 },
         margin: 2,
-        lighting: { ambient: 0.45, directional: 0.65 },
+        lighting: { ambient: 0.55, directional: 0.65 },
     },
 
-    sky: { darkness: 0.55 },
+    sky: { darkness: 0.45 },
 
     floorFill: {
         tileSize: 4,
-        grid: 4,           // solo se usa si carpet:false
+        grid: 4,
         detectEps: 0.07,
-        lift: -0.008,      // por debajo del asfalto
+        lift: -0.008,     // ligeramente bajo asfalto
         alignOffset: -0.013,
-        carpet: true,      // usa la “alfombra” barata (un solo polígono)
+        carpet: true,     // “alfombra” barata (un polígono)
     },
 
     wallVideo: {
@@ -477,18 +487,17 @@ export const CFG = {
     // ===========================
     drones: {
         size: 0.16,
-        speed: 3.6,              // m/s (opcional; ya lo usabas como fallback)
+        speed: 3.6, // m/s
         pingPongDistance: 3.8,
         capsuleRadius: 0.09,
         capsuleHalfHeight: 0.08,
         customSpawnsWorld: [
-            { x: -10.0, z: 0 },  // 5º más lejano
-            { x: -4.8, z: 0 }, // 4º 
-            { x: -0.2, z: -0.1 },  // 3º 
-            { x: 2.4, z: 0 },  // 2º carretera principal
-            { x: 9.5, z: 0 },  // 1º más cercano
+            { x: -10.0, z: 0 },
+            { x: -4.8, z: 0 },
+            { x: -0.2, z: -0.1 },
+            { x: 2.4, z: 0 },
+            { x: 9.5, z: 0 },
         ],
-
     },
 
     // ===========================
@@ -512,9 +521,12 @@ export const CFG = {
         barScale: 1.0,
     },
 
+    // ===========================
+    // DECODERS
+    // ===========================
     decoders: {
-        basisPath: "/assets/basis/", // <- coincide con lo que acabamos de copiar
-        dracoPath: "/assets/draco/", // <- forzamos también Draco bajo /assets
+        basisPath: "/assets/basis/",
+        dracoPath: "/assets/draco/",
     },
 
     // ===========================
@@ -533,12 +545,12 @@ export const CFG = {
     // RENDER
     // ===========================
     render: {
-        maxAnisotropy: 8,
-        useShadowMap: true,
+        maxAnisotropy: 4,
+        minMipmapSize: 512, // usado por tuneMaterials para decidir si genera mips
+        useShadowMap: false,
         toneMappingExposure: 1,
         antialias: false,
     },
-
 } as const;
 
 export type CFGType = typeof CFG;

@@ -8,9 +8,9 @@ export type Laser = {
     from: THREE.Vector3;
     to: THREE.Vector3;
     color: "red" | "green";
-    ttl: number;        // segundos restantes (vida total del destello/haz)
-    growT: number;      // longitud visible actual (en unidades de mundo)
-    growSpeed: number;  // velocidad de crecimiento del haz (unidades/seg)
+    ttl: number;        // vida total (s)
+    growT: number;      // longitud visible actual (mundo)
+    growSpeed: number;  // velocidad de crecimiento (m/s)
 };
 
 let laserId = 1;
@@ -19,7 +19,7 @@ export const makeLaser = (
     from: THREE.Vector3,
     to: THREE.Vector3,
     color: Laser["color"] = "green",
-    ttl: number = 0.22,       // duración total del disparo
+    ttl: number = 0.22,       // duración del destello/haz
     growSpeed: number = 400   // ~metros/seg (ajusta a tu escala)
 ): Laser => ({
     id: laserId++,

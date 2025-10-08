@@ -12,24 +12,23 @@ type HasAudioAndMenu = {
     loadingPct: number;
 };
 
-// decide si debemos mutear globalmente
+// Decide si debemos mutear globalmente (flag app o durante loading)
 const calcDesiredMute = (s: HasAudioAndMenu) => {
-    const muteByFlag = !!s.globalMute;
-    const muteByLoading =
-        !!(CFG.audio?.muteDuringLoading) && s.loadingPct > 0 && s.loadingPct < 100;
-    return muteByFlag || muteByLoading;
+    const byFlag = !!s.globalMute;
+    const byLoading = !!CFG.audio?.muteDuringLoading && s.loadingPct > 0 && s.loadingPct < 100;
+    return byFlag || byLoading;
 };
 
 export const withAudioSync =
     <T extends HasAudioAndMenu>(config: StateCreator<T>): StateCreator<T> =>
         (set, get, api) => {
-            // Wrapper compatible con las 2 sobrecargas de Zustand (replace true/false)
+            // Wrapper compatible con las dos sobrecargas de Zustand
             const setWithSync = ((partial: any, replace?: boolean) => {
                 const prev = get();
                 (set as any)(partial, replace);
                 const next = get();
 
-                // --- Volúmenes ---
+                // Volúmenes (clamp y solo si cambian)
                 if (prev.volumes.music !== next.volumes.music) {
                     audioManager.setMusicVol(Math.max(0, Math.min(1, next.volumes.music)));
                 }
@@ -37,7 +36,7 @@ export const withAudioSync =
                     audioManager.setSfxVol(Math.max(0, Math.min(1, next.volumes.sfx)));
                 }
 
-                // --- Ducking de menú ---
+                // Ducking de menú
                 if (prev.menuOpen !== next.menuOpen) {
                     const duckM = CFG.audio?.duckMenu?.musicTo ?? 0.2;
                     const duckS = CFG.audio?.duckMenu?.sfxTo ?? 0.1;
@@ -45,7 +44,7 @@ export const withAudioSync =
                     else audioManager.exitMenuMode();
                 }
 
-                // --- Mute global (flag + loading opcional) ---
+                // Mute global (flag + loading opcional)
                 if (prev.globalMute !== next.globalMute || prev.loadingPct !== next.loadingPct) {
                     audioManager.setGlobalMute(calcDesiredMute(next));
                 }

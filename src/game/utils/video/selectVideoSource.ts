@@ -10,6 +10,7 @@ export type VideoPref = { maxHeight: number; preferHevc?: boolean };
  * - ≥1080 → intenta 1080, luego 720, luego 480
  * - ≥720  → intenta 720,  luego 480
  * - <720  → intenta 480,  luego 720
+ * Si faltan entradas, cae al siguiente disponible.
  */
 export function pickVideoSrc(map: SrcMap, pref: VideoPref): string {
     const order =
@@ -23,7 +24,7 @@ export function pickVideoSrc(map: SrcMap, pref: VideoPref): string {
         const url = (map as any)[k];
         if (url) return url;
     }
-    // Fallback por si falta todo
+    // Último recurso
     return map.h480 ?? map.h720 ?? map.h1080 ?? "";
 }
 

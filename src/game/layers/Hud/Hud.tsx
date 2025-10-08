@@ -1,6 +1,3 @@
-/*  ====================================
-    FILE: src/game/layers/Hud/Hud.tsx
-    ==================================== */
 import React, { useMemo, useRef, useLayoutEffect, useCallback, useEffect, useState } from "react";
 import * as THREE from "three";
 import { useThree, useFrame, createPortal } from "@react-three/fiber";
@@ -19,7 +16,7 @@ import { useGameStore } from "../../utils/state/store";
 const HUD_LAYER = CFG.layers.HUD;
 const OVERLAY_ORDER = 20000;
 
-/* ---------------- Hex Vignette (shader barato, aditivo) ---------------- */
+/* ---------------- Hex Vignette (barato, aditivo) ---------------- */
 const HexVignette: React.FC<{ zoom: number; aspect: number; color?: string }> = ({ zoom, aspect, color }) => {
     const mat = useMemo(() => {
         return new THREE.ShaderMaterial({
@@ -79,13 +76,12 @@ const HexVignette: React.FC<{ zoom: number; aspect: number; color?: string }> = 
     return (
         <mesh renderOrder={OVERLAY_ORDER + 2} frustumCulled={false}>
             <planeGeometry args={[2, 2]} />
-            {/* ShaderMaterial ya creado arriba */}
             <primitive object={mat} attach="material" />
         </mesh>
     );
 };
 
-/* ------------------------- Utilidades editor ------------------------- */
+/* ---------------- util editor ---------------- */
 
 function clampToSafe(
     x: number,
@@ -119,7 +115,7 @@ function hitRect(nxWorld: number, nyWorld: number, rects: Rect[]): OrthoId | nul
     return null;
 }
 
-/* ----------------------------- Contenedor ---------------------------- */
+/* ---------------- contenedor ---------------- */
 
 const ForceHudFlags: React.FC<{ children: React.ReactNode; refresh?: any }> = ({ children, refresh }) => {
     const group = useRef<THREE.Group>(null!);
@@ -148,7 +144,7 @@ const ForceHudFlags: React.FC<{ children: React.ReactNode; refresh?: any }> = ({
         g.traverse(applyHudFlags);
     }, [applyHudFlags]);
 
-    // 👇 Re-aplicar flags cuando cambie el subtree (p.ej. al togglear Radar)
+    // Re-aplica flags al cambiar subtree (p.ej. togglear Radar)
     useEffect(() => {
         const g = group.current;
         if (g) g.traverse(applyHudFlags);
@@ -167,7 +163,7 @@ const ForceHudFlags: React.FC<{ children: React.ReactNode; refresh?: any }> = ({
     );
 };
 
-/* 🚫 Frame visual desactivado */
+/* Frame visual del editor desactivado (no se usa aquí) */
 const Frame: React.FC<{
     center: [number, number, number];
     size: [number, number];
@@ -214,13 +210,12 @@ export default function Hud({
 
     const [portalTarget, setPortalTarget] = useState<THREE.Object3D | null>(null);
 
-    // ✅ Crear (o reutilizar) un root fijo dentro de la SCENE, no la cámara.
+    // Root fijo en la escena (evita depender de matrices de la cámara)
     useLayoutEffect(() => {
         let root = (scene as any).userData?.__hudRoot as THREE.Group | undefined;
         if (!root) {
             root = new THREE.Group();
             root.name = "__hudRoot";
-            // Lo dejamos en (0,0,0); el contenido se posiciona relativo.
             scene.add(root);
             (scene as any).userData.__hudRoot = root;
         }
@@ -244,22 +239,19 @@ export default function Hud({
         return () => window.removeEventListener("hud:toggle-radar", t as any);
     }, []);
 
-    // Hotkeys M (toggle radar) y F (fullscreen). Se ignoran en modo editor o con el menú abierto.
+    // Hotkeys M (toggle radar) y F (fullscreen). Ignora si editor o menú.
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             const menuOpen = useGameStore.getState().menuOpen;
             if (editEnabled || menuOpen) return;
             if (e.code === "KeyM") {
-                // Solo togglear aquí; no re-despaches el evento o se toggleará 2 veces
                 setRadarOn((v) => !v);
-                e.preventDefault();
-                e.stopPropagation();
+                e.preventDefault(); e.stopPropagation();
             } else if (e.code === "KeyF") {
                 const el = (gl?.domElement ?? document.documentElement) as any;
                 if (document.fullscreenElement) document.exitFullscreen?.();
                 else el?.requestFullscreen?.();
-                e.preventDefault();
-                e.stopPropagation();
+                e.preventDefault(); e.stopPropagation();
             }
         };
         window.addEventListener("keydown", onKey, true);
@@ -344,7 +336,7 @@ export default function Hud({
     const counterPos = posMap.counter ? ([posMap.counter.x, posMap.counter.y, 0] as [number, number, number]) : defaultCounterPos;
     const radarPos = posMap.radar3d ? ([posMap.radar3d.x, posMap.radar3d.y, 0] as [number, number, number]) : defaultRadarPos;
 
-    // Tamaños (para marcos)
+    // Tamaños (para marcos / clamp)
     const ammoW = CFG.hud.ammo.size * responsiveScale * (scaleMap.ammo ?? 1);
     const ammoH = ammoW * (CFG.hud.ammo.canvasPx[1] / CFG.hud.ammo.canvasPx[0]);
     const dialS = CFG.hud.dials.size * responsiveScale;
@@ -358,7 +350,7 @@ export default function Hud({
     const counterW = (dc.size ?? 0.8) * responsiveScale * (scaleMap.counter ?? 1);
     const counterH = counterW * (Hc / Wc);
 
-    /* --------- Lista de rects (para hit test en pantalla) --------- */
+    /* Lista de rects (hit test pantalla) */
     const rects = useMemo(
         () => [
             { id: "radar3d", cx: radarPos[0], cy: radarPos[1], w: radarPlaneW, h: radarPlaneH },
@@ -372,7 +364,7 @@ export default function Hud({
         [radarPos, radarPlaneW, radarPlaneH, counterPos, counterW, counterH, reloadPos, reloadW, reloadH, ammoPos, ammoW, ammoH, healthPos, healthS, shieldPos, shieldS, crossPos, crossS]
     ) as { id: OrthoId; cx: number; cy: number; w: number; h: number }[];
 
-    /* --------- Clamp al entrar en editor --------- */
+    /* Clamp al entrar en editor */
     useEffect(() => {
         if (!editEnabled) return;
         const applyClamp = (id: OrthoId, cx: number, cy: number, w: number, h: number) => {
@@ -381,12 +373,10 @@ export default function Hud({
         };
         rects.forEach((r) => applyClamp(r.id, r.cx, r.cy, r.w, r.h));
         document.body.style.cursor = "default";
-        return () => {
-            document.body.style.cursor = "";
-        };
+        return () => { document.body.style.cursor = ""; };
     }, [editEnabled, rects, aspect, setPos]);
 
-    /* --------- Auto-clamp silencioso en resize/fullscreen --------- */
+    /* Auto-clamp silencioso en resize/fullscreen */
     const lastSizeRef = useRef({ w: 0, h: 0 });
     useEffect(() => {
         const w = size.width, h = size.height;
@@ -407,8 +397,7 @@ export default function Hud({
         });
     }, [size.width, size.height, aspect, editEnabled, rects, setPos]);
 
-    /* ------------------- Entrada global (screen-space) ------------------- */
-
+    /* Entrada editor (drag/resize) */
     const dragRef = useRef<{ id: OrthoId; dx: number; dy: number } | null>(null);
 
     const toOrtho = useCallback(
@@ -495,7 +484,7 @@ export default function Hud({
         };
     }, [editEnabled, rects, toOrtho, nudgeScale, setPos, aspect]);
 
-    /* ===== Spread/Recoil del crosshair ===== */
+    /* Spread/Recoil del crosshair */
     const [spread, setSpread] = useState(0);
     useEffect(() => {
         const onShot = (e: Event) => {
@@ -512,7 +501,7 @@ export default function Hud({
         if (recover > 0) setSpread((s) => Math.max(0, s - recover * dt));
     });
 
-    /* ===== Failsafe de capas HUD en cámaras ===== */
+    /* Failsafe de capas HUD en cámaras */
     useFrame(() => {
         const ensureEnabled = (obj?: THREE.Object3D | null) => {
             const L = obj && (obj as any).layers as THREE.Layers | undefined;

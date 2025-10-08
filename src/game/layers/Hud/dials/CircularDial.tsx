@@ -1,8 +1,4 @@
-/*  ====================================
-    FILE: src/game/layers/Hud/dials/CircularDial.tsx
-    ==================================== */
-
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useCallback } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
@@ -26,39 +22,38 @@ type Props = {
     /** Capa de render; por defecto HUD */
     layer?: number;
 
-    /** Si necesitas compensar un padre que invierte en X (o tenía rotación π), activa esto */
+    /** Si un padre espeja en X (π en Y), activa para corregir sin tocar matrices */
     flipX?: boolean;
 };
 
 /**
  * Dial circular procedural (sin texturas), con:
  * - Anillo exterior que se vacía con el valor (0..100).
- * - Glow/emisión + “sweep” animado y marcas radiales.
- * - Ring interior de energía + flicker sutil.
- * - Paleta crítica pulsante por debajo de umbral.
- * - Texto central con porcentaje y subtítulo.
+ * - Glow/emisión + sweep animado y marcas radiales.
+ * - Ring interior de “energía” con flicker.
+ * - Paleta crítica pulsante bajo umbral.
+ * - Texto central con porcentaje y etiqueta.
  */
 export function CircularDial({
     value,
     label,
     position,
     size = CFG.hud.dials.size,
-    rotation = [0, 0, 0],                // ✅ orientación normal por defecto (no espejo)
+    rotation = [0, 0, 0], // orientación normal por defecto (no espejo)
     color = CFG.hud.colors.neonCyan,
     criticalA,
     criticalB,
     criticalThreshold = 0.2,
     layer = CFG.layers.HUD,
-    flipX = false,                       // ✅ arregla espejado sin tocar transforms externos
+    flipX = false,
 }: Props) {
+    // Nota: no guardo DPR/aspect en estado para evitar relayouts; el HUD ya se recalcula al cambiar viewport.
     const DPR = Math.min(
         CFG.hud.ui.dprMax,
         typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1
     );
     const aspect =
-        typeof window !== "undefined"
-            ? window.innerWidth / window.innerHeight
-            : 16 / 9;
+        typeof window !== "undefined" ? window.innerWidth / window.innerHeight : 16 / 9;
     const responsiveScale = CFG.hud.ui.scaleForAspect(aspect);
 
     const groupRef = useRef<THREE.Group>(null);
@@ -66,22 +61,16 @@ export function CircularDial({
     const textMainMatRef = useRef<THREE.MeshBasicMaterial>(null);
     const textSubMatRef = useRef<THREE.MeshBasicMaterial>(null);
 
-    // Fuerza la capa HUD en todo el árbol
-    const applyLayer = (root: THREE.Object3D | null, layerIdx: number) => {
+    // Fuerza la capa HUD en todo el árbol (llamado una vez via onUpdate)
+    const applyLayer = useCallback((root: THREE.Object3D | null, layerIdx: number) => {
         if (!root) return;
         root.layers.set(layerIdx);
         root.traverse((o) => o.layers.set(layerIdx));
-    };
+    }, []);
 
     const baseCol = useMemo(() => new THREE.Color(color), [color]);
-    const critACol = useMemo(
-        () => new THREE.Color(criticalA ?? color),
-        [criticalA, color]
-    );
-    const critBCol = useMemo(
-        () => new THREE.Color(criticalB ?? color),
-        [criticalB, color]
-    );
+    const critACol = useMemo(() => new THREE.Color(criticalA ?? color), [criticalA, color]);
+    const critBCol = useMemo(() => new THREE.Color(criticalB ?? color), [criticalB, color]);
     const tmpCol = useMemo(() => new THREE.Color(), []);
 
     const uniforms = useMemo(() => {
@@ -91,39 +80,39 @@ export function CircularDial({
             uColor: { value: new THREE.Vector3(baseCol.r, baseCol.g, baseCol.b) },
             uCritA: { value: new THREE.Vector3(critACol.r, critACol.g, critACol.b) },
             uCritB: { value: new THREE.Vector3(critBCol.r, critBCol.g, critBCol.b) },
-            uCritTh: { value: criticalThreshold }, // umbral crítico 0..1
+            uCritTh: { value: criticalThreshold },
             uOpacity: { value: 1.0 },
 
             // Geometría/máscara del dial (relativos al quad 1x1)
-            uRadius: { value: 0.72 },        // radio del anillo principal
-            uThickness: { value: 0.14 },     // grosor del anillo
-            uGlow: { value: 1.0 },           // intensidad de glow
-            uTick: { value: 0.25 },          // intensidad de marcas
-            uBackground: { value: 0.25 },    // brillo base
+            uRadius: { value: 0.72 },
+            uThickness: { value: 0.14 },
+            uGlow: { value: 1.0 },
+            uTick: { value: 0.25 },
+            uBackground: { value: 0.25 },
             uStartAngle: { value: -Math.PI / 2 }, // arranca arriba
             uPx: { value: 1 / (DPR * 1024) },     // suavizado aproximado
 
-            // ✅ control de inversión horizontal sin tocar matrices
+            // Corrección de espejo horizontal opcional
             uFlipX: { value: flipX ? 1.0 : 0.0 },
         };
     }, [value, baseCol, critACol, critBCol, criticalThreshold, DPR, flipX]);
 
     useFrame((_, dt) => {
-        // Animación shader
+        // Anim shader
         uniforms.uTime.value += dt;
         const target = THREE.MathUtils.clamp(value / 100, 0, 1);
         uniforms.uValue.value = THREE.MathUtils.damp(uniforms.uValue.value, target, 6, dt);
 
-        // Tintar texto en crítico con el mismo esquema que el shader
+        // Tint texto con el mismo esquema crítico
         const v = uniforms.uValue.value;
         const th = uniforms.uCritTh.value;
-        const danger = THREE.MathUtils.clamp((th - v) / Math.max(th, 1e-6), 0, 1); // 0..1
+        const danger = THREE.MathUtils.clamp((th - v) / Math.max(th, 1e-6), 0, 1);
         const lfo = 0.5 + 0.5 * Math.sin(uniforms.uTime.value * 8.0);
-        tmpCol.copy(critACol).lerp(critBCol, lfo);     // mezcla A→B
-        tmpCol.lerp(baseCol, 1 - danger);              // mezcla hacia base si no crítico
+        tmpCol.copy(critACol).lerp(critBCol, lfo); // mezcla A→B
+        tmpCol.lerp(baseCol, 1 - danger);          // mezcla hacia base si no crítico
 
-        if (textMainMatRef.current) textMainMatRef.current.color.copy(tmpCol);
-        if (textSubMatRef.current) textSubMatRef.current.color.copy(tmpCol);
+        textMainMatRef.current?.color.copy(tmpCol);
+        textSubMatRef.current?.color.copy(tmpCol);
     });
 
     const vert = /* glsl */ `
@@ -159,14 +148,12 @@ export function CircularDial({
     uniform float uPx;
     uniform float uFlipX;
 
-    // Ángulo [0..1) con 0 en eje Y+ (arriba)
     float angle01(vec2 p) {
       float a = atan(p.y, p.x) - uStartAngle;
       a = mod(a + 6.28318530718, 6.28318530718);
       return a / 6.28318530718;
     }
 
-    // Suavizado para radios
     float band(float d, float r0, float r1, float aa) {
       return smoothstep(r0 - aa, r0 + aa, d) * (1.0 - smoothstep(r1 - aa, r1 + aa, d));
     }
@@ -174,58 +161,57 @@ export function CircularDial({
     float hash11(float x){ return fract(sin(x*123.4567)*345.6789); }
 
     void main() {
-      vec2 p = vUvN; // [-1..1]
-      // ✅ invertir horizontal opcional (arreglo "espejo")
+      vec2 p = vUvN;
+      // espejo opcional
       p.x *= mix(1.0, -1.0, step(0.5, uFlipX));
 
       float r = length(p);
       float ang = angle01(p);
 
-      // --- Fondo sutil circular + scanlines
+      // Fondo + scanlines
       float lines = abs(fract((p.y*0.5+0.5)*120.0 + uTime*0.35) - 0.5);
       lines = smoothstep(0.47, 0.5, lines);
       float scan = (1.0 - lines) * 0.15;
 
-      // Vignette para recortar fuera
       float vignette = 1.0 - smoothstep(0.97, 1.12, r);
 
-      // Umbral crítico y paleta
+      // Paleta/umbral
       float danger = clamp((uCritTh - uValue) / max(uCritTh, 1e-6), 0.0, 1.0);
       float lfo = 0.5 + 0.5 * sin(uTime * 8.0);
       vec3 critCol = mix(uCritA, uCritB, lfo);
       vec3 baseCol = mix(uColor, critCol, danger);
 
-      // --- Anillo principal
+      // Anillo principal
       float innerR = uRadius - uThickness * 0.5;
       float outerR = uRadius + uThickness * 0.5;
       float ringMask = band(r, innerR, outerR, uPx * 700.0);
 
-      // Progreso según ángulo
+      // Progreso por ángulo
       float fill = step(ang, uValue);
 
-      // Marcas radiales (6° y 30°)
+      // Marcas
       float minor = abs(fract(ang * 60.0) - 0.5);
       minor = 1.0 - smoothstep(0.48, 0.52, minor);
       float major = abs(fract(ang * 12.0) - 0.5);
       major = 1.0 - smoothstep(0.40, 0.60, major);
       float ticks = mix(minor, major, 0.65) * ringMask * uTick;
 
-      // Barrido/radar
+      // Barrido
       float sweep = smoothstep(0.0, 0.12, abs(ang - fract(uTime * 0.12))) * ringMask * 0.75;
 
-      // Glow en borde de progreso (más intenso si crítico)
+      // Borde del progreso
       float edgeAng = abs(ang - uValue);
       float edgePulse = smoothstep(0.00, 0.03 + 0.01*sin(uTime*5.0), 0.03 - edgeAng);
       float edgeGlow = edgePulse * ringMask * (1.0 + 0.8 * danger);
 
-      // --- Ring interior de energía (respira y rota, más intenso en crítico)
+      // Ring interior de energía
       float eR = uRadius - uThickness * (1.10 + 0.05*sin(uTime*2.0));
       float eTh = 0.045 + 0.015*sin(uTime*1.7 + 2.0);
       float energyRing = band(r, eR - eTh, eR + eTh, uPx * 900.0);
       float segs = step(0.82, fract(ang*24.0 + uTime*0.25));
       energyRing *= (1.0 - segs) * (0.85 + 0.35 * danger);
 
-      // --- Flicker sutil (más fuerte en crítico / valores bajos)
+      // Flicker sutil
       float flickBase = (0.02 + 0.03*(1.0-uValue)) * (0.5 + 0.5*sin(uTime*40.0 + 6.2831*hash11(ang)));
       float flickCrit = danger * 0.06 * (0.5 + 0.5*sin(uTime*18.0));
       float flick = flickBase + flickCrit;
@@ -245,7 +231,7 @@ export function CircularDial({
       float alpha = (ringMask * 0.9 + baseGlow * 0.35 + ticks * 0.8 + sweep * 0.8 + energyRing * 0.9) * uOpacity;
       alpha *= vignette;
 
-      // Recorte externo suave
+      // Recorte externo
       float outer = 1.0 - smoothstep(1.0, 1.08, r);
       alpha *= outer;
 
@@ -282,7 +268,7 @@ export function CircularDial({
                 />
             </mesh>
 
-            {/* Texto central (SDF) */}
+            {/* Texto central */}
             <Text
                 position={[0, -0.02, 0.001]}
                 fontSize={0.22}

@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
 
+// En CI / Vercel puedes saltarte el pipeline pesado de assets
 if (process.env.VERCEL || process.env.CI || process.env.SKIP_ASSET_PIPELINE) {
   console.log("[prebuild] CI detectado → salto pipeline de assets");
   process.exit(0);
@@ -15,9 +16,8 @@ function run(nodeArgs, file) {
   });
 }
 
-// --- Limpieza mínima de runs anteriores ---
+// Limpieza mínima de runs anteriores (carpetas colgadas *.norm_work)
 try {
-  // elimina cualquier carpeta .../*.norm_work que haya quedado colgada
   const rm = (p) => { try { fs.rmSync(p, { recursive: true, force: true }); } catch { } };
   const roots = ["public/assets/models", "assets/models", "public/models"];
   for (const r of roots) {

@@ -1,7 +1,4 @@
-/*  ====================================
-    FILE: src/game/layers/Hud/Crosshair.tsx
-    ==================================== */
-import React, { useMemo, useLayoutEffect } from "react";
+import React from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
@@ -14,7 +11,7 @@ type Props = {
     spread?: number;
     /** 0..1 nivel de zoom (ADS). */
     zoom?: number;
-    /** Si el *raycast* topa con enemigo (tinta roja). */
+    /** Si el raycast topa con enemigo (tinta roja). */
     overTarget?: boolean;
     /** Rumbo del jugador en radianes (para el overlay N/E/S/O). */
     headingRad?: number;
@@ -22,17 +19,10 @@ type Props = {
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
-/** LERP entre dos colores hex (#rrggbb) */
-function lerpHex(a: string, b: string, t: number) {
-    const ah = a.replace("#", ""), bh = b.replace("#", "");
-    const ar = parseInt(ah.slice(0, 2), 16), ag = parseInt(ah.slice(2, 4), 16), ab = parseInt(ah.slice(4, 6), 16);
-    const br = parseInt(bh.slice(0, 2), 16), bg = parseInt(bh.slice(2, 4), 16), bb = parseInt(bh.slice(4, 6), 16);
-    const r = Math.round(ar + (br - ar) * t);
-    const g = Math.round(ag + (bg - ag) * t);
-    const b2 = Math.round(ab + (bb - ab) * t);
-    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b2.toString(16).padStart(2, "0")}`;
-}
-
+/**
+ * Dibuja el crosshair en un canvas (una textura) para ahorrar drawcalls.
+ * Nota: eliminé utilidades duplicadas no usadas (p. ej. lerpHex).
+ */
 function drawCrosshairToCanvas(
     canvas: HTMLCanvasElement,
     tSec: number,
@@ -56,51 +46,38 @@ function drawCrosshairToCanvas(
     const cx = W / 2, cy = H / 2;
     const R = Math.min(W, H) * 0.47;
 
-    // Colores estilo dials Pacific Rim
+    // Paleta coherente con el HUD
     const C_CYAN = cfg.color ?? (CFG.hud?.colors?.neonCyan ?? "#22D3EE");
     const C_RED = CFG.hud?.colors?.dangerRed ?? "#ff3b3b";
     const color = overTarget ? C_RED : C_CYAN;
 
-    // Glow general
     const glow = Math.max(0, cfg.glow ?? 14);
 
-    // ===== aros exteriores (modelo de la imagen) =====
-    const outerW = 4;
-    const innerW = 3;
-    const outerR = R * 0.98;
-    const innerR = R * 0.86;
-
+    // Aros
     const ring = (r: number, w: number, a = 1) => {
         ctx.save();
-        ctx.strokeStyle = color;
-        ctx.globalAlpha = a;
-        ctx.lineWidth = w;
-        (ctx as any).shadowColor = color;
-        (ctx as any).shadowBlur = glow * (0.8 + 0.6 * zoom);
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.strokeStyle = color; ctx.globalAlpha = a; ctx.lineWidth = w;
+        (ctx as any).shadowColor = color; (ctx as any).shadowBlur = glow * (0.8 + 0.6 * zoom);
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
         ctx.restore();
     };
-    ring(outerR, outerW, 0.95);
-    ring(innerR, innerW, 0.9);
+    ring(R * 0.98, 4, 0.95);
+    ring(R * 0.86, 3, 0.9);
 
-    // ===== ticks radiales (vertical y horizontal con segmentos) =====
+    // Ticks radiales
     const tickW = 3;
     const tickLen = Math.max(10, R * 0.07);
     const segGap = Math.max(6, R * 0.025);
     const segs = 7;
 
     ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = tickW;
-    (ctx as any).shadowColor = color;
-    (ctx as any).shadowBlur = glow * 0.8;
+    ctx.strokeStyle = color; ctx.lineWidth = tickW;
+    (ctx as any).shadowColor = color; (ctx as any).shadowBlur = glow * 0.8;
 
     const drawSegmentLine = (angleRad: number) => {
         const dx = Math.cos(angleRad), dy = Math.sin(angleRad);
         for (let i = 0; i < segs; i++) {
-            const d0 = innerR - i * (segGap + tickLen);
+            const d0 = R * 0.86 - i * (segGap + tickLen);
             const d1 = Math.max(0, d0 - tickLen);
             if (d1 <= 0) break;
             ctx.beginPath();
@@ -109,15 +86,15 @@ function drawCrosshairToCanvas(
             ctx.stroke();
         }
     };
-    drawSegmentLine(0);            // E
-    drawSegmentLine(Math.PI);      // O
-    drawSegmentLine(Math.PI * 0.5);// S
-    drawSegmentLine(-Math.PI * 0.5);// N
+    drawSegmentLine(0);
+    drawSegmentLine(Math.PI);
+    drawSegmentLine(Math.PI * 0.5);
+    drawSegmentLine(-Math.PI * 0.5);
     ctx.restore();
 
-    // ===== bracket cuadrado centrado + punto =====
+    // Brackets + punto
     const gapBase = Math.max(6, R * 0.06);
-    const gap = gapBase + spread * (R * 0.08); // se separa con spread
+    const gap = gapBase + spread * (R * 0.08);
     const arm = Math.max(12, R * 0.12);
     const bw = Math.max(3, R * 0.018);
 
@@ -131,17 +108,14 @@ function drawCrosshairToCanvas(
     };
 
     ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = bw;
-    (ctx as any).shadowColor = color;
-    (ctx as any).shadowBlur = glow;
+    ctx.strokeStyle = color; ctx.lineWidth = bw;
+    (ctx as any).shadowColor = color; (ctx as any).shadowBlur = glow;
 
     bracket(1, 1);
     bracket(-1, 1);
     bracket(1, -1);
     bracket(-1, -1);
 
-    // punto central
     ctx.beginPath();
     ctx.arc(cx, cy, Math.max(2, R * 0.012), 0, Math.PI * 2);
     ctx.fillStyle = color;
@@ -149,17 +123,16 @@ function drawCrosshairToCanvas(
     ctx.fill();
     ctx.restore();
 
-    // ===== overlay numerado N/E/S/O con "breathing noise" =====
-    // numeración basada en heading (0° = Norte)
-    const deg = ((450 - (headingRad * 180) / Math.PI) % 360 + 360) % 360; // brújula clásica
-    const jitterAmp = (1.2 + 0.6 * Math.sin(tSec * 2.1)) * (2 + zoom * 6); // px
+    // Overlay N/E/S/O con “breathing”
+    const deg = ((450 - (headingRad * 180) / Math.PI) % 360 + 360) % 360;
+    const jitterAmp = (1.2 + 0.6 * Math.sin(tSec * 2.1)) * (2 + zoom * 6);
     const jitter = (seed: number) => (Math.sin(tSec * 3.173 + seed * 12.9898) * 43758.5453) % 1 * 2 - 1;
 
     const fontBig = `900 ${Math.round(R * 0.12)}px ui-monospace, SFMono-Regular, Menlo, Monaco`;
     const fontSmall = `700 ${Math.round(R * 0.08)}px ui-monospace, SFMono-Regular, Menlo, Monaco`;
 
     const drawCard = (txt: string, degTxt: string, ang: number, rMul: number, seed: number) => {
-        const r = innerR * rMul;
+        const r = R * 0.86 * rMul;
         const x = cx + Math.cos(ang) * r + jitterAmp * jitter(seed);
         const y = cy + Math.sin(ang) * r + jitterAmp * jitter(seed + 1);
         ctx.save();
@@ -179,30 +152,29 @@ function drawCrosshairToCanvas(
         ctx.restore();
     };
 
-    // Cálculo de grados cardinales relativos
     const fmt = (n: number) => n.toFixed(0).padStart(3, "0");
     drawCard("N", fmt(deg), -Math.PI * 0.5, 0.60, 11);
     drawCard("S", fmt((deg + 180) % 360), Math.PI * 0.5, 0.60, 23);
     drawCard("E", fmt((deg + 90) % 360), 0, 0.60, 31);
     drawCard("W", fmt((deg + 270) % 360), Math.PI, 0.60, 47);
 
-    // Sutil *scanline* circular cuando hay zoom
+    // Scanline circular con zoom
     if (zoom > 0.001) {
         const k = clamp01(zoom);
         ctx.save();
-        const g = ctx.createRadialGradient(cx, cy, innerR * 0.25, cx, cy, outerR);
+        const g = ctx.createRadialGradient(cx, cy, R * 0.86 * 0.25, cx, cy, R * 0.98);
         g.addColorStop(0, "rgba(255,255,255,0.00)");
         g.addColorStop(1, overTarget ? "rgba(255,60,60,0.09)" : "rgba(34,211,238,0.09)");
         ctx.fillStyle = g;
         ctx.globalAlpha = 0.75 * k;
-        ctx.beginPath(); ctx.arc(cx, cy, outerR, 0, Math.PI * 2); ctx.fill();
-        // barrido
+        ctx.beginPath(); ctx.arc(cx, cy, R * 0.98, 0, Math.PI * 2); ctx.fill();
+
         ctx.globalAlpha = 0.35 * k;
         ctx.strokeStyle = overTarget ? "rgba(255,60,60,0.6)" : "rgba(34,211,238,0.6)";
         ctx.lineWidth = 2;
         const a0 = (tSec * 0.9) % (Math.PI * 2);
         ctx.beginPath();
-        ctx.arc(cx, cy, innerR * 0.92, a0, a0 + Math.PI * 0.35);
+        ctx.arc(cx, cy, R * 0.86 * 0.92, a0, a0 + Math.PI * 0.35);
         ctx.stroke();
         ctx.restore();
     }
@@ -218,12 +190,12 @@ export const Crosshair: React.FC<Props> = ({
 }) => {
     const cfg = CFG.hud.crosshair || {};
 
-    const texture = useMemo(() => {
+    const texture = React.useMemo(() => {
         const canvas = document.createElement("canvas");
-        // textura canvas
         const tex = new THREE.CanvasTexture(canvas);
+        // Evito espejo con repeat.x negativo
         tex.flipY = true;
-        tex.wrapS = THREE.RepeatWrapping; tex.repeat.x = -1; tex.offset.x = 1; // evita espejo
+        tex.wrapS = THREE.RepeatWrapping; tex.repeat.x = -1; tex.offset.x = 1;
         tex.anisotropy = 1;
         tex.minFilter = THREE.LinearFilter;
         tex.magFilter = THREE.LinearFilter;
@@ -232,7 +204,7 @@ export const Crosshair: React.FC<Props> = ({
         return tex;
     }, []);
 
-    // redibujo por *frames* (para jitter/scanline/zoom)
+    // Redibujo cada frame (para jitter, sweep, zoom)
     useFrame((state) => {
         const c = (texture.image as HTMLCanvasElement) || undefined;
         if (!c) return;
