@@ -1,6 +1,6 @@
-/* =========================================================
+/* =====================================
   FILE: src/game/layers/World/City.tsx
-============================================================ */
+======================================== */
 import { useEffect, useMemo, useRef } from "react";
 import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
 import { useThree } from "@react-three/fiber";

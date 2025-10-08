@@ -1,4 +1,4 @@
-/* FILE: src/game/utils/three/geometry/extractMergedMesh.ts */
+// FILE: src/game/utils/three/geometry/extractMergedMesh.ts
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { prepareForMerge } from "@/game/utils/three/geometry/prepareForMerge";
