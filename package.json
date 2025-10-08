@@ -36,7 +36,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
-    "@gltf-transform/cli": "^4.2.1",
     "@gltf-transform/core": "^4.2.1",
     "@gltf-transform/extensions": "^4.2.1",
     "@gltf-transform/functions": "^4.2.1",
