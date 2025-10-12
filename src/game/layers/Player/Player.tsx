@@ -14,7 +14,7 @@ import { audioManager } from "../../utils/audio/audio";
 import { useGameStore } from "../../utils/state/store";
 import { useHudEditorStore } from "../../utils/state/hudEditor";
 import { setLayerRecursive } from "@/game/utils/three/layers";
-import { isFullscreen, enterFullscreen, exitFullscreen } from "@/game/utils/immersive";
+import { isFullscreen, enterImmersive, exitImmersive } from "@/game/utils/immersive";
 import { ASSETS } from "@/constants/assets";
 
 type DebugFlags = { withWeapon?: boolean; withHud?: boolean };
@@ -762,15 +762,16 @@ const Player = ({
         };
     }, []);
 
-    // Tecla "F" → fullscreen del contenedor del canvas
+    // Tecla "F" → modo inmersivo (FS + pointer lock del host)
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.code === "KeyF") {
                 e.preventDefault();
-                if (isFullscreen()) exitFullscreen();
-                else {
-                    const host = gl.domElement.parentElement ?? document.documentElement;
-                    enterFullscreen(host);
+                if (isFullscreen()) {
+                    exitImmersive();
+                } else {
+                    const host = gl.domElement as HTMLElement; // canvas → desde ahí inferimos host
+                    enterImmersive(host);
                 }
             }
         };

@@ -34,6 +34,7 @@ import Quality from "./graphics/quality";
 import { initKTX2Loader, disposeKTX2Loader } from "@/game/utils/three/ktx2/ktx2";
 import { ASSETS } from "@/constants/assets";
 import { prepareRapier } from "@/game/utils/three/rapier/initRapier";
+import { requestPointerLock } from "@/game/utils/immersive";
 
 patchThreeColorAlphaWarning();
 patchThreeIndex0AttributeNameWarning();
@@ -381,8 +382,8 @@ const Game: React.FC = () => {
   }, [menuOpen, hasBlockingOverlay]);
 
   useEffect(() => {
-   if (hasBlockingOverlay) { try { document.exitPointerLock?.(); } catch {} }
- }, [hasBlockingOverlay]);
+    if (hasBlockingOverlay) { try { document.exitPointerLock?.(); } catch { } }
+  }, [hasBlockingOverlay]);
 
   // Sal del pointer lock si hay UI por encima (para recuperar cursor real)
   useEffect(() => {
@@ -694,14 +695,25 @@ const Game: React.FC = () => {
     return () => window.removeEventListener("keydown", onKeyEscToEnd, true);
   }, [stopTrackedAudios]);
 
+  // ✅ Safety net: click en canvas → si no hay pointer lock, pedirlo
+  useEffect(() => {
+    const c = document.querySelector(".game-canvas") as HTMLCanvasElement | null;
+    if (!c) return;
+    const onMouseDown = () => {
+      if (!document.pointerLockElement) requestPointerLock(c);
+    };
+    c.addEventListener("mousedown", onMouseDown);
+    return () => c.removeEventListener("mousedown", onMouseDown);
+  }, []);
+
   return (
     <div id="immersive-root" data-immersive-root className="game-root">
       {/* Este contenedor debe entrar en fullscreen (no el canvas) */}
       <div
-   id="fs-root"
-   ref={fsRootRef}
-   style={{ position: "relative", width: "100%", height: "100%", isolation: "isolate" }}
->
+        id="fs-root"
+        ref={fsRootRef}
+        style={{ position: "relative", width: "100%", height: "100%", isolation: "isolate" }}
+      >
         <HudEditOverlay exportLayout={() => useHudEditorStore.getState().exportLayout()} />
 
         {/* Remontamos el Canvas cuando cambie la calidad para aplicar DPR/tex caps */}

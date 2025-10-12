@@ -125,7 +125,7 @@ const DestroyDroneCard: React.FC = () => {
 
     const utterRef = React.useRef<SpeechSynthesisUtterance | null>(null);
     const videoRef = React.useRef<HTMLVideoElement | null>(null);
-    // Portal en fullscreen: montamos el overlay dentro del elemento en fullscreen (o body si no)
+    // Portal en fullscreen: montamos el overlay dentro del elemento host (fs-root/body)
     const portalRef = React.useRef<HTMLElement | null>(null);
 
     // Control fino
@@ -139,7 +139,9 @@ const DestroyDroneCard: React.FC = () => {
     const visibleRef = React.useRef(false);
 
     // Layout responsive (apila en narrow)
-    const [isNarrow, setIsNarrow] = React.useState<boolean>(() => (typeof window !== "undefined" ? window.innerWidth < 860 : false));
+    const [isNarrow, setIsNarrow] = React.useState<boolean>(() =>
+        typeof window !== "undefined" ? window.innerWidth < 860 : false
+    );
     React.useEffect(() => {
         const onResize = () => setIsNarrow(window.innerWidth < 860);
         window.addEventListener("resize", onResize, { passive: true });
@@ -161,13 +163,21 @@ const DestroyDroneCard: React.FC = () => {
     React.useEffect(() => {
         visibleRef.current = access.visible;
         if (!access.visible) return;
-        try { document.exitPointerLock?.(); } catch { }
-        try { (window as any).__squelchMenuEsc = true; } catch { }
+        try {
+            document.exitPointerLock?.();
+        } catch { }
+        try {
+            (window as any).__squelchMenuEsc = true;
+        } catch { }
         try {
             document.body.classList.remove("hide-cursor");
             document.body.classList.add("show-cursor", "hud-cursor");
         } catch { }
-        return () => { try { (window as any).__squelchMenuEsc = false; } catch { } };
+        return () => {
+            try {
+                (window as any).__squelchMenuEsc = false;
+            } catch { }
+        };
     }, [access.visible]);
 
     /* ===== Pausar música mientras esté activo ===== */
@@ -177,22 +187,29 @@ const DestroyDroneCard: React.FC = () => {
         try {
             const am: any = audioManager;
             if (typeof am?.pauseMusic === "function" && typeof am?.resumeMusic === "function") {
-                am.pauseMusic(); resume = () => am.resumeMusic();
+                am.pauseMusic();
+                resume = () => am.resumeMusic();
             } else if (am?.music?.pause) {
                 const wasPaused = !!am.music.paused;
                 am.music.pause();
-                resume = () => { if (!wasPaused) am.music.play?.(); };
+                resume = () => {
+                    if (!wasPaused) am.music.play?.();
+                };
             } else if (Array.isArray(am?.tracks)) {
                 const resumeList: Array<() => void> = [];
                 am.tracks.forEach((t: any) => {
                     if (t?.type === "music" && typeof t?.pause === "function") {
-                        const wasPaused = !!t.paused; t.pause();
-                        resumeList.push(() => { if (!wasPaused) t.play?.(); });
+                        const wasPaused = !!t.paused;
+                        t.pause();
+                        resumeList.push(() => {
+                            if (!wasPaused) t.play?.();
+                        });
                     }
                 });
                 resume = () => resumeList.forEach((fn) => fn());
             } else {
-                const prev: number = am?.getMasterVolume?.() ?? am?.getVolume?.() ?? (typeof am?.masterVolume === "number" ? am.masterVolume : 1);
+                const prev: number =
+                    am?.getMasterVolume?.() ?? am?.getVolume?.() ?? (typeof am?.masterVolume === "number" ? am.masterVolume : 1);
                 if (am?.setMasterVolume) am.setMasterVolume(0);
                 else if (am?.setVolume) am.setVolume(0);
                 else if ("masterVolume" in am) (am as any).masterVolume = 0;
@@ -203,7 +220,11 @@ const DestroyDroneCard: React.FC = () => {
                 };
             }
         } catch { }
-        return () => { try { resume?.(); } catch { } };
+        return () => {
+            try {
+                resume?.();
+            } catch { }
+        };
     }, [access.visible]);
 
     /* ===== Voces ===== */
@@ -220,13 +241,32 @@ const DestroyDroneCard: React.FC = () => {
         setSelectedURI(def?.voiceURI ?? null);
     }, [access.visible, voices]);
 
+    /* ===== Resolver SIEMPRE el host del portal (FS o no) ===== */
+    React.useLayoutEffect(() => {
+        const set = () => (portalRef.current = getOverlayRoot());
+        set();
+        const onFS = () => {
+            set();
+            // fuerza un relayout tras togglear FS (para HUDs)
+            requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+        };
+        document.addEventListener("fullscreenchange", onFS);
+        window.addEventListener("resize", set);
+        return () => {
+            document.removeEventListener("fullscreenchange", onFS);
+            window.removeEventListener("resize", set);
+        };
+    }, []);
+
     /* ===== Reset DURO al abrir ===== */
     React.useEffect(() => {
         if (!access.visible) return;
         sessionRef.current++;
         const sid = sessionRef.current;
 
-        try { window.speechSynthesis.cancel(); } catch { }
+        try {
+            window.speechSynthesis.cancel();
+        } catch { }
         startedRef.current = false;
         ttsFinishedRef.current = false;
         boundariesSeenRef.current = false;
@@ -237,28 +277,11 @@ const DestroyDroneCard: React.FC = () => {
         setSpeaking(false);
         setShowClose(false);
 
-        // Crear portal preferentemente dentro del host (#fs-root vía getOverlayRoot)
-        try {
-            const holder = document.createElement("div");
-            holder.style.position = "absolute"; // anclado al fs-root
-            holder.style.inset = "0";
-            holder.style.zIndex = "2147483647";
-            holder.style.pointerEvents = "auto";
-            holder.setAttribute("data-ddc", ""); // útil para depurar
-            getOverlayRoot().appendChild(holder);
-            portalRef.current = holder;
-        } catch {
-            portalRef.current = document.body;
-        }
-
         return () => {
             if (sid === sessionRef.current) {
-                try { window.speechSynthesis.cancel(); } catch { }
                 try {
-                    const h = portalRef.current;
-                    if (h && h.parentElement) h.parentElement.removeChild(h);
+                    window.speechSynthesis.cancel();
                 } catch { }
-                portalRef.current = null;
                 if (writerRafRef.current != null) {
                     cancelAnimationFrame(writerRafRef.current);
                     writerRafRef.current = null;
@@ -271,13 +294,17 @@ const DestroyDroneCard: React.FC = () => {
 
     /* ===== Vídeo ===== */
     const ensureVideoPlaying = React.useCallback(() => {
-        try { videoRef.current?.play().catch(() => { }); } catch { }
+        try {
+            videoRef.current?.play().catch(() => { });
+        } catch { }
     }, []);
 
     React.useEffect(() => {
         if (!access.visible) return;
         ensureVideoPlaying();
-        const onVis = () => { if (!document.hidden) ensureVideoPlaying(); };
+        const onVis = () => {
+            if (!document.hidden) ensureVideoPlaying();
+        };
         document.addEventListener("visibilitychange", onVis, true);
         return () => document.removeEventListener("visibilitychange", onVis, true);
     }, [access.visible, ensureVideoPlaying]);
@@ -285,7 +312,10 @@ const DestroyDroneCard: React.FC = () => {
     /* ===== Typewriter ===== */
     const startWriter = React.useCallback(() => {
         if (writerRunningRef.current) return;
-        if (writerRafRef.current != null) { cancelAnimationFrame(writerRafRef.current); writerRafRef.current = null; }
+        if (writerRafRef.current != null) {
+            cancelAnimationFrame(writerRafRef.current);
+            writerRafRef.current = null;
+        }
         writerRunningRef.current = true;
 
         const baseMs = 30;
@@ -296,12 +326,21 @@ const DestroyDroneCard: React.FC = () => {
         const tick = (t: number) => {
             if (sid !== sessionRef.current || !visibleRef.current) {
                 writerRunningRef.current = false;
-                if (writerRafRef.current != null) { cancelAnimationFrame(writerRafRef.current); writerRafRef.current = null; }
+                if (writerRafRef.current != null) {
+                    cancelAnimationFrame(writerRafRef.current);
+                    writerRafRef.current = null;
+                }
                 return;
             }
             // Espera a que TTS arranque, o sigue si ya terminó
-            if (!startedRef.current && !ttsFinishedRef.current) { writerRafRef.current = requestAnimationFrame(tick); return; }
-            if (boundariesSeenRef.current && !ttsFinishedRef.current) { writerRafRef.current = requestAnimationFrame(tick); return; }
+            if (!startedRef.current && !ttsFinishedRef.current) {
+                writerRafRef.current = requestAnimationFrame(tick);
+                return;
+            }
+            if (boundariesSeenRef.current && !ttsFinishedRef.current) {
+                writerRafRef.current = requestAnimationFrame(tick);
+                return;
+            }
 
             if (!t0) t0 = t;
             const dt = t - t0;
@@ -324,13 +363,18 @@ const DestroyDroneCard: React.FC = () => {
 
         writerRafRef.current = requestAnimationFrame(tick);
         return () => {
-            if (writerRafRef.current != null) { cancelAnimationFrame(writerRafRef.current); writerRafRef.current = null; }
+            if (writerRafRef.current != null) {
+                cancelAnimationFrame(writerRafRef.current);
+                writerRafRef.current = null;
+            }
         };
     }, [fullText]);
 
     /* ===== Forzar finalización + silencio (para ENTER/botón) ===== */
     const forceCompleteAndSilence = React.useCallback(() => {
-        try { window.speechSynthesis.cancel(); } catch { }
+        try {
+            window.speechSynthesis.cancel();
+        } catch { }
         startedRef.current = true;
         ttsFinishedRef.current = true;
         boundariesSeenRef.current = false;
@@ -340,9 +384,14 @@ const DestroyDroneCard: React.FC = () => {
         setSpeaking(false);
         setShowClose(true);
 
-        try { videoRef.current?.pause(); } catch { }
+        try {
+            videoRef.current?.pause();
+        } catch { }
 
-        if (writerRafRef.current != null) { cancelAnimationFrame(writerRafRef.current); writerRafRef.current = null; }
+        if (writerRafRef.current != null) {
+            cancelAnimationFrame(writerRafRef.current);
+            writerRafRef.current = null;
+        }
         writerRunningRef.current = false;
     }, [fullText]);
 
@@ -352,10 +401,14 @@ const DestroyDroneCard: React.FC = () => {
 
         const sid = sessionRef.current;
 
-        requestAnimationFrame(() => { if (sid === sessionRef.current) startWriter(); });
+        requestAnimationFrame(() => {
+            if (sid === sessionRef.current) startWriter();
+        });
 
         const speakWith = (voice: SpeechSynthesisVoice | null) => {
-            try { window.speechSynthesis.cancel(); } catch { }
+            try {
+                window.speechSynthesis.cancel();
+            } catch { }
             // Si no hay TTS disponible, solo mostramos el texto con el writer
             if (!("speechSynthesis" in window)) {
                 startedRef.current = true;
@@ -391,13 +444,19 @@ const DestroyDroneCard: React.FC = () => {
                 if (sid !== sessionRef.current) return;
                 ttsFinishedRef.current = true;
                 setSpeaking(false);
-                try { videoRef.current?.pause(); } catch { }
+                try {
+                    videoRef.current?.pause();
+                } catch { }
             };
             u.onend = onFinish;
             u.onerror = onFinish;
 
             utterRef.current = u;
-            try { window.speechSynthesis.speak(u); } catch { onFinish(); }
+            try {
+                window.speechSynthesis.speak(u);
+            } catch {
+                onFinish();
+            }
         };
 
         const startTTS = () => {
@@ -408,13 +467,20 @@ const DestroyDroneCard: React.FC = () => {
             speakWith(voice);
         };
 
-        requestAnimationFrame(() => { if (sid === sessionRef.current) startTTS(); });
+        requestAnimationFrame(() => {
+            if (sid === sessionRef.current) startTTS();
+        });
 
         return () => {
-            try { window.speechSynthesis.cancel(); } catch { }
+            try {
+                window.speechSynthesis.cancel();
+            } catch { }
             utterRef.current = null;
             try {
-                if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; }
+                if (videoRef.current) {
+                    videoRef.current.pause();
+                    videoRef.current.currentTime = 0;
+                }
             } catch { }
         };
     }, [access.visible, fullText, voices, selectedURI, ensureVideoPlaying, startWriter]);
@@ -426,9 +492,19 @@ const DestroyDroneCard: React.FC = () => {
 
         // 2) Reinicia sesión y limpia
         sessionRef.current++;
-        try { window.speechSynthesis.cancel(); } catch { }
-        try { if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; } } catch { }
-        if (writerRafRef.current != null) { cancelAnimationFrame(writerRafRef.current); writerRafRef.current = null; }
+        try {
+            window.speechSynthesis.cancel();
+        } catch { }
+        try {
+            if (videoRef.current) {
+                videoRef.current.pause();
+                videoRef.current.currentTime = 0;
+            }
+        } catch { }
+        if (writerRafRef.current != null) {
+            cancelAnimationFrame(writerRafRef.current);
+            writerRafRef.current = null;
+        }
         writerRunningRef.current = false;
 
         // 3) Reset flags
@@ -442,44 +518,46 @@ const DestroyDroneCard: React.FC = () => {
         setShowClose(false);
 
         // 4) Menú cerrado / playing on
-        try { useGameStore.getState().setMenuOpen?.(false); } catch { }
+        try {
+            useGameStore.getState().setMenuOpen?.(false);
+        } catch { }
 
         // 5) Señales + esconder overlay
         try {
-            window.dispatchEvent(new CustomEvent("destroy-drone-card-closed", { detail: { index: access.index | 0 } }));
+            window.dispatchEvent(
+                new CustomEvent("destroy-drone-card-closed", { detail: { index: access.index | 0 } })
+            );
         } catch { }
         hideAccessOverlay();
 
         try {
             useGameStore.getState().setPlaying?.(true);
-            setTimeout(() => { try { useGameStore.getState().setMenuOpen?.(false); } catch { } }, 0);
+            setTimeout(() => {
+                try {
+                    useGameStore.getState().setMenuOpen?.(false);
+                } catch { }
+            }, 0);
         } catch { }
 
-        // 6) Recuperar pointer lock (como en MissionCard) **en el <canvas> real**
-        //    IMPORTANTE: <Canvas className="game-canvas" /> pone la clase en el wrapper <div>,
-        //    no en el <canvas>. Buscamos el canvas real de R3F y pedimos lock ahí.
+        // 6) Recuperar pointer lock **en el canvas real**
         try {
-            // Libera clases de cursor / bloqueo antes de pedir lock
             document.body.classList.remove("ui-blocking", "show-cursor", "hud-cursor");
         } catch { }
 
         const getR3fCanvas = (): HTMLCanvasElement | null => {
-            // 1) renderer de three si está expuesto
             const domFromRenderer = (window as any).__renderer?.domElement as HTMLCanvasElement | undefined;
             if (domFromRenderer) return domFromRenderer;
-            // 2) canvas hijo del wrapper .game-canvas
             const inWrapper = document.querySelector(".game-canvas canvas") as HTMLCanvasElement | null;
             if (inWrapper) return inWrapper;
-            // 3) último recurso: primer <canvas> de la página
             return document.querySelector("canvas");
         };
 
-        // Espera 1 frame para que Game.tsx quite ui-blocking y cierre el overlay en el store,
-        // así el handler de mouse ya no está "uiLocked". Luego pide el lock.
         requestAnimationFrame(() => {
             const canvas = getR3fCanvas();
             if (canvas) {
-                try { requestPointerLock(canvas); } catch { }
+                try {
+                    requestPointerLock(canvas);
+                } catch { }
             }
         });
     }, [forceCompleteAndSilence, hideAccessOverlay, access.index]);
@@ -504,7 +582,10 @@ const DestroyDroneCard: React.FC = () => {
         window.addEventListener("keydown", onKey, { passive: false, capture: true });
         return () => {
             window.removeEventListener("keydown", onKey, true);
-            if (writerRafRef.current != null) { cancelAnimationFrame(writerRafRef.current); writerRafRef.current = null; }
+            if (writerRafRef.current != null) {
+                cancelAnimationFrame(writerRafRef.current);
+                writerRafRef.current = null;
+            }
             writerRunningRef.current = false;
         };
     }, [access.visible, closeCard]);

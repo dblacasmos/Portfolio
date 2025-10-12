@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useReducer } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
@@ -20,7 +20,7 @@ export type RadarProps = {
     getEnemyMeshes?: () => THREE.Object3D[] | null;
     getPoiMeshes?: () => THREE.Object3D[] | null;
     getEndDoorMesh?: () => THREE.Object3D | null; // ⬅ EndDoor (amarillo)
-    endDoorVisible?: boolean;                     // ⬅ se activa al 5/5
+    endDoorVisible?: boolean; // ⬅ se activa al 5/5
     fillAlpha?: number;
     viewWorldWidth?: number;
     sweepEnabled?: boolean;
@@ -49,13 +49,13 @@ function makeBaseMaskGridMaterial(
             uGridLineW: { value: gridLineWidth },
             uJammed: { value: 0.0 },
         },
-        vertexShader: /*glsl*/`
+        vertexShader: /*glsl*/ `
       varying vec2 vUv;
       void main(){
         vUv = uv;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
-        fragmentShader: /*glsl*/`
+        fragmentShader: /*glsl*/ `
       precision highp float;
       varying vec2 vUv;
       uniform float uFillAlpha, uCircleR, uGridScale, uGridLineW, uJammed, uTime;
@@ -106,13 +106,13 @@ function makeOverlayRingsMaterial(cyan: THREE.Color, red: THREE.Color, ringThick
             uSweepWidth: { value: 1.35 },
             uSweepGain: { value: 1.15 },
         },
-        vertexShader: /*glsl*/`
+        vertexShader: /*glsl*/ `
       varying vec2 vP;
       void main(){
         vP = position.xy;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
-        fragmentShader: /*glsl*/`
+        fragmentShader: /*glsl*/ `
       precision highp float;
       varying vec2 vP;
       uniform float uTime,uCircleR,uHeading,uSweepOn,uRingThick,uSweepWidth,uSweepGain;
@@ -205,7 +205,7 @@ function makeCircleClippedPointsMaterial(enemySizePx: number, poiSizePx: number,
             uSweepWidth: { value: 1.35 },
             uSweepGain: { value: 1.15 },
         },
-        vertexShader: /*glsl*/`
+        vertexShader: /*glsl*/ `
       attribute float aType; // 0=enemigo, 1=poi, 2=endDoor
       attribute float aPing; // s desde “descubrimiento”
       attribute float aYaw;  // orientación mundo del enemigo (rad)
@@ -223,7 +223,7 @@ function makeCircleClippedPointsMaterial(enemySizePx: number, poiSizePx: number,
                      + isEndDoor * uEnemySizePx;
         gl_PointSize=sizePx*uDpr;
       }`,
-        fragmentShader: /*glsl*/`
+        fragmentShader: /*glsl*/ `
       precision highp float;
       varying float vType, vPing; varying vec2 vW; varying float vYaw;
       uniform vec2 uCenter,uScale; uniform float uR,uTime, uGain;
@@ -309,10 +309,15 @@ function makeCompassTicksGeometry(circleR: number) {
 }
 
 const Radar: React.FC<RadarProps> = ({
-    position, width, height,
-    getPlayer2D, zoomMul = 1,
-    getEnemyMeshes, getPoiMeshes,
-    getEndDoorMesh, endDoorVisible = false,
+    position,
+    width,
+    height,
+    getPlayer2D,
+    zoomMul = 1,
+    getEnemyMeshes,
+    getPoiMeshes,
+    getEndDoorMesh,
+    endDoorVisible = false,
     fillAlpha = (CFG as any)?.hud?.radar?.fillAlphaDefault ?? 0.38,
     viewWorldWidth = (CFG as any)?.hud?.radar?.viewWorldWidth ?? 120,
     sweepEnabled = (CFG as any)?.hud?.radar?.sweepOn ?? true,
@@ -329,22 +334,62 @@ const Radar: React.FC<RadarProps> = ({
     // Tuning
     const tuning = (CFG as any)?.hud?.radar?.tuning ?? {};
     const gridCells: number = tuning.gridCells ?? 18;
-    const gridLineWidth: number = tuning.gridLineWidthPx ? Math.max(0.005, (tuning.gridLineWidthPx / 100.0)) : 0.035;
+    const gridLineWidth: number = tuning.gridLineWidthPx
+        ? Math.max(0.005, tuning.gridLineWidthPx / 100.0)
+        : 0.035;
     const ringThickness: number = tuning.ringThickness ?? 0.06;
 
-    const toPx = (norm?: number, fallbackPx = 6) => typeof norm === "number" ? Math.max(1, Math.round(norm * 180)) : fallbackPx;
+    const toPx = (norm?: number, fallbackPx = 6) =>
+        typeof norm === "number" ? Math.max(1, Math.round(norm * 180)) : fallbackPx;
 
     const enemySizePx: number = tuning.enemyPointSizePx ?? toPx(tuning.enemyPointSize, 11);
     const poiSizePx: number =
-        endDoorVisible ? enemySizePx : (tuning.poiPointSizePx ?? toPx(tuning.poiPointSize, 6));
+        endDoorVisible ? enemySizePx : tuning.poiPointSizePx ?? toPx(tuning.poiPointSize, 6);
 
     const sweepGain = (CFG as any)?.hud?.radar?.sweepGain ?? 1.15;
     const sweepWidth = (CFG as any)?.hud?.radar?.sweepWidth ?? 1.35;
 
     // Materiales
-    const matBase = useMemo(() => makeBaseMaskGridMaterial(fillAlpha, CYAN.clone(), gridCells, gridLineWidth), [fillAlpha, CYAN, gridCells, gridLineWidth]);
-    const matOverlay = useMemo(() => makeOverlayRingsMaterial(CYAN.clone(), RED.clone(), ringThickness), [CYAN, RED, ringThickness]);
-    const matPoints = useMemo(() => makeCircleClippedPointsMaterial(enemySizePx, poiSizePx, (CFG as any)?.hud?.radar?.defaults?.gain ?? 0.98), [enemySizePx, poiSizePx]);
+    const matBase = useMemo(
+        () => makeBaseMaskGridMaterial(fillAlpha, CYAN.clone(), gridCells, gridLineWidth),
+        [fillAlpha, CYAN, gridCells, gridLineWidth]
+    );
+    const matOverlay = useMemo(
+        () => makeOverlayRingsMaterial(CYAN.clone(), RED.clone(), ringThickness),
+        [CYAN, RED, ringThickness]
+    );
+    const matPoints = useMemo(
+        () =>
+            makeCircleClippedPointsMaterial(
+                enemySizePx,
+                poiSizePx,
+                (CFG as any)?.hud?.radar?.defaults?.gain ?? 0.98
+            ),
+        [enemySizePx, poiSizePx]
+    );
+
+    // ✅ Relayout robusto tras fullscreen/resize
+    const _relayoutTick = useRef(0 as unknown as number);
+    const forceRelayout = useReducer((s) => s + 1, 0)[1];
+    useEffect(() => {
+        const relayoutSoon = () => {
+            cancelAnimationFrame(_relayoutTick.current as any);
+            _relayoutTick.current = requestAnimationFrame(() => {
+                window.dispatchEvent(new Event("resize"));
+                forceRelayout();
+            }) as unknown as number;
+        };
+        const onFS = () => relayoutSoon();
+        const onResize = () => relayoutSoon();
+
+        document.addEventListener("fullscreenchange", onFS);
+        window.addEventListener("resize", onResize);
+        return () => {
+            document.removeEventListener("fullscreenchange", onFS);
+            window.removeEventListener("resize", onResize);
+            cancelAnimationFrame(_relayoutTick.current as any);
+        };
+    }, [forceRelayout]);
 
     // Uniforms barrido coherentes en overlay + puntos
     useEffect(() => {
@@ -363,20 +408,24 @@ const Radar: React.FC<RadarProps> = ({
         (matPoints.uniforms.uPoiSizePx as any).value = poiSizePx;
     }, [matPoints, enemySizePx, poiSizePx]);
 
-    // Geometría brújula (reutilizada → antes se creaba dos veces)
+    // Geometría brújula (reutilizada)
     const compassGeom = useMemo(() => makeCompassTicksGeometry(circleR), [circleR]);
     useEffect(() => () => compassGeom.dispose(), [compassGeom]);
 
     const compassMat = useMemo(() => {
         const m = new THREE.LineBasicMaterial({ color: CYAN, transparent: true, opacity: 0.85 });
-        (m as any).depthTest = false; (m as any).depthWrite = false; (m as any).toneMapped = false;
+        (m as any).depthTest = false;
+        (m as any).depthWrite = false;
+        (m as any).toneMapped = false;
         return m;
     }, [CYAN]);
 
     const groupContent = useRef<THREE.Group>(null!);
     const ptsGeo = useRef<THREE.BufferGeometry>(new THREE.BufferGeometry());
 
-    useEffect(() => { (matPoints.uniforms.uDpr as any).value = dpr; }, [matPoints, dpr]);
+    useEffect(() => {
+        (matPoints.uniforms.uDpr as any).value = dpr;
+    }, [matPoints, dpr]);
     useEffect(() => {
         (matPoints.uniforms.uCenter as any).value.set(position[0], position[1]);
         (matPoints.uniforms.uScale as any).value.set(width / 2, height / 2);
@@ -397,7 +446,7 @@ const Radar: React.FC<RadarProps> = ({
 
         (matOverlay.uniforms.uHeading as any).value = -p.headingRad;
 
-        const diameter = Math.max(10, (viewWorldWidth) / Math.max(0.001, zoomMul || 1));
+        const diameter = Math.max(10, viewWorldWidth / Math.max(0.001, zoomMul || 1));
         const worldToMini = (2 * circleR) / diameter;
 
         if (groupContent.current) {
@@ -462,7 +511,8 @@ const Radar: React.FC<RadarProps> = ({
             outYaw.push(yaw);
 
             if (p) {
-                const rx = tmpW.x - p.x, ry = tmpW.z - p.y;
+                const rx = tmpW.x - p.x,
+                    ry = tmpW.z - p.y;
                 const A = (Math.atan2(ry, rx) + Math.PI * 2) % (Math.PI * 2);
                 const idx = Math.floor((A / (Math.PI * 2)) * 12) % 12;
                 secs[idx] += 1;
@@ -483,7 +533,7 @@ const Radar: React.FC<RadarProps> = ({
         const globalEndDoor: THREE.Object3D | null = (window as any).__endDoorMesh ?? null;
         const endDoorGetter = getEndDoorMesh ?? (() => globalEndDoor);
         const endDoor = endDoorGetter?.();
-        const globalVisible = !!((window as any).__endDoorVisible);
+        const globalVisible = !!(window as any).__endDoorVisible;
         if (endDoor && (endDoorVisible || globalVisible || endDoor.visible)) {
             endDoor.getWorldPosition(tmpW);
             outPos.push(tmpW.x, tmpW.z, 0);
@@ -497,9 +547,12 @@ const Radar: React.FC<RadarProps> = ({
             g.setDrawRange(0, 0); // se asegura abajo con ensure()
         }
 
-        let maxC = 0; for (let i = 0; i < 12; i++) maxC = Math.max(maxC, secs[i]);
-        const f = maxC > 0 ? (1 / maxC) : 0; for (let i = 0; i < 12; i++) secs[i] = Math.min(1, secs[i] * f);
-        const uSectors = (matOverlay.uniforms.uSectors as any).value as number[]; for (let i = 0; i < 12; i++) uSectors[i] = secs[i];
+        let maxC = 0;
+        for (let i = 0; i < 12; i++) maxC = Math.max(maxC, secs[i]);
+        const f = maxC > 0 ? 1 / maxC : 0;
+        for (let i = 0; i < 12; i++) secs[i] = Math.min(1, secs[i] * f);
+        const uSectors = (matOverlay.uniforms.uSectors as any).value as number[];
+        for (let i = 0; i < 12; i++) uSectors[i] = secs[i];
 
         if (outPos.length) {
             const pos = new Float32Array(outPos);
@@ -507,12 +560,22 @@ const Radar: React.FC<RadarProps> = ({
             const ping = new Float32Array(outPing);
             const yaw = new Float32Array(outYaw);
 
-            const ensure = (name: string, itemSize: number, data: Float32Array, ref?: React.MutableRefObject<THREE.BufferAttribute | null>) => {
+            const ensure = (
+                name: string,
+                itemSize: number,
+                data: Float32Array,
+                ref?: React.MutableRefObject<THREE.BufferAttribute | null>
+            ) => {
                 const existing = g.getAttribute(name) as THREE.BufferAttribute | undefined;
                 if (!existing || (existing.array as Float32Array).length !== data.length) {
-                    const attr = new THREE.Float32BufferAttribute(data, itemSize); attr.setUsage(THREE.DynamicDrawUsage);
-                    g.setAttribute(name, attr); if (ref) ref.current = attr;
-                } else { (existing.array as Float32Array).set(data); existing.needsUpdate = true; }
+                    const attr = new THREE.Float32BufferAttribute(data, itemSize);
+                    attr.setUsage(THREE.DynamicDrawUsage);
+                    g.setAttribute(name, attr);
+                    if (ref) ref.current = attr;
+                } else {
+                    (existing.array as Float32Array).set(data);
+                    existing.needsUpdate = true;
+                }
             };
             ensure("position", 3, pos);
             ensure("aType", 1, type, aType);
@@ -526,17 +589,18 @@ const Radar: React.FC<RadarProps> = ({
         }
     });
 
-    const diameterMeters = Math.max(10, (viewWorldWidth) / Math.max(0.001, zoomMul || 1));
+    const diameterMeters = Math.max(10, viewWorldWidth / Math.max(0.001, zoomMul || 1));
     const radiusMeters = diameterMeters * 0.5;
 
     if (!width || !height) return null;
-    const halfW = width * 0.5, halfH = height * 0.5;
+    const halfW = width * 0.5,
+        halfH = height * 0.5;
 
     const rawDegreeLabels = [0, 30, 60, 120, 150, 210, 240, 300, 330];
     const block = [0, 90, 180, 270];
     const SEP = 15;
-    const degreeLabels = rawDegreeLabels.filter(d =>
-        block.every(c => Math.abs(((d - c + 540) % 360) - 180) >= SEP)
+    const degreeLabels = rawDegreeLabels.filter((d) =>
+        block.every((c) => Math.abs(((d - c + 540) % 360) - 180) >= SEP)
     );
 
     return (
@@ -564,10 +628,50 @@ const Radar: React.FC<RadarProps> = ({
 
                 {/* Cardinales */}
                 <group>
-                    <Text position={[0, 0.92 * 1.08, 0]} font={orbitronFont} fontSize={0.12} color={CYAN.getStyle()} anchorX="center" anchorY="middle" renderOrder={OVERLAY_ORDER + 3}>N</Text>
-                    <Text position={[0, -0.92 * 1.08, 0]} font={orbitronFont} fontSize={0.12} color={CYAN.getStyle()} anchorX="center" anchorY="middle" renderOrder={OVERLAY_ORDER + 3}>S</Text>
-                    <Text position={[-0.92 * 1.08, 0, 0]} font={orbitronFont} fontSize={0.12} color={CYAN.getStyle()} anchorX="center" anchorY="middle" renderOrder={OVERLAY_ORDER + 3}>W</Text>
-                    <Text position={[0.92 * 1.08, 0, 0]} font={orbitronFont} fontSize={0.12} color={CYAN.getStyle()} anchorX="center" anchorY="middle" renderOrder={OVERLAY_ORDER + 3}>E</Text>
+                    <Text
+                        position={[0, 0.92 * 1.08, 0]}
+                        font={orbitronFont}
+                        fontSize={0.12}
+                        color={CYAN.getStyle()}
+                        anchorX="center"
+                        anchorY="middle"
+                        renderOrder={OVERLAY_ORDER + 3}
+                    >
+                        N
+                    </Text>
+                    <Text
+                        position={[0, -0.92 * 1.08, 0]}
+                        font={orbitronFont}
+                        fontSize={0.12}
+                        color={CYAN.getStyle()}
+                        anchorX="center"
+                        anchorY="middle"
+                        renderOrder={OVERLAY_ORDER + 3}
+                    >
+                        S
+                    </Text>
+                    <Text
+                        position={[-0.92 * 1.08, 0, 0]}
+                        font={orbitronFont}
+                        fontSize={0.12}
+                        color={CYAN.getStyle()}
+                        anchorX="center"
+                        anchorY="middle"
+                        renderOrder={OVERLAY_ORDER + 3}
+                    >
+                        W
+                    </Text>
+                    <Text
+                        position={[0.92 * 1.08, 0, 0]}
+                        font={orbitronFont}
+                        fontSize={0.12}
+                        color={CYAN.getStyle()}
+                        anchorX="center"
+                        anchorY="middle"
+                        renderOrder={OVERLAY_ORDER + 3}
+                    >
+                        E
+                    </Text>
                 </group>
 
                 {/* Ticks de brújula (reutilizo geometría ya creada) */}

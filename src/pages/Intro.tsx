@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ASSETS } from "../constants/assets";
-import { enterAppFullscreen, isFullscreen } from "../game/utils/immersive";
+import { enterFullscreen, isFullscreen } from "../game/utils/immersive";
 import { useRobotCursor } from "@/hooks/useRobotCursor";
 
 const isCoarsePointer = () => (typeof window !== "undefined" ? window.matchMedia?.("(pointer: coarse)")?.matches ?? false : false);
@@ -63,7 +63,7 @@ export default function Intro() {
     try { mainVideoRef.current?.pause(); } catch { }
     try { musicRef.current?.pause(); } catch { }
     try { ttsAbortRef.current?.(); } catch { }
-    try { if (!isFullscreen()) enterAppFullscreen(); } catch { }
+    try { if (!isFullscreen()) enterFullscreen(); } catch { }
     setTimeout(() => navigate("/main"), DELAY);
   };
   useEffect(() => {
@@ -162,7 +162,7 @@ export default function Intro() {
 
   const handleStart = () => {
     try { playStartClick(); } catch { }
-    try { enterAppFullscreen(); } catch { }
+    try { enterFullscreen(); } catch { }
     setTimeout(() => {
       setShowIntroVideo(true);
       setStartVideo(true);
@@ -186,7 +186,7 @@ export default function Intro() {
 
   const handleExploreClick = () => {
     try { playUiClick(); } catch { }
-    try { if (!isFullscreen()) enterAppFullscreen(); } catch { }
+    try { if (!isFullscreen()) enterFullscreen(); } catch { }
     doSkipToMain();
   };
 
