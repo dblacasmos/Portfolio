@@ -9,8 +9,11 @@ import { ASSETS } from "../../constants/assets";
 import { useGameStore } from "../utils/state/store";
 import { audioManager } from "../utils/audio/audio";
 import { CFG } from "@/constants/config";
-// Reutilizamos el selector común para evitar duplicidades
 import VoiceSelect from "./VoiceSelect";
+import { useEscOrTapToClose } from "@/hooks/useEnterOrTapToClose";
+import { patchThreeIndex0AttributeNameWarning } from "@/game/utils/three/fixIndex0Attr";
+
+patchThreeIndex0AttributeNameWarning();
 
 /* ===================== Voz: Google Español por defecto ===================== */
 const FEMALE_HINTS = /(female|mujer|helena|laura|sofia|sofía|carmen|elena|montserrat|sara|luisa)/i;
@@ -188,13 +191,34 @@ T-9 “Gólem”, Buena cacería.`;
     const writerRunningRef = React.useRef(false);
     const ttsFinishedRef = React.useRef(false);
 
-    // Zoom del dron con rueda
+    // Zoom del dron con rueda (listener NO pasivo para poder preventDefault)
     const [distance, setDistance] = React.useState<number>(4.2);
     const clampDist = (z: number) => Math.min(DRONE_MAX, Math.max(DRONE_MIN, z));
-    const onWheel = (e: React.WheelEvent) => {
-        e.preventDefault();
-        setDistance(clampDist(distance + Math.sign(e.deltaY) * 0.35));
-    };
+    const zoomAreaRef = React.useRef<HTMLDivElement | null>(null);
+    const onWheelZoom = React.useCallback<React.WheelEventHandler<HTMLDivElement>>((ev) => {
+        // La cancelación real la hace un listener nativo no-passive (abajo)
+        ev.stopPropagation();
+        const native = ev.nativeEvent as WheelEvent;
+        // Normaliza trackpad/ratón: line-mode → px
+        const dy = native.deltaMode === 1 ? native.deltaY * 16 : native.deltaY;
+        const k = 0.0028;
+        const step = Math.sign(dy) * Math.max(0.15, Math.abs(dy) * k);
+        setDistance((d) => clampDist(d + step));
+    }, []);
+
+    // Bloquea el scroll del documento con un listener nativo no-passive en captura
+    React.useEffect(() => {
+        const el = zoomAreaRef.current;
+        if (!el) return;
+        const blockWheel = (e: WheelEvent) => {
+            if (e.cancelable) { // evita el warning en eventos no cancelables
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+        el.addEventListener("wheel", blockWheel, { capture: true, passive: false });
+        return () => el.removeEventListener("wheel", blockWheel as any, true);
+    }, []);
 
     /* === Entrar: reset duro y contenedor vacío === */
     React.useEffect(() => {
@@ -396,11 +420,11 @@ T-9 “Gólem”, Buena cacería.`;
         setMode(null);
     }, [setMode]);
 
-    // ESC para cerrar (en captura)
+    // ENTER para cerrar (en captura)
     React.useEffect(() => {
         if (!mode) return;
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
+            if (e.key === "Enter") {
                 e.preventDefault();
                 e.stopPropagation();
                 closeCard();
@@ -409,6 +433,15 @@ T-9 “Gólem”, Buena cacería.`;
         window.addEventListener("keydown", onKey, { passive: false, capture: true });
         return () => window.removeEventListener("keydown", onKey, true);
     }, [mode, closeCard]);
+
+    // Tap en móvil/tablet = ENTER (cerrar tarjeta)
+    useEscOrTapToClose({
+        enabled: !!mode,
+        onClose: closeCard,
+        closeOnBackdropOnly: false,
+        backdropElement: null,
+        keyboardKey: "Enter",
+    });
 
     const spanishVoices = React.useMemo(
         () => voices.filter((v) => /^es/i.test(v.lang || "es") || /spanish|español/i.test(`${v.name} ${v.voiceURI}`)),
@@ -463,13 +496,14 @@ T-9 “Gólem”, Buena cacería.`;
                             <div className="text-cyan-200/90 text-sm">OPERADOR — Charly Gepeto</div>
                         </div>
 
-                        <div className="rounded-xl bg-black/25 border border-white/10 p-4 min-h-[160px]">
+                        {/* Texto scrolleable: no se pierde fuera de la pantalla */}
+                        <div className="rounded-xl bg-black/25 border border-white/10 p-4 min-h-[160px] max-h-[min(48vh,420px)] overflow-auto pr-1">
                             {/* Empieza vacío y se rellena sincronizado con la voz / typewriter */}
                             <div className="text-cyan-200/90 text-[12px] sm:text-[12px] md:text-[12px] lg:text-[13px] leading-relaxed whitespace-pre-wrap">
                                 {typed}
                                 {speaking && <span className="opacity-60 animate-pulse">▌</span>}
                             </div>
-                            <div className="mt-2 text-white/60 text-xs">Pulsa ESC para cancelar.</div>
+                            <div className="mt-2 text-white/60 text-xs">Pulsa ENTER para cancelar.</div>
                         </div>
 
                         <div className="flex justify-end">
@@ -489,7 +523,9 @@ T-9 “Gólem”, Buena cacería.`;
                     {/* DERECHA: dron (zoom rueda) */}
                     <div
                         className="h-[300px] sm:h-[380px] md:h-[560px] rounded-xl overflow-hidden border border-white/10 bg-[radial-gradient(120%_120%_at_50%_15%,rgba(56,189,248,.12),transparent_60%)] relative"
-                        onWheel={onWheel}
+                        ref={zoomAreaRef}
+                        onWheelCapture={onWheelZoom}
+                        style={{ overscrollBehavior: "contain", touchAction: "none" }}
                     >
                         <div className="absolute top-2 left-2 text-[10px] tracking-widest text-cyan-200/90">SCROLL para aumentar o disminuir</div>
                         <Canvas

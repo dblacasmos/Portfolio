@@ -68,6 +68,7 @@
     "tmp": "0.2.4",
     "vite": {
       "esbuild": "^0.25.10"
-    }
+    },
+    "@dimforge/rapier3d-compat": "0.15.0"
   }
 }

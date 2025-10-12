@@ -4,6 +4,7 @@
 import React from "react";
 import { useGameStore } from "../utils/state/store";
 import { ASSETS } from "../../constants/assets";
+import { hideGlobalLoadingOverlay } from "./GlobalLoadingPortal";
 
 type Props = {
     /** Progreso real del juego 0..1 (padre lo calcula) */
@@ -90,6 +91,27 @@ function LoadingOverlayImpl({
             delete (window as any).__ingameOverlayPainted;
         };
     }, []);
+
+    // --- Cierre manual: ENTER o tap en móvil/tablet => cerrar overlay (temporal)
+    const isCoarse = React.useMemo(
+        () => (typeof window !== "undefined" ? window.matchMedia?.("(pointer: coarse)")?.matches ?? false : false),
+        []
+    );
+    React.useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                hideGlobalLoadingOverlay();
+            }
+        };
+        const onPointer = () => { if (isCoarse) hideGlobalLoadingOverlay(); };
+        window.addEventListener("keydown", onKey, true);
+        window.addEventListener("pointerdown", onPointer, { passive: true, capture: true });
+        return () => {
+            window.removeEventListener("keydown", onKey, true);
+            window.removeEventListener("pointerdown", onPointer, true);
+        };
+    }, [isCoarse]);
 
     // ---- Progreso mostrado (suavizado y monótono) ----
     const [pct, setPct] = React.useState(0);

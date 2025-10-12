@@ -60,7 +60,7 @@ export const ContextLostShield: React.FC = () => {
     if (!lost) return null;
 
     return (
-        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[70]">
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[70]" data-overlay="context-lost">
             <div className="px-3 py-2 rounded-xl bg-black/80 text-cyan-100 border border-cyan-400/40 text-xs shadow-lg">
                 Contexto WebGL perdido. {suggestReload ? "Si no vuelve, recarga la pestaña." : "Intentando recuperar…"}
             </div>

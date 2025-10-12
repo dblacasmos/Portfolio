@@ -12,7 +12,7 @@ type Props = {
 };
 
 const HUD_LAYER = CFG.layers.HUD;
-const COMPLETE_DELAY_MS = 200; // delay tras cerrar/ESC antes de aparición
+const COMPLETE_DELAY_MS = 200; // delay tras cerrar/ENTER antes de aparición
 
 const DronesCounterHud: React.FC<Props> = ({
     position,

@@ -19,6 +19,10 @@ import { ASSETS } from "../../constants/assets";
 import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
 import { CFG } from "../../constants/config";
 import { isKTX2Ready } from "@/game/utils/three/ktx2/ktx2";
+import { patchThreeIndex0AttributeNameWarning } from "@/game/utils/three/fixIndex0Attr";
+import { useRobotCursor } from "@/hooks/useRobotCursor";
+
+patchThreeIndex0AttributeNameWarning();
 
 /* ============ Util: DPR adaptativo ============ */
 function useAdaptiveDprRange(): [number, number] {
@@ -241,6 +245,8 @@ function RobotModel({ onBounds }: { onBounds: (box: THREE.Box3) => void }) {
 
 /* ======================= Hero ======================= */
 export default function Hero() {
+  // Activa cursor robot en esta pantalla
+  useRobotCursor(true);
   const navigate = useNavigate();
   const [positions, setPositions] = useState<any>(null);
   const [screenCoords, setScreenCoords] = useState<any>(null);

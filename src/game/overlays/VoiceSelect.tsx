@@ -10,7 +10,7 @@ export type VoiceSelectProps = {
 
 /**
  * Selector compacto de voces TTS.
- * - Cierra al hacer click fuera o pulsar ESC
+ * - Cierra al hacer click fuera o pulsar ENTER
  * - Listado simple y accesible (role="listbox")
  * - Reutilizable por cualquier overlay
  */

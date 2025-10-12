@@ -1,7 +1,7 @@
 /* =============================
   FILE: src/pages/main/Timeline.tsx
   ============================= */
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ASSETS } from "../../constants/assets";
@@ -14,12 +14,26 @@ import {
   hideGlobalLoadingOverlay,
 } from "../../game/overlays/GlobalLoadingPortal";
 import { hardCleanupBeforeMain } from "../../game/utils/cleanupMain";
+import { patchThreeIndex0AttributeNameWarning } from "@/game/utils/three/fixIndex0Attr";
+import { useRobotCursor } from "@/hooks/useRobotCursor";
+
+patchThreeIndex0AttributeNameWarning();
+
+/* ---------- helpers ---------- */
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+const isCoarsePointer = () =>
+  typeof window !== "undefined" ? window.matchMedia?.("(pointer: coarse)")?.matches ?? false : false;
 
 /* ---------- Utils VRAM ---------- */
 function disposeVideo(el: HTMLVideoElement | null) {
   if (!el) return;
-  try { el.pause(); } catch { }
-  try { el.removeAttribute("src"); el.load(); } catch { }
+  try {
+    el.pause();
+  } catch { }
+  try {
+    el.removeAttribute("src");
+    el.load();
+  } catch { }
 }
 function useManagedAudio(
   src?: string,
@@ -34,9 +48,13 @@ function useManagedAudio(
     a.volume = volume;
     ref.current = a;
     return () => {
-      try { a.pause(); } catch { }
+      try {
+        a.pause();
+      } catch { }
       (a as any).src = "";
-      try { a.load?.(); } catch { }
+      try {
+        a.load?.();
+      } catch { }
       ref.current = null;
     };
   }, [src, loop, volume]);
@@ -52,10 +70,22 @@ const LORE_NARRATION =
   "rápido, claro y letal. Si fallamos, registramos; si vencemos, evolucionamos.";
 
 export default function Timeline() {
+  // Activa cursor robot en esta pantalla
+  useRobotCursor(true);
   const nav = useNavigate();
   const { search } = useLocation();
   const params = useMemo(() => new URLSearchParams(search), [search]);
   const playClick = useUiClick();
+
+  // 🔹 Parámetros de vista vía querystring (arriba, porque se usan en efectos de más abajo)
+  const showControls = params.get("view") === "controles";
+  const showAudio = params.get("view") === "audio";
+  const pushView = (v: string | null) => {
+    const p = new URLSearchParams(window.location.search);
+    if (v) p.set("view", v);
+    else p.delete("view");
+    nav({ pathname: "/timeline", search: p.toString() ? `?${p.toString()}` : "" });
+  };
 
   // Fases principales del flujo
   const [phase, setPhase] = useState<"cap2" | "transition" | "followup" | "transition2" | "menu">("cap2");
@@ -71,44 +101,121 @@ export default function Timeline() {
   const PANELS_DELAY_AFTER_TRANSITION_MS = 900;
   const CRAWL_SLOW_FACTOR = 4.8;
 
+  // Refs para popover "CONTROLES"
+  const controlsBtnRef = useRef<HTMLButtonElement | null>(null);
+  const controlsPopRef = useRef<HTMLDivElement | null>(null);
+  const recalcControlsPos = () => {
+    const btn = controlsBtnRef.current,
+      pop = controlsPopRef.current;
+    if (!btn || !pop) return;
+    const b = btn.getBoundingClientRect();
+    const p = pop.getBoundingClientRect();
+    let left = b.left,
+      top = b.bottom + 8;
+    const pad = 8;
+    left = clamp(left, pad, window.innerWidth - p.width - pad);
+    top = clamp(top, pad, window.innerHeight - p.height - pad);
+    pop.style.left = `${left}px`;
+    pop.style.top = `${top}px`;
+  };
+
   // Media
   const cap2VideoRef = useRef<HTMLVideoElement | null>(null);
   const followVideoRef = useRef<HTMLVideoElement | null>(null);
   const cap2MusicRef = useManagedAudio(ASSETS.audio?.capDos, { volume: 0.45, loop: false });
 
-  // ESC: cortar media activa y avanzar de fase
-  useEffect(() => {
+  // ENTER: cortar media activa y avanzar de fase
+  const doEscAdvance = () => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault(); e.stopPropagation();
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      e.stopPropagation();
 
       if (phase === "cap2") {
-        try { const v = cap2VideoRef.current; v && (v.pause(), disposeVideo(v)); } catch { }
-        try { const m = cap2MusicRef.current; m && (m.pause(), (m.currentTime = 0)); } catch { }
-        try { window.speechSynthesis?.cancel(); } catch { }
+        try {
+          const v = cap2VideoRef.current;
+          v && (v.pause(), disposeVideo(v));
+        } catch { }
+        try {
+          const m = cap2MusicRef.current;
+          m && (m.pause(), (m.currentTime = 0));
+        } catch { }
+        try {
+          window.speechSynthesis?.cancel();
+        } catch { }
         setPhase("transition");
         return;
       }
       if (phase === "followup") {
         try {
           const v = followVideoRef.current;
-          if (v) { v.pause(); v.muted = true; disposeVideo(v); }
+          if (v) {
+            v.pause();
+            v.muted = true;
+            disposeVideo(v);
+          }
         } catch { }
         setPhase("transition2");
         return;
       }
     };
+    return onKey;
+  };
+  useEffect(() => {
+    const onKey = doEscAdvance();
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [phase, cap2MusicRef]);
 
-  // Precarga del juego
-  useEffect(() => { import("../../game/Game").catch(() => { }); }, []);
-
-  // Fullscreen al entrar
+  // TAP en móviles/tablets = ENTER durante fases de vídeo ("cap2" y "followup")
   useEffect(() => {
-    const root = (document.querySelector("[data-immersive-root]") as HTMLElement) || document.documentElement;
-    try { enterImmersive(root); } catch { }
+    if (!(phase === "cap2" || phase === "followup")) return;
+    if (!isCoarsePointer()) return;
+
+    const onTap = (e: PointerEvent) => {
+      e.stopPropagation(); // aquí solo hay vídeo a pantalla completa
+      const handleEsc = doEscAdvance();
+      handleEsc(new KeyboardEvent("keydown", { key: "Enter" }) as any);
+    };
+
+    window.addEventListener("pointerdown", onTap, { capture: true, passive: true });
+    return () => window.removeEventListener("pointerdown", onTap, true);
+  }, [phase, cap2MusicRef]);
+
+  // Recolocar popover de CONTROLES y cerrar al hacer click fuera
+  // Recoloca al abrir y gestiona cierre por click fuera SOLO cuando está abierto
+  useLayoutEffect(() => {
+    if (!showControls) return;
+    // espera un frame para asegurar que el DOM del popover está medido
+    requestAnimationFrame(() => recalcControlsPos());
+  }, [showControls]);
+
+  useEffect(() => {
+    if (!showControls) return;
+    const onRecalc = () => recalcControlsPos();
+    const onClickOutside = (ev: MouseEvent) => {
+      if (!controlsPopRef.current || !controlsBtnRef.current) return;
+      const pop = controlsPopRef.current,
+        btn = controlsBtnRef.current;
+      if (pop.contains(ev.target as Node) || btn.contains(ev.target as Node)) return;
+      // cerrar vía querystring (evitamos referenciar closePanels antes de su declaración)
+      pushView(null);
+    };
+    window.addEventListener("resize", onRecalc);
+    window.addEventListener("scroll", onRecalc, true);
+    window.addEventListener("orientationchange", onRecalc);
+    window.addEventListener("pointerdown", onClickOutside, { capture: true });
+    return () => {
+      window.removeEventListener("resize", onRecalc);
+      window.removeEventListener("scroll", onRecalc, true);
+      window.removeEventListener("orientationchange", onRecalc);
+      window.removeEventListener("pointerdown", onClickOutside, true);
+    };
+  }, [showControls]);
+
+  // Precarga del juego
+  useEffect(() => {
+    import("../../game/Game").catch(() => { });
   }, []);
 
   // Partir narración en 2 párrafos equilibrados
@@ -121,7 +228,10 @@ export default function Timeline() {
     let cut = sentences.length - 1;
     for (let i = 0; i < sentences.length - 1; i++) {
       acc += sentences[i].length;
-      if (acc >= target) { cut = i; break; }
+      if (acc >= target) {
+        cut = i;
+        break;
+      }
     }
     return [sentences.slice(0, cut + 1).join(" "), sentences.slice(cut + 1).join(" ")];
   }, []);
@@ -162,16 +272,27 @@ export default function Timeline() {
     const m = cap2MusicRef.current;
 
     if (v) {
+      const safePlay = () => v.play().catch(() => { });
       try {
         v.muted = true; // autoplay-friendly
         v.currentTime = 0;
         v.loop = true;
-        v.play().catch(() => { });
-        // Unmute suave
-        setTimeout(() => { try { v.muted = false; v.volume = 1; } catch { } }, 150);
+        if (document.hidden) {
+          const once = () => {
+            document.removeEventListener("visibilitychange", once);
+            safePlay();
+            setTimeout(() => { try { v.muted = false; v.volume = 1; } catch { } }, 150);
+          };
+          document.addEventListener("visibilitychange", once, { once: true });
+        } else {
+          safePlay();
+          setTimeout(() => { try { v.muted = false; v.volume = 1; } catch { } }, 150);
+        }
       } catch { }
     }
-    try { m?.play().catch(() => { }); } catch { }
+    try {
+      m?.play().catch(() => { });
+    } catch { }
 
     // TTS
     if ("speechSynthesis" in window) {
@@ -181,12 +302,21 @@ export default function Timeline() {
       utter.rate = Math.max(0.7, Math.min(1.6, (ttsRate ?? 1.0) * 1.2));
       utter.pitch = 0.95;
 
-      utter.onstart = () => { setTtsActive(true); if (m) m.volume = 0.25; };
-      utter.onend = () => { setTtsActive(false); if (m) m.volume = 0.45; setCap2Done(true); };
+      utter.onstart = () => {
+        setTtsActive(true);
+        if (m) m.volume = 0.25;
+      };
+      utter.onend = () => {
+        setTtsActive(false);
+        if (m) m.volume = 0.45;
+        setCap2Done(true);
+      };
 
       const pickVoice = () => {
         const voices = synth.getVoices();
-        const maleEs = voices.find((v) => /es-ES/.test(v.lang) && /male|hombre|Miguel|Jorge|Diego|Enrique/i.test(v.name));
+        const maleEs = voices.find(
+          (v) => /es-ES/.test(v.lang) && /male|hombre|Miguel|Jorge|Diego|Enrique/i.test(v.name)
+        );
         const anyEs = voices.find((v) => /es-ES/i.test(v.lang)) || voices.find((v) => /es/i.test(v.lang));
         utter.voice = (maleEs || anyEs || null) as SpeechSynthesisVoice | null;
         synth.cancel();
@@ -194,13 +324,20 @@ export default function Timeline() {
       };
 
       if (synth.getVoices().length === 0) {
-        const onVoices = () => { pickVoice(); synth.removeEventListener("voiceschanged", onVoices); };
+        const onVoices = () => {
+          pickVoice();
+          synth.removeEventListener("voiceschanged", onVoices);
+        };
         synth.addEventListener("voiceschanged", onVoices);
       } else {
         pickVoice();
       }
 
-      return () => { try { synth.cancel(); } catch { } };
+      return () => {
+        try {
+          synth.cancel();
+        } catch { }
+      };
     }
   }, [phase, cap2MusicRef, ttsRate, narrationParagraphs]);
 
@@ -216,8 +353,16 @@ export default function Timeline() {
   useEffect(() => {
     if (phase !== "cap2" || !cap2Done) return;
     setCap2Done(false);
-    try { disposeVideo(cap2VideoRef.current); } catch { }
-    const m = cap2MusicRef.current; if (m) { try { m.pause(); m.currentTime = 0; } catch { } }
+    try {
+      disposeVideo(cap2VideoRef.current);
+    } catch { }
+    const m = cap2MusicRef.current;
+    if (m) {
+      try {
+        m.pause();
+        m.currentTime = 0;
+      } catch { }
+    }
     setPhase("transition");
   }, [cap2Done, phase, cap2MusicRef]);
 
@@ -235,33 +380,57 @@ export default function Timeline() {
     let watchdogTimer: number | undefined;
 
     const fadeAndGoTransition2 = () => {
-      if (!v) { setPhase("transition2"); return; }
-      try { v.muted = false; } catch { }
+      if (!v) {
+        setPhase("transition2");
+        return;
+      }
+      try {
+        v.muted = false;
+      } catch { }
       const startVol = Math.max(0, Math.min(1, v.volume || 1));
       const start = performance.now();
       const D = 400;
       const step = (t: number) => {
         const p = Math.min(1, (t - start) / D);
-        try { v.volume = startVol * (1 - p); } catch { }
+        try {
+          v.volume = startVol * (1 - p);
+        } catch { }
         if (p < 1) requestAnimationFrame(step);
         else {
-          try { v.pause(); } catch { }
-          try { v.muted = true; } catch { }
+          try {
+            v.pause();
+          } catch { }
+          try {
+            v.muted = true;
+          } catch { }
           setPhase("transition2");
         }
       };
       requestAnimationFrame(step);
     };
 
-    const onEnded = () => { if (watchdogTimer) clearTimeout(watchdogTimer); fadeAndGoTransition2(); };
+    const onEnded = () => {
+      if (watchdogTimer) clearTimeout(watchdogTimer);
+      fadeAndGoTransition2();
+    };
 
     if (v) {
+      const safePlay = () => v.play().catch(() => { });
       try {
         v.muted = true;
         v.currentTime = 0;
         v.loop = false; // necesitamos 'ended'
-        v.play().catch(() => { });
-        setTimeout(() => { try { v.muted = false; v.volume = 1; } catch { } }, 150);
+        if (document.hidden) {
+          const once = () => {
+            document.removeEventListener("visibilitychange", once);
+            safePlay();
+            setTimeout(() => { try { v.muted = false; v.volume = 1; } catch { } }, 150);
+          };
+          document.addEventListener("visibilitychange", once, { once: true });
+        } else {
+          safePlay();
+          setTimeout(() => { try { v.muted = false; v.volume = 1; } catch { } }, 150);
+        }
       } catch { }
     }
 
@@ -269,7 +438,7 @@ export default function Timeline() {
 
     const armWatchdog = () => {
       const dur = v?.duration;
-      const ms = (Number.isFinite(dur) && (dur as number) > 0) ? Math.ceil((dur as number) * 1000) + 150 : 15000;
+      const ms = Number.isFinite(dur) && (dur as number) > 0 ? Math.ceil((dur as number) * 1000) + 150 : 15000;
       watchdogTimer = window.setTimeout(onEnded, ms);
     };
     if (v) {
@@ -288,10 +457,7 @@ export default function Timeline() {
   // TRANSITION2 → espera y paneles
   useEffect(() => {
     if (phase !== "transition2") return;
-    const t = window.setTimeout(
-      () => setPhase("menu"),
-      TRANSITION_DURATION_MS + PANELS_DELAY_AFTER_TRANSITION_MS
-    );
+    const t = window.setTimeout(() => setPhase("menu"), TRANSITION_DURATION_MS + PANELS_DELAY_AFTER_TRANSITION_MS);
     return () => clearTimeout(t);
   }, [phase]);
 
@@ -300,18 +466,52 @@ export default function Timeline() {
     return () => {
       disposeVideo(cap2VideoRef.current);
       disposeVideo(followVideoRef.current);
-      try { window.speechSynthesis?.cancel(); } catch { }
+      try {
+        window.speechSynthesis?.cancel();
+      } catch { }
     };
   }, []);
 
-  // Parámetros de vista vía querystring
-  const showControls = params.get("view") === "controles";
-  const showAudio = params.get("view") === "audio";
-  const pushView = (v: string | null) => {
-    const p = new URLSearchParams(window.location.search);
-    if (v) p.set("view", v);
-    else p.delete("view");
-    nav({ pathname: "/timeline", search: p.toString() ? `?${p.toString()}` : "" });
+  // Acciones de UI
+  const startGame = async () => {
+    playClick();
+    try {
+      await purgeAppCaches();
+    } catch { }
+    // Libera VRAM/decoders de pantallas previas
+    hardCleanupBeforeMain({});
+    const canvas = document.querySelector("canvas") as HTMLElement | null;
+    enterImmersive((canvas ?? document.documentElement) as HTMLElement);
+
+    // Overlay con watchdog
+    showGlobalLoadingOverlay({ minMs: 4000, maxMs: 15000 });
+    markGlobalLoadingStage("navigating");
+    setGlobalLoadingProgress(0.02);
+    nav("/game", { replace: true });
+
+    // Plan B
+    window.setTimeout(() => {
+      try {
+        hideGlobalLoadingOverlay();
+      } catch { }
+    }, 9000);
+  };
+
+  const openControls = () => {
+    playClick();
+    pushView("controles");
+  };
+  const openAudio = () => {
+    playClick();
+    pushView("audio");
+  };
+  const goMain = () => {
+    playClick();
+    nav("/main");
+  };
+  const closePanels = () => {
+    playClick();
+    pushView(null);
   };
 
   // Iniciar juego con limpieza agresiva
@@ -330,34 +530,17 @@ export default function Timeline() {
     } catch { }
     try {
       const prefixes = ["Intro:", "Main:", "Game:", "INTRO_", "MAIN_", "GAME_"];
-      Object.keys(localStorage).forEach((k) => { if (prefixes.some((p) => k.startsWith(p))) localStorage.removeItem(k); });
-      Object.keys(sessionStorage).forEach((k) => { if (prefixes.some((p) => k.startsWith(p))) sessionStorage.removeItem(k); });
+      Object.keys(localStorage).forEach((k) => {
+        if (prefixes.some((p) => k.startsWith(p))) localStorage.removeItem(k);
+      });
+      Object.keys(sessionStorage).forEach((k) => {
+        if (prefixes.some((p) => k.startsWith(p))) sessionStorage.removeItem(k);
+      });
     } catch { }
-    try { navigator.serviceWorker?.controller?.postMessage?.({ type: "PURGE_APP_CACHES" }); } catch { }
+    try {
+      navigator.serviceWorker?.controller?.postMessage?.({ type: "PURGE_APP_CACHES" });
+    } catch { }
   }
-
-  const startGame = async () => {
-    playClick();
-    try { await purgeAppCaches(); } catch { }
-    // Libera VRAM/decoders de pantallas previas
-    hardCleanupBeforeMain({});
-    const canvas = document.querySelector("canvas") as HTMLElement | null;
-    enterImmersive((canvas ?? document.documentElement) as HTMLElement);
-
-    // Overlay con watchdog
-    showGlobalLoadingOverlay({ minMs: 4000, maxMs: 15000 });
-    markGlobalLoadingStage("navigating");
-    setGlobalLoadingProgress(0.02);
-    nav("/game", { replace: true });
-
-    // Plan B
-    window.setTimeout(() => { try { hideGlobalLoadingOverlay(); } catch { } }, 9000);
-  };
-
-  const openControls = () => { playClick(); pushView("controles"); };
-  const openAudio = () => { playClick(); pushView("audio"); };
-  const goMain = () => { playClick(); nav("/main"); };
-  const closePanels = () => { playClick(); pushView(null); };
 
   const cap2VideoSrcs = useMemo(() => [ASSETS.video?.capDos], []);
   const followVideoSrcs = useMemo(() => [ASSETS.video?.video1], []);
@@ -370,13 +553,18 @@ export default function Timeline() {
           <motion.div
             key="cap2"
             className="absolute inset-0"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.6 }}
           >
             <video
               ref={cap2VideoRef}
               className="absolute inset-0 w-full h-dvh object-cover z-0 pointer-events-none"
-              playsInline autoPlay muted preload="auto"
+              playsInline
+              autoPlay
+              muted
+              preload="auto"
               onError={(e) => console.warn("capDos error", e)}
             >
               {cap2VideoSrcs.filter(Boolean).map((src) => (
@@ -396,7 +584,9 @@ export default function Timeline() {
             className="fixed inset-0 z-[2147483647] overflow-hidden pointer-events-none"
             aria-label="Crawl estilo Star Wars"
             style={{ isolation: "isolate" }}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
           >
             <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/20 to-black/80" />
@@ -407,7 +597,8 @@ export default function Timeline() {
                   style={{
                     fontFamily: "'Orbitron', system-ui, sans-serif",
                     color: "#ff4d4d",
-                    textShadow: "0 0 2px rgba(255,80,80,1), 0 0 12px rgba(255,80,80,0.8), 0 0 22px rgba(255,80,80,0.6)",
+                    textShadow:
+                      "0 0 2px rgba(255,80,80,1), 0 0 12px rgba(255,80,80,0.8), 0 0 22px rgba(255,80,80,0.6)",
                     WebkitTextStroke: "0.5px rgba(0,0,0,0.35)",
                   }}
                   initial={{ rotateX: 12, y: "90vh", scale: 1, opacity: 0 }}
@@ -423,7 +614,8 @@ export default function Timeline() {
                     className="mb-8 font-extrabold uppercase"
                     style={{
                       fontSize: "clamp(2rem, 2.2vw + 1.6rem, 3.25rem)",
-                      textShadow: "0 0 2px rgba(255,80,80,1), 0 0 14px rgba(255,80,80,0.85), 0 0 28px rgba(255,80,80,0.65)",
+                      textShadow:
+                        "0 0 2px rgba(255,80,80,1), 0 0 14px rgba(255,80,80,0.85), 0 0 28px rgba(255,80,80,0.65)",
                     }}
                   >
                     {LORE_TITLE}
@@ -450,7 +642,9 @@ export default function Timeline() {
           <motion.div
             key="xfade"
             className="absolute inset-0 bg-black z-30"
-            initial={{ opacity: 0 }} animate={{ opacity: 0.95 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.95 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: TRANSITION_DURATION_MS / 1000, ease: "easeInOut" }}
           />
         )}
@@ -462,14 +656,22 @@ export default function Timeline() {
           <motion.div
             key="follow"
             className="absolute inset-0"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.6 }}
           >
             <video
               ref={followVideoRef}
               className="absolute inset-0 w-full h-dvh object-cover z-0"
-              playsInline autoPlay preload="auto"
-              onLoadedMetadata={() => { try { followVideoRef.current?.play(); } catch { } }}
+              playsInline
+              autoPlay
+              preload="auto"
+              onLoadedMetadata={() => {
+                try {
+                  followVideoRef.current?.play();
+                } catch { }
+              }}
               onError={(e) => console.warn("video1 error", e)}
             >
               {followVideoSrcs.filter(Boolean).map((src) => (
@@ -487,7 +689,9 @@ export default function Timeline() {
           <motion.div
             key="xfade2"
             className="absolute inset-0 bg-black z-30"
-            initial={{ opacity: 0 }} animate={{ opacity: 0.95 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.95 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: TRANSITION_DURATION_MS / 1000, ease: "easeInOut" }}
           />
         )}
@@ -513,6 +717,7 @@ export default function Timeline() {
               </button>
               <button
                 onClick={openControls}
+                ref={controlsBtnRef}
                 className="btn-metal w-full h-[var(--btn-h)] text-sm sm:text-base"
                 aria-expanded={showControls}
                 aria-controls="controls-panel"
@@ -535,11 +740,35 @@ export default function Timeline() {
               </button>
             </div>
 
-            {showControls && <ControlsPanel onClose={closePanels} />}
             {showAudio && <AudioPanel onClose={closePanels} />}
           </motion.div>
         </div>
       )}
+
+      {/* Popover flotante de CONTROLES */}
+      <ControlsFloating open={showControls} btnRef={controlsBtnRef} popRef={controlsPopRef} onClose={closePanels} />
+    </div>
+  );
+}
+
+/* ===== Popover de CONTROLES (no se sale del viewport) ===== */
+function ControlsPopover({
+  anchorRef,
+  popRef,
+  children,
+}: {
+  anchorRef: React.RefObject<HTMLElement>;
+  popRef: React.RefObject<HTMLDivElement>;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      ref={popRef}
+      className="fixed z-[2147483647] w-[min(92vw,360px)] max-h-[80vh] overflow-auto rounded-xl
+                 bg-zinc-900/95 border border-white/10 shadow-2xl p-3"
+      aria-labelledby="controls-panel"
+    >
+      {children}
     </div>
   );
 }
@@ -547,11 +776,19 @@ export default function Timeline() {
 /* ================ Panels ================ */
 function ControlsPanel({ onClose }: { onClose: () => void }) {
   const pairs: Array<[string, string]> = [
-    ["Avanzar", "W"], ["Retroceder", "S"], ["Paso Lateral Izq.", "Q"], ["Paso Lateral Der.", "E"],
-    ["Girar izq", "A"], ["Girar der", "D"],
-    ["Recargar", "R"], ["Saltar", "Space"],
-    ["Agacharse", "SHIFT (mantener)"], ["Correr", "V (mantener)"],
-    ["Disparar", "Click Izq."], ["Mirar", "Mouse"], ["Menú", "ESC"],
+    ["Avanzar", "W"],
+    ["Retroceder", "S"],
+    ["Paso Lateral Izq.", "Q"],
+    ["Paso Lateral Der.", "E"],
+    ["Girar izq", "A"],
+    ["Girar der", "D"],
+    ["Recargar", "R"],
+    ["Saltar", "Space"],
+    ["Agacharse", "SHIFT (mantener)"],
+    ["Correr", "V (mantener)"],
+    ["Disparar", "Click Izq."],
+    ["Mirar", "Mouse"],
+    ["Menú", "TAB"],
     ["Expandir/Contraer Radar", "M"],
     ["FullScreen / NavScreen", "F"],
   ];
@@ -575,9 +812,32 @@ function ControlsPanel({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <div className="mt-3 flex justify-end gap-2">
-        <button onClick={onClose} className="btn-ghost h-9 px-3 text-[13px]">Cerrar</button>
+        <button onClick={onClose} className="btn-ghost h-9 px-3 text-[13px]">
+          Cerrar
+        </button>
       </div>
     </div>
+  );
+}
+/* Render flotante del panel de controles cuando el querystring activa la vista */
+// (Se añade al final para quedar por encima de la UI)
+// Nota: se usa ControlsPopover + ControlsPanel como contenido.
+export function ControlsFloating({
+  open,
+  btnRef,
+  popRef,
+  onClose,
+}: {
+  open: boolean;
+  btnRef: any;
+  popRef: any;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <ControlsPopover anchorRef={btnRef} popRef={popRef}>
+      <ControlsPanel onClose={onClose} />
+    </ControlsPopover>
   );
 }
 
@@ -591,14 +851,23 @@ function AudioPanel({ onClose }: { onClose: () => void }) {
     const a = new Audio(ASSETS.audio.buttonSound);
     a.preload = "auto";
     beepRef.current = a;
-    return () => { try { a.pause(); } catch { } beepRef.current = null; };
+    return () => {
+      try {
+        a.pause();
+      } catch { }
+      beepRef.current = null;
+    };
   }, []);
 
   const previewSfx = (vol: number) => {
     setSfx(vol);
     const a = beepRef.current;
     if (!a) return;
-    try { a.volume = Math.max(0, Math.min(1, vol)); a.currentTime = 0; a.play(); } catch { }
+    try {
+      a.volume = Math.max(0, Math.min(1, vol));
+      a.currentTime = 0;
+      a.play();
+    } catch { }
   };
 
   return (
@@ -607,7 +876,10 @@ function AudioPanel({ onClose }: { onClose: () => void }) {
         <Section title="Música + Lluvia">
           <Row label={`Volumen (${Math.round(music * 100)}%)`}>
             <input
-              type="range" min={0} max={1} step={0.01}
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
               value={music}
               onChange={(e) => setMusic(parseFloat(e.target.value))}
               onInput={(e) => setMusic(parseFloat((e.target as HTMLInputElement).value))}
@@ -618,7 +890,10 @@ function AudioPanel({ onClose }: { onClose: () => void }) {
         <Section title="Sonido (SFX)">
           <Row label={`Volumen (${Math.round(sfx * 100)}%)`}>
             <input
-              type="range" min={0} max={1} step={0.01}
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
               value={sfx}
               onChange={(e) => previewSfx(parseFloat(e.target.value))}
               onInput={(e) => previewSfx(parseFloat((e.target as HTMLInputElement).value))}
@@ -629,12 +904,17 @@ function AudioPanel({ onClose }: { onClose: () => void }) {
 
         <div className="md:col-span-2 flex flex-col sm:flex-row gap-2 sm:gap-3 justify-between">
           <button
-            onClick={() => { setMusic(DEFAULTS.music); previewSfx(DEFAULTS.sfx); }}
+            onClick={() => {
+              setMusic(DEFAULTS.music);
+              previewSfx(DEFAULTS.sfx);
+            }}
             className="btn-ghost h-9 text-[13px] px-3"
           >
             Restablecer
           </button>
-          <button onClick={onClose} className="btn-metal h-9 text-[13px] px-3">Cerrar</button>
+          <button onClick={onClose} className="btn-metal h-9 text-[13px] px-3">
+            Cerrar
+          </button>
         </div>
       </div>
       <audio ref={beepRef} src={ASSETS.audio.buttonSound} preload="auto" style={{ display: "none" }} />

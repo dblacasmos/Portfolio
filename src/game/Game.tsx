@@ -27,13 +27,17 @@ import {
   markGlobalLoadingStage,
 } from "./overlays/GlobalLoadingPortal";
 import { patchThreeColorAlphaWarning } from "./utils/three/fixColorAlpha";
+import { patchThreeIndex0AttributeNameWarning } from "./utils/three/fixIndex0Attr";
 import EndDoor from "./layers/World/EndDoor";
 import HudEditOverlay from "./overlays/HudEditOverlay";
 import Quality from "./graphics/quality";
 import { initKTX2Loader, disposeKTX2Loader } from "@/game/utils/three/ktx2/ktx2";
 import { ASSETS } from "@/constants/assets";
+import { prepareRapier } from "@/game/utils/three/rapier/initRapier";
 
 patchThreeColorAlphaWarning();
+patchThreeIndex0AttributeNameWarning();
+prepareRapier();
 
 /* ------------------ Helpers & Dev Bridge ------------------ */
 
@@ -368,6 +372,45 @@ const Game: React.FC = () => {
   const hasBlockingOverlay = hudEditEnabled || overlayActive || !!missionCardMode || accessVisible;
   const uiLocked = hasBlockingOverlay;
 
+  // Mientras haya UI por encima (menú u overlays), el canvas no recibe eventos.
+  useEffect(() => {
+    const b = document.body;
+    const on = menuOpen || hasBlockingOverlay;
+    b.classList.toggle("ui-blocking", on);
+    return () => { b.classList.remove("ui-blocking"); };
+  }, [menuOpen, hasBlockingOverlay]);
+
+  useEffect(() => {
+   if (hasBlockingOverlay) { try { document.exitPointerLock?.(); } catch {} }
+ }, [hasBlockingOverlay]);
+
+  // Sal del pointer lock si hay UI por encima (para recuperar cursor real)
+  useEffect(() => {
+    if (hasBlockingOverlay) {
+      try { document.exitPointerLock?.(); } catch { }
+    }
+  }, [hasBlockingOverlay]);
+
+  // — Cursor: oculto cuando hay pointer-lock y no hay overlays/menú
+  useEffect(() => {
+    const update = () => {
+      const locked = !!document.pointerLockElement;
+      const shouldHide = locked && !menuOpen && !hasBlockingOverlay;
+      const b = document.body;
+      b.classList.toggle("hide-cursor", shouldHide);
+      b.classList.toggle("show-cursor", !shouldHide);
+      if (!shouldHide) b.classList.add("hud-cursor");
+      else b.classList.remove("hud-cursor");
+    };
+    document.addEventListener("pointerlockchange", update);
+    update();
+    return () => {
+      document.removeEventListener("pointerlockchange", update);
+      const b = document.body;
+      b.classList.remove("hide-cursor", "show-cursor", "hud-cursor");
+    };
+  }, [menuOpen, hasBlockingOverlay]);
+
   useEffect(() => {
     try { setGlobalLoadingProgress(1); } catch { }
   }, []);
@@ -410,10 +453,10 @@ const Game: React.FC = () => {
     }
   }, [menuOpen, hasBlockingOverlay]);
 
-  // ESC para abrir menú (si no hay overlays bloqueando)
+  // TAB para abrir menú (si no hay overlays bloqueando)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Tab") return;
 
       const st = useGameStore.getState();
       if (st.menuOpen) return;
@@ -475,7 +518,7 @@ const Game: React.FC = () => {
   const activeVideoRef = useRef<HTMLVideoElement | null>(null);
   const activeVideoKindRef = useRef<null | "afterPortal" | "presentacion" | "capDos" | "video1">(null);
 
-  // --- Detiene selectivamente los audios “seguimiento ESC”
+  // --- Detiene selectivamente los audios “seguimiento ENTER”
   const stopTrackedAudios = useCallback(() => {
     const A = (ASSETS as any)?.audio || {};
     const tryStop = (url?: string) => {
@@ -636,10 +679,10 @@ const Game: React.FC = () => {
     return () => { try { delete (window as any).__playAfterPortalImpl; } catch { } };
   }, [playAfterPortalAndNavigate]);
 
-  // ESC durante reproducción: corta audios seguidos y fuerza “ended”
+  // ENTER durante reproducción: corta audios seguidos y fuerza “ended”
   useEffect(() => {
     const onKeyEscToEnd = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Enter") return;
       const vid = activeVideoRef.current;
       stopTrackedAudios();
       if (!vid) return;
@@ -654,7 +697,11 @@ const Game: React.FC = () => {
   return (
     <div id="immersive-root" data-immersive-root className="game-root">
       {/* Este contenedor debe entrar en fullscreen (no el canvas) */}
-      <div id="fs-root" ref={fsRootRef} style={{ position: "relative", width: "100%", height: "100%" }}>
+      <div
+   id="fs-root"
+   ref={fsRootRef}
+   style={{ position: "relative", width: "100%", height: "100%", isolation: "isolate" }}
+>
         <HudEditOverlay exportLayout={() => useHudEditorStore.getState().exportLayout()} />
 
         {/* Remontamos el Canvas cuando cambie la calidad para aplicar DPR/tex caps */}

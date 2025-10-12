@@ -156,10 +156,10 @@ const Player = ({
         };
     }, [gl, menuOpen, setMenuOpen]);
 
-    // ESC → abrir menú (y liberar lock)
+    // TAB → abrir menú (y liberar lock)
     useEffect(() => {
         const onEsc = (e: KeyboardEvent) => {
-            if (e.key !== "Escape") return;
+            if (e.key !== "Tab") return;
             e.preventDefault();
             try { document.exitPointerLock(); } catch { }
             setMenuOpen(true);

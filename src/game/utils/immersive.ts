@@ -43,12 +43,27 @@ let escTrapInstalled = false;
 function ensureEscTrapInstalled() {
     if (escTrapInstalled) return;
     escTrapInstalled = true;
+    const pingResize = () => {
+        // dos RAFs para asegurarnos de que el layout de fullscreen ya está estable
+        requestAnimationFrame(() => {
+            window.dispatchEvent(new Event("resize"));
+            requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+        });
+    };
+
     // Cuando estamos en FS, evitamos que ESC salga por defecto del navegador.
     window.addEventListener(
         "keydown",
         (e) => {
             if (e.key === "Escape" && document.fullscreenElement) {
                 try { e.preventDefault(); e.stopPropagation(); } catch { }
+            }
+            // Evita el fullscreen nativo del navegador y usa el tuyo
+            if (e.key === "F11") {
+                try { e.preventDefault(); e.stopPropagation(); } catch { }
+                // Redirige a tu toggle de FS (sobre fs-root / html)
+                toggleFullscreen();
+                return;
             }
         },
         true
@@ -57,6 +72,7 @@ function ensureEscTrapInstalled() {
     document.addEventListener("fullscreenchange", () => {
         if (document.fullscreenElement) lockEscapeIfPossible();
         else unlockEscapeIfPossible();
+        pingResize();
     });
 }
 
@@ -85,17 +101,25 @@ export async function enterFullscreen(el?: HTMLElement) {
     const isCanvas = !!node && node.tagName === "CANVAS";
     const target = getFsRoot(isCanvas ? node : node ?? undefined);
     ensureEscTrapInstalled();
+    const pingResize = () => {
+        requestAnimationFrame(() => {
+            window.dispatchEvent(new Event("resize"));
+            requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+        });
+    };
 
     const tryFS = async () => {
         try {
             await (target as any).requestFullscreen?.();
             await lockEscapeIfPossible();
+            pingResize();
         } catch (_) {
             // Si falla (gesto requerido), arma para el siguiente gesto
             const once = async () => {
                 window.removeEventListener("pointerdown", once, true);
                 window.removeEventListener("keydown", once, true);
                 try { await (target as any).requestFullscreen?.(); await lockEscapeIfPossible(); } catch { }
+                pingResize();
             };
             window.addEventListener("pointerdown", once, { once: true, capture: true });
             window.addEventListener("keydown", once, { once: true, capture: true });
@@ -115,23 +139,41 @@ export function exitFullscreen() {
     if (document.fullscreenElement && document.exitFullscreen) {
         try { document.exitFullscreen(); } catch { /* noop */ }
     }
+    // Fuerza re-cálculo de layout al salir
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
 }
 
 /** Pide pointer lock sobre un elemento (normalmente el canvas). Requiere gesto de usuario. */
-export function requestPointerLock(el: HTMLElement) {
-    try { (el as any)?.requestPointerLock?.(); } catch { }
+export function requestPointerLock(el?: Element | null) {
+    let target = el as HTMLElement | null;
+    // Si nos pasaron el wrapper (.game-canvas), busca el <canvas> hijo
+    if (target && target.classList?.contains("game-canvas")) {
+        const child = target.querySelector("canvas") as HTMLCanvasElement | null;
+        if (child) target = child;
+    }
+    // Fallbacks al canvas real de R3F
+    if (!target) {
+        target =
+            ((window as any).__renderer?.domElement as HTMLCanvasElement | null) ??
+            (document.querySelector(".game-canvas canvas") as HTMLCanvasElement | null) ??
+            (document.querySelector("canvas") as HTMLCanvasElement | null);
+    }
+
+    const doLock = () => { try { (target as any)?.requestPointerLock?.(); } catch { } };
+
+    // Intento inmediato
+    doLock();
+
     // Si el navegador exige gesto, arma para el siguiente click/tecla
-    const arm = () => {
+    if (document.pointerLockElement !== target) {
         const once = () => {
             window.removeEventListener("pointerdown", once, true);
             window.removeEventListener("keydown", once, true);
-            try { (el as any)?.requestPointerLock?.(); } catch { }
+            doLock();
         };
         window.addEventListener("pointerdown", once, { once: true, capture: true });
         window.addEventListener("keydown", once, { once: true, capture: true });
-    };
-    // Heurística: si no estamos en pointer lock inmediatamente, arma fallback
-    if (document.pointerLockElement !== el) arm();
+    }
 }
 
 /** Sale de pointer lock si procede. */

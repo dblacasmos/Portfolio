@@ -8,6 +8,7 @@ import { useGameStore } from "../utils/state/store";
 import { ASSETS } from "../../constants/assets";
 import { useUiClick } from "../../hooks/useUiClick";
 import { useHudEditorStore } from "../utils/state/hudEditor";
+import { useEscOrTapToClose } from "@/hooks/useEnterOrTapToClose";
 
 /* ---------- UI bits ---------- */
 const Btn = (
@@ -151,11 +152,11 @@ const MenuInGame: React.FC = () => {
         }
     };
 
-    /* ---------- ESC dentro del menú = cerrar y volver a pointer-lock ---------- */
+    /* ---------- TAB dentro del menú = cerrar y volver a pointer-lock ---------- */
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (!menuOpen) return;
-            if (e.key !== "Escape") return;
+            if (e.key !== "Tab") return;
             e.preventDefault();
             e.stopPropagation();
             setMenuOpen(false);
@@ -164,6 +165,17 @@ const MenuInGame: React.FC = () => {
         window.addEventListener("keydown", onKey, true);
         return () => window.removeEventListener("keydown", onKey, true);
     }, [menuOpen, setMenuOpen]);
+
+    // Tap en móvil/tablet = ESC (cerrar menú y volver a pointer lock)
+    useEscOrTapToClose({
+        enabled: menuOpen,
+        onClose: () => {
+            setMenuOpen(false);
+            requestGamePointerLock();
+        },
+        closeOnBackdropOnly: false,
+        keyboardKey: "Tab",
+    });
 
     /* ---- Si el menú se muestra, salimos de pointer lock ---- */
     useEffect(() => { if (menuOpen) exitPointerLock(); }, [menuOpen]);
@@ -210,7 +222,7 @@ const MenuInGame: React.FC = () => {
     };
 
     return (
-        <div className="canvas-overlay z-40 pointer">
+        <div className="fixed inset-0 z-[999999] pointer-events-auto isolate">
             <div className="absolute inset-0 grid place-items-center p-4">
                 <motion.div
                     className="panel-glass w-[min(720px,92vw)]"
@@ -278,7 +290,7 @@ const MenuInGame: React.FC = () => {
                                     <div>- F = FullScreen/NavScreen</div>
                                     <div>- V = Correr</div>
                                     <div>- Click Izq = Disparar</div>
-                                    <div>- ESC = Abrir/Cerrar menú</div>
+                                    <div>- TAB = Abrir/Cerrar menú</div>
                                     <div className="col-span-2">- M = Expandir/Contraer Radar</div>
                                 </div>
                                 <div className="mt-4 flex justify-end gap-3">

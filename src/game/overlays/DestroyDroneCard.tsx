@@ -4,7 +4,7 @@
             - Reproduce video ASSETS.video.avatarMission
             - TTS en español (con selector de voz)
             - Texto 1..5 según dron destruido
-            - Cierre manual (ESC o botón)
+            - Cierre manual (ENTER o botón)
             - Pausa música mientras está activa
             - Funciona igual en fullscreen o no
             - Configurable vía CFG.hud.destroyDroneCard
@@ -16,8 +16,10 @@ import { ASSETS } from "@/constants/assets";
 import { useGameStore } from "../utils/state/store";
 import { audioManager } from "../utils/audio/audio";
 import { CFG } from "../../constants/config";
-// Reutilizamos el selector común para evitar duplicidades
 import VoiceSelect from "./VoiceSelect";
+import { useEscOrTapToClose } from "@/hooks/useEnterOrTapToClose";
+import { getOverlayRoot } from "@/game/utils/overlayPortal";
+import { requestPointerLock } from "@/game/utils/immersive";
 
 /* ===================== Utiles ===================== */
 
@@ -124,7 +126,7 @@ const DestroyDroneCard: React.FC = () => {
     const utterRef = React.useRef<SpeechSynthesisUtterance | null>(null);
     const videoRef = React.useRef<HTMLVideoElement | null>(null);
     // Portal en fullscreen: montamos el overlay dentro del elemento en fullscreen (o body si no)
-    const [portalEl, setPortalEl] = React.useState<HTMLElement | null>(null);
+    const portalRef = React.useRef<HTMLElement | null>(null);
 
     // Control fino
     const sessionRef = React.useRef(0);
@@ -155,10 +157,11 @@ const DestroyDroneCard: React.FC = () => {
         return "";
     }, [access.index]);
 
-    /* ===== Cursor y bloqueo de ESC menú mientras esté visible ===== */
+    /* ===== Cursor y bloqueo de ENTER menú mientras esté visible ===== */
     React.useEffect(() => {
         visibleRef.current = access.visible;
         if (!access.visible) return;
+        try { document.exitPointerLock?.(); } catch { }
         try { (window as any).__squelchMenuEsc = true; } catch { }
         try {
             document.body.classList.remove("hide-cursor");
@@ -234,36 +237,32 @@ const DestroyDroneCard: React.FC = () => {
         setSpeaking(false);
         setShowClose(false);
 
-        // Crear portal dentro del root inmersivo o del fullscreen target (si no es el canvas), o body.
+        // Crear portal preferentemente dentro del host (#fs-root vía getOverlayRoot)
         try {
-            const fsRootFromWin = (window as any).__fsRoot?.current as HTMLElement | null;
-            const fsEl = document.fullscreenElement as HTMLElement | null;
-            const target =
-                fsRootFromWin ||
-                document.getElementById("fs-root") ||
-                ((fsEl && fsEl.tagName !== "CANVAS") ? fsEl : null) ||
-                (document.querySelector("[data-immersive-root]") as HTMLElement | null) ||
-                document.body;
-
             const holder = document.createElement("div");
-            holder.style.position = "fixed";
+            holder.style.position = "absolute"; // anclado al fs-root
             holder.style.inset = "0";
             holder.style.zIndex = "2147483647";
-            holder.style.pointerEvents = "none";
-            target.appendChild(holder);
-            setPortalEl(holder);
+            holder.style.pointerEvents = "auto";
+            holder.setAttribute("data-ddc", ""); // útil para depurar
+            getOverlayRoot().appendChild(holder);
+            portalRef.current = holder;
         } catch {
-            setPortalEl(document.body);
+            portalRef.current = document.body;
         }
 
         return () => {
             if (sid === sessionRef.current) {
                 try { window.speechSynthesis.cancel(); } catch { }
                 try {
-                    if (portalEl && portalEl.parentElement) portalEl.parentElement.removeChild(portalEl);
+                    const h = portalRef.current;
+                    if (h && h.parentElement) h.parentElement.removeChild(h);
                 } catch { }
-                setPortalEl(null);
-                if (writerRafRef.current != null) { cancelAnimationFrame(writerRafRef.current); writerRafRef.current = null; }
+                portalRef.current = null;
+                if (writerRafRef.current != null) {
+                    cancelAnimationFrame(writerRafRef.current);
+                    writerRafRef.current = null;
+                }
                 writerRunningRef.current = false;
             }
         };
@@ -329,7 +328,7 @@ const DestroyDroneCard: React.FC = () => {
         };
     }, [fullText]);
 
-    /* ===== Forzar finalización + silencio (para ESC/botón) ===== */
+    /* ===== Forzar finalización + silencio (para ENTER/botón) ===== */
     const forceCompleteAndSilence = React.useCallback(() => {
         try { window.speechSynthesis.cancel(); } catch { }
         startedRef.current = true;
@@ -420,7 +419,7 @@ const DestroyDroneCard: React.FC = () => {
         };
     }, [access.visible, fullText, voices, selectedURI, ensureVideoPlaying, startWriter]);
 
-    /* ===== Cerrar (ESC o botón) ===== */
+    /* ===== Cerrar (ENTER o botón) ===== */
     const closeCard = React.useCallback(() => {
         // 1) Completar y silenciar
         forceCompleteAndSilence();
@@ -455,12 +454,48 @@ const DestroyDroneCard: React.FC = () => {
             useGameStore.getState().setPlaying?.(true);
             setTimeout(() => { try { useGameStore.getState().setMenuOpen?.(false); } catch { } }, 0);
         } catch { }
+
+        // 6) Recuperar pointer lock (como en MissionCard) **en el <canvas> real**
+        //    IMPORTANTE: <Canvas className="game-canvas" /> pone la clase en el wrapper <div>,
+        //    no en el <canvas>. Buscamos el canvas real de R3F y pedimos lock ahí.
+        try {
+            // Libera clases de cursor / bloqueo antes de pedir lock
+            document.body.classList.remove("ui-blocking", "show-cursor", "hud-cursor");
+        } catch { }
+
+        const getR3fCanvas = (): HTMLCanvasElement | null => {
+            // 1) renderer de three si está expuesto
+            const domFromRenderer = (window as any).__renderer?.domElement as HTMLCanvasElement | undefined;
+            if (domFromRenderer) return domFromRenderer;
+            // 2) canvas hijo del wrapper .game-canvas
+            const inWrapper = document.querySelector(".game-canvas canvas") as HTMLCanvasElement | null;
+            if (inWrapper) return inWrapper;
+            // 3) último recurso: primer <canvas> de la página
+            return document.querySelector("canvas");
+        };
+
+        // Espera 1 frame para que Game.tsx quite ui-blocking y cierre el overlay en el store,
+        // así el handler de mouse ya no está "uiLocked". Luego pide el lock.
+        requestAnimationFrame(() => {
+            const canvas = getR3fCanvas();
+            if (canvas) {
+                try { requestPointerLock(canvas); } catch { }
+            }
+        });
     }, [forceCompleteAndSilence, hideAccessOverlay, access.index]);
+
+    // Tap en móvil/tablet = ENTER (mantiene tap igual; solo cambia la tecla)
+    useEscOrTapToClose({
+        enabled: access.visible,
+        onClose: closeCard,
+        closeOnBackdropOnly: false,
+        keyboardKey: "Enter",
+    });
 
     React.useEffect(() => {
         if (!access.visible) return;
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
+            if (e.key === "Enter") {
                 e.preventDefault();
                 e.stopPropagation();
                 closeCard();
@@ -539,7 +574,7 @@ const DestroyDroneCard: React.FC = () => {
     // Nodo del overlay (portal)
     const overlayNode = (
         <div
-            className="fixed inset-0 z-40 flex items-start justify-center"
+            className="absolute inset-0 z-[2147483647] flex items-start justify-center"
             style={{ paddingTop: marginTopPx, pointerEvents: "auto" }}
         >
             {/* Backdrop */}
@@ -667,9 +702,9 @@ const DestroyDroneCard: React.FC = () => {
                                     {speaking && <span className="opacity-60 animate-pulse">▌</span>}
                                 </div>
 
-                                {/* ESC */}
+                                {/* ENTER */}
                                 <div className="mt-8 text-[11px] text-cyan-200/80 animate-pulse select-none">
-                                    Pulsa <span className="font-semibold text-cyan-100">ESC</span> para CERRAR
+                                    Pulsa <span className="font-semibold text-cyan-100">ENTER</span> para CERRAR
                                 </div>
 
                                 {/* Botón cerrar */}
@@ -693,7 +728,9 @@ const DestroyDroneCard: React.FC = () => {
         </div>
     );
 
-    return createPortal(overlayNode, portalEl ?? document.body);
+    // Espera a tener el contenedor dentro del host adecuado (FS o no)
+    if (!portalRef.current) return null;
+    return createPortal(overlayNode, portalRef.current);
 };
 
 export default DestroyDroneCard;

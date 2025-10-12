@@ -29,7 +29,7 @@
 
 Este repo es un portfolio con tres “capas”:
 
-- **Intro** con vídeo, música y locución (saltable con `ESC`).  
+- **Intro** con vídeo, música y locución (saltable con `ENTER`).  
 - **Main** con un “hero” 3D y contenido navegable (transiciones `framer-motion`).  
 - **Game**: shooter ligero en una ciudad cyberpunk, con drones enemigos, HUD personalizable y menú in-game.
 
@@ -225,7 +225,7 @@ Los presets para KTX2, cuantización y mipmaps están en `scripts/config.vram.mj
 - **Apuntar (ADS)**: click derecho (modo **hold** o **toggle**, configurable)  
 - **Recargar**: `R`  
 - **Fullscreen**: `F`  
-- **ESC**: salir de intro / cerrar overlays (con trampas para no perder el pointer lock sin querer)
+- **TAB**: salir de intro / cerrar overlays (con trampas para no perder el pointer lock sin querer)
 
 > El juego pausa el **frameloop** cuando el menú u overlays están abiertos, para ahorrar GPU/batería.
 
@@ -272,7 +272,7 @@ Archivo: `src/game/graphics/quality.ts`
 
 ## Rutas y flujo de UX
 
-- `/intro`: vídeo + música + narración (TTS opcional con selección de voz ES), botón para ir a main; `ESC` salta.  
+- `/intro`: vídeo + música + narración (TTS opcional con selección de voz ES), botón para ir a main; `ENTER` salta.  
 - `/main`: hero con 3D y música de fondo, botones para navegar a **Timeline** o **Game**.  
 - `/timeline`: “Capítulo 2” del lore con UI animada y audio.  
 - `/game`: carga assets (overlay global), entra en modo **inmersivo** (fullscreen/pointer-lock) y muestra el menú inicial antes de jugar.

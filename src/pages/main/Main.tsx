@@ -8,6 +8,7 @@ import Hero from "./Hero";
 import { ASSETS } from "../../constants/assets";
 import { enterFullscreen } from "../../game/utils/immersive";
 import { useRouteCleanup } from "@/hooks/useRouteCleanup";
+import { useRobotCursor } from "@/hooks/useRobotCursor";
 
 /** Reproduce un <video> probando varias rutas hasta que alguna cargue */
 function BgVideo({ sources }: { sources: string[] }) {
@@ -170,6 +171,8 @@ function useLoopMusic(
 }
 
 export default function Main() {
+  // Activa cursor robot en esta pantalla
+  useRobotCursor(true);
   // Limpieza dura al entrar en Main:
   // - conserva el <video id="bgMain">
   // - conserva TODO lo dentro de #hero-root (incl. posibles <canvas>/<video> futuros)

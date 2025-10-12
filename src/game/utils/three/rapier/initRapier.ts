@@ -1,41 +1,29 @@
 // src/game/utils/physics/initRapier.ts
-let ready: Promise<void> | null = null;
+let done = false;
 
-export function ensureRapierInit(): Promise<void> {
-    if (ready) return ready;
+/**
+ * No inicializa Rapier (lo hace @react-three/rapier por su cuenta).
+ * Solo fija la ruta base del .wasm y silencia el warning deprecado.
+ */
+export function prepareRapier() {
+    if (done) return;
+    done = true;
 
-    ready = (async () => {
-        try {
-            const RAPIER = await import("@dimforge/rapier3d-compat");
+    // Ruta donde sirves el .wasm:  <BASE_URL>/rapier/rapier_wasm_bg.wasm
+    try {
+        const BASE = (import.meta as any)?.env?.BASE_URL ?? "/";
+        (globalThis as any).RAPIER_BASE_URL = BASE + "rapier/";
+    } catch { }
 
-            // Ruta del .wasm (ajusta si lo sirves en otra carpeta)
-            const wasmUrl =
-                new URL((import.meta.env.BASE_URL ?? "/") + "rapier/rapier_wasm_bg.wasm", window.location.href).href;
-
-            // --- Silenciador puntual del warning de wasm-bindgen -------------------
-            const warn = console.warn;
-            console.warn = function (...args: any[]) {
-                const s = (args?.[0] ?? "").toString();
-                // Filtra SOLO el aviso deprecado de init()
-                if (s.includes("using deprecated parameters for the initialization function")) return;
-                return warn.apply(this, args as any);
-            };
-            try {
-                // ✅ Firma nueva: un ÚNICO objeto
-                await (RAPIER as any).init({ module_or_path: wasmUrl });
-            } finally {
-                console.warn = warn;
-            }
-            // ----------------------------------------------------------------------
-
-        } catch (e) {
-            // No hacemos hard-fail: el juego puede seguir sin físicas momentáneamente
-            console.warn("[Rapier] init failed (continuo igualmente):", e);
-        }
-    })();
-
-    return ready;
+    // Silencia SOLO el warning "using deprecated parameters..."
+    try {
+        const warn = console.warn.bind(console);
+        console.warn = (...args: any[]) => {
+            const s = String(args?.[0] ?? "");
+            if (s.includes("using deprecated parameters for the initialization function")) return;
+            warn(...args);
+        };
+    } catch { }
 }
 
-// Auto-arranque
-void ensureRapierInit();
+export default prepareRapier;

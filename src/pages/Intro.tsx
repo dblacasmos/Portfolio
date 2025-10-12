@@ -6,6 +6,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ASSETS } from "../constants/assets";
 import { enterAppFullscreen, isFullscreen } from "../game/utils/immersive";
+import { useRobotCursor } from "@/hooks/useRobotCursor";
+
+const isCoarsePointer = () => (typeof window !== "undefined" ? window.matchMedia?.("(pointer: coarse)")?.matches ?? false : false);
 
 // Pool de audio simple (evita cortar sonidos si se spamean clicks)
 function useSound(url: string, volume = 1, voices = 4) {
@@ -34,6 +37,8 @@ function useSound(url: string, volume = 1, voices = 4) {
 }
 
 export default function Intro() {
+  // Activa cursor robot en esta pantalla
+  useRobotCursor(true);
   const navigate = useNavigate();
 
   const [showExplore, setShowExplore] = useState(false);
@@ -53,20 +58,36 @@ export default function Intro() {
   const CRAWL_DURATION_S = 48; // duración del crawl
   const DELAY = 500;
 
-  // ESC: cortar presentación y saltar a /main
+  // ENTER: cortar presentación y saltar a /main
+  const doSkipToMain = () => {
+    try { mainVideoRef.current?.pause(); } catch { }
+    try { musicRef.current?.pause(); } catch { }
+    try { ttsAbortRef.current?.(); } catch { }
+    try { if (!isFullscreen()) enterAppFullscreen(); } catch { }
+    setTimeout(() => navigate("/main"), DELAY);
+  };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Enter") return;
       e.preventDefault(); e.stopPropagation();
-      try { mainVideoRef.current?.pause(); } catch { }
-      try { musicRef.current?.pause(); } catch { }
-      try { ttsAbortRef.current?.(); } catch { }
-      try { if (!isFullscreen()) enterAppFullscreen(); } catch { }
-      setTimeout(() => navigate("/main"), DELAY);
+      doSkipToMain();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [navigate]);
+
+  // TAP en móviles/tablets = ENTER mientras hay vídeo principal en pantalla
+  useEffect(() => {
+    if (!isCoarsePointer()) return;
+    // activamos cuando el vídeo principal está visible
+    if (!(showIntroVideo && startVideo)) return;
+    const onTap = (e: PointerEvent) => {
+      e.stopPropagation();
+      doSkipToMain();
+    };
+    window.addEventListener("pointerdown", onTap, { capture: true, passive: true });
+    return () => window.removeEventListener("pointerdown", onTap, true);
+  }, [showIntroVideo, startVideo]);
 
   // LORE (texto + TTS)
   const loreTitle = 'Capítulo 1: "El Portfolio"';
@@ -166,10 +187,7 @@ export default function Intro() {
   const handleExploreClick = () => {
     try { playUiClick(); } catch { }
     try { if (!isFullscreen()) enterAppFullscreen(); } catch { }
-    try { mainVideoRef.current?.pause(); } catch { }
-    try { musicRef.current?.pause(); } catch { }
-    try { ttsAbortRef.current?.(); } catch { }
-    setTimeout(() => navigate("/main"), DELAY);
+    doSkipToMain();
   };
 
   const prefersReducedMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
