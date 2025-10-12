@@ -16,20 +16,13 @@ export const ASSETS = {
 
     img: {
         timeline: {
-            crosshair: "/assets/img/timeline/crosshair.webp",
             escudo: "/assets/img/timeline/escudo.webp",
             vida: "/assets/img/timeline/vida.webp",
             skySource: "/assets/img/timeline/skySource.webp",
         },
         ui: {
-            // Nota: para backgrounds CSS usamos PNG/WEBP (los navegadores no soportan KTX2 en CSS)
-            paneles: "/assets/ui/paneles.png",
+            paneles: "/assets/ui/paneles.webp",
         },
-    },
-
-    // Efectos 2D
-    fx: {
-        impacts: "/assets/fx/impacts.webp",
     },
 
     // Audio
