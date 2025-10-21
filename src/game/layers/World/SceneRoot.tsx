@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { CFG } from "@/constants/config";
 import { City, type CityReadyInfo } from "./City";
 import DomeSky from "./DomeSky";
+import { ASSETS } from "@/constants/assets";
 
 type Props = {
     onReady?: (info: CityReadyInfo) => void;
@@ -36,7 +37,19 @@ export default function SceneRoot(props: Props) {
             {...rest}
             onUpdate={(g: THREE.Group) => g.traverse((o) => o.layers.set(CFG.layers.WORLD))}
         >
-            <DomeSky center={center} radius={radius} groundY={groundY} height={height} />
+            <DomeSky
+                center={center}
+                radius={radius}
+                groundY={groundY}
+                height={height}
+                // Activa el PMREM → scene.environment para reflejos PBR
+                useEnvMap={true}
+                // Prioriza CFG; si no, cae al asset por defecto
+                textureUrl={(CFG as any)?.dome?.skySource
+                    ?? (CFG as any)?.skySource
+                    ?? ASSETS.img.timeline.skySource}
+                maxTextureSize={(CFG as any)?.dome?.maxTextureSize ?? 2048}
+            />
             <City onReady={handleReady} />
         </group>
     );

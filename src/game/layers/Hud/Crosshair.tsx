@@ -36,10 +36,8 @@ function drawCrosshairToCanvas(
 ) {
     const { spread, zoom, overTarget, headingRad, cfg } = opts;
 
-    const [W, H] = (cfg.canvasPx ?? [512, 512]) as [number, number];
-    if (canvas.width !== W || canvas.height !== H) {
-        canvas.width = W; canvas.height = H;
-    }
+    // No cambiar tamaño aquí: provoca re-subida incompatible
+    const W = canvas.width, H = canvas.height;
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, W, H);
 
@@ -189,20 +187,28 @@ export const Crosshair: React.FC<Props> = ({
     headingRad = 0,
 }) => {
     const cfg = CFG.hud.crosshair || {};
+    const dims = (cfg.canvasPx ?? [512, 512]) as [number, number];
 
     const texture = React.useMemo(() => {
+        const [W, H] = dims;
         const canvas = document.createElement("canvas");
+        // ✅ Fijar tamaño ANTES de crear/subir la textura
+        canvas.width = W; canvas.height = H;
         const tex = new THREE.CanvasTexture(canvas);
-        // Evito espejo con repeat.x negativo
-        tex.flipY = true;
-        tex.wrapS = THREE.RepeatWrapping; tex.repeat.x = -1; tex.offset.x = 1;
-        tex.anisotropy = 1;
+        // HUD 2D: no necesitamos “mirror hack”
+        tex.flipY = false;
+        // Textura dinámica: sin mipmaps, filtros lineales
+        tex.generateMipmaps = false;
         tex.minFilter = THREE.LinearFilter;
         tex.magFilter = THREE.LinearFilter;
-        (tex as any).colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 0;
+        // Color space moderno (r152+):
+        // @ts-ignore – mantener compatibilidad
+        tex.colorSpace = (THREE as any).SRGBColorSpace ?? undefined;
         tex.needsUpdate = true;
         return tex;
-    }, []);
+        // Si cambian dimensiones, recreamos textura (no redimensionamos)
+    }, [dims[0], dims[1]]);
 
     // Redibujo cada frame (para jitter, sweep, zoom)
     useFrame((state) => {

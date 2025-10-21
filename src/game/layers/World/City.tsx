@@ -116,6 +116,7 @@ function prepareShadowsAndPBR(root: THREE.Object3D) {
   const isGlassName = (n: string) => /glass|vidrio|crystal/i.test(n);
   const isMetalName = (n: string) => /metal|steel|alumin|iron|chrome/i.test(n);
   const isVarnishName = (n: string) => /clearcoat|barniz|car[_-\s]?paint|paint/i.test(n);
+  const envIntensity = (CFG as any)?.env?.intensity ?? 1.15;
 
   root.traverse((o: any) => {
     if (!o?.isMesh) return;
@@ -130,13 +131,13 @@ function prepareShadowsAndPBR(root: THREE.Object3D) {
       const name = (mat.name || o.name || "").toString();
       if (isMetalName(name)) {
         if (typeof mat.metalness === "number") mat.metalness = Math.max(mat.metalness, 0.9);
-        if (typeof mat.roughness === "number") mat.roughness = Math.min(mat.roughness, 0.35);
-        if ("envMapIntensity" in mat) mat.envMapIntensity = Math.max(mat.envMapIntensity ?? 1.0, 1.15);
+        if (typeof mat.roughness === "number") mat.roughness = Math.min(mat.roughness, 0.15);
+        if ("envMapIntensity" in mat) mat.envMapIntensity = envIntensity;
       }
       if (isVarnishName(name)) {
         if ("clearcoat" in mat) mat.clearcoat = Math.max(mat.clearcoat ?? 0.8, 0.95);
         if ("clearcoatRoughness" in mat) mat.clearcoatRoughness = Math.min(mat.clearcoatRoughness ?? 0.15, 0.18);
-        if ("envMapIntensity" in mat) mat.envMapIntensity = Math.max(mat.envMapIntensity ?? 1.0, 1.1);
+        if ("envMapIntensity" in mat) mat.envMapIntensity = envIntensity;
       }
       if (isGlassName(name)) {
         if ("transmission" in mat) {
@@ -152,7 +153,13 @@ function prepareShadowsAndPBR(root: THREE.Object3D) {
           mat.opacity = Math.min(mat.opacity ?? 0.6, 0.6);
           mat.depthWrite = false;
         }
-        if (typeof mat.roughness === "number") mat.roughness = Math.min(mat.roughness, 0.15);
+        // 🔇 Sin reflejos en cristal: mate y sin contribución del environment map
+        if (typeof mat.roughness === "number") mat.roughness = 1.0;
+        if ("metalness" in mat) mat.metalness = 0.0;
+        if ("envMapIntensity" in mat) mat.envMapIntensity = 0.0;
+        if ("reflectivity" in mat) mat.reflectivity = 0.0;
+        if ("clearcoat" in mat) mat.clearcoat = 0.0;
+        if ("clearcoatRoughness" in mat) mat.clearcoatRoughness = 1.0;
         if ("envMapIntensity" in mat) mat.envMapIntensity = Math.max(mat.envMapIntensity ?? 1.0, 1.2);
         (o as any).castShadow = false;
         (o as any).receiveShadow = true;
@@ -365,7 +372,7 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
   }, [scene, groundTopY]);
 
   const safetyFloorMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: 0x2e2e2e, roughness: 0.9, metalness: 0.0 }),
+    () => new THREE.MeshStandardMaterial({ color: 0x2e2e2e, roughness: 1.0, metalness: 0.0 }),
     []
   );
 

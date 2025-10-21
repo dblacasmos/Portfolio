@@ -3,7 +3,8 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
   <meta name="color-scheme" content="dark light" />
   <meta name="robots" content="index,follow,max-image-preview:large" />
 
@@ -15,11 +16,18 @@
   <link rel="canonical" href="https://tu-dominio.tld/" />
 
   <!-- Favicon / PWA -->
-  <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" href="/icons/favicon.ico" sizes="any">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest" />
   <meta name="theme-color" content="#0b0f1a" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <!-- iOS PWA refinements -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <!-- Safari pinned tab (macOS) -->
+  <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#0b0f1a" />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
@@ -32,8 +40,7 @@
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:locale" content="en_US" />
-  <!-- Si quieres indicar español también:
-    <meta property="og:locale:alternate" content="es_ES" /> -->
+  <!-- <meta property="og:locale:alternate" content="es_ES" /> -->
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
@@ -41,10 +48,6 @@
   <meta name="twitter:description"
     content="Three.js + React portfolio with a playable mini-shooter. Optimized assets and editable HUD." />
   <meta name="twitter:image" content="https://tu-dominio.tld/og-image.jpg" />
-
-  <!-- Performance (ajusta o elimina si no usas Google Fonts) -->
-  <!-- <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /> -->
-  <!-- <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/Inter-Variable.woff2" crossorigin> -->
 
   <!-- Estructurados JSON-LD (ajusta name/url/perfiles) -->
   <script type="application/ld+json">
@@ -70,11 +73,14 @@
         }
       ]
     }
-    </script>
+  </script>
 </head>
 
 <body>
-  <div id="root"></div>
+  <!-- Host estable: aquí se portalean HUD/overlays y también puede vivir el canvas -->
+  <div id="fs-root" class="safe-stage" data-immersive-root>
+    <div id="root"></div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
   <noscript>This site needs JavaScript enabled.</noscript>
 </body>

@@ -1,0 +1,56 @@
+:root {
+    /* JS las sobreescribe; útiles como fallback */
+    --app-ih: 100vh;
+    --design-w: 1920px;
+    --design-h: 1080px;
+    --app-scale: 1;
+}
+
+/* Si usas .safe-stage, puedes aplicarla en #fs-root */
+.safe-stage {
+    position: fixed;
+    inset: 0;
+    height: 100dvh;
+}
+
+@supports not (height: 100dvh) {
+    .safe-stage {
+        height: 100svh;
+    }
+}
+
+@supports not (height: 100svh) {
+    .safe-stage {
+        height: var(--app-ih);
+    }
+}
+
+/* ===== Stage 1920×1080 escalado y centrado ===== */
+.scaled-stage {
+    /* OJO: el host (#fs-root) ya es fixed → aquí absolute */
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: var(--design-w);
+    height: var(--design-h);
+    transform: translate(-50%, -50%) scale(var(--app-scale));
+    transform-origin: center center;
+    /* antes: top left (descuadre al escalar) */
+    will-change: transform;
+    pointer-events: none;
+    /* el canvas/overlays dentro reactivan puntero */
+    z-index: 1;
+}
+
+.scaled-stage>* {
+    pointer-events: auto;
+}
+
+/* Asegura que el host llena el viewport real al entrar FS (Safari incluido) */
+#fs-root:fullscreen,
+#fs-root:-webkit-full-screen {
+    inset: 0;
+    width: 100dvw;
+    height: 100dvh;
+    background: #000;
+}

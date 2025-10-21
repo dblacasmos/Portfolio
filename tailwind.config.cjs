@@ -9,6 +9,7 @@ module.exports = {
   safelist: [
     "z-[2147483647]",
     "z-[999999]",
+    "z-[1001]",
     "[perspective:650px]",
     "h-dvh",
     "overflow-hidden",

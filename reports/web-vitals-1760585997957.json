@@ -1,0 +1,64 @@
+{
+  "url": "http://127.0.0.1:5173/intro",
+  "timestamp": 1760585997951,
+  "lcp": 0,
+  "fcp": 1437,
+  "cls": 0,
+  "navigation": {
+    "name": "http://127.0.0.1:5173/",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 1345,
+    "initiatorType": "navigation",
+    "nextHopProtocol": "http/1.1",
+    "workerStart": 0,
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": -4,
+    "domainLookupStart": 279,
+    "domainLookupEnd": 279,
+    "connectStart": 279,
+    "connectEnd": 279,
+    "secureConnectionStart": 0,
+    "requestStart": 280,
+    "responseStart": 283,
+    "responseEnd": 283,
+    "transferSize": 3995,
+    "encodedBodySize": 3695,
+    "decodedBodySize": 3695,
+    "responseStatus": 200,
+    "contentType": "text/html",
+    "serverTiming": [],
+    "unloadEventStart": 0,
+    "unloadEventEnd": 0,
+    "domInteractive": 348,
+    "domContentLoadedEventStart": 1092,
+    "domContentLoadedEventEnd": 1094,
+    "domComplete": 1345,
+    "loadEventStart": 1345,
+    "loadEventEnd": 1345,
+    "type": "navigate",
+    "redirectCount": 0
+  },
+  "paints": [
+    {
+      "name": "first-contentful-paint",
+      "startTime": 1437
+    }
+  ],
+  "entries": {
+    "lcp": [],
+    "cls": [],
+    "fcp": [
+      {
+        "name": "first-contentful-paint",
+        "entryType": "paint",
+        "startTime": 1437,
+        "duration": 0,
+        "paintTime": 1437,
+        "presentationTime": null
+      }
+    ]
+  },
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0.1) Gecko/20100101 Firefox/142.0.1"
+}

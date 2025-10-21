@@ -1,0 +1,60 @@
+{
+  "url": "http://127.0.0.1:5173/intro",
+  "timestamp": 1760924368403,
+  "lcp": 0,
+  "fcp": 2514,
+  "cls": 0,
+  "navigation": {
+    "name": "http://127.0.0.1:5173/",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 1239,
+    "initiatorType": "navigation",
+    "nextHopProtocol": "http/1.1",
+    "workerStart": 0,
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": 3,
+    "domainLookupStart": 3,
+    "domainLookupEnd": 3,
+    "connectStart": 3,
+    "connectEnd": 6,
+    "secureConnectionStart": 0,
+    "requestStart": 6,
+    "responseStart": 44,
+    "responseEnd": 52.00000000000001,
+    "transferSize": 4060,
+    "encodedBodySize": 3760,
+    "decodedBodySize": 3760,
+    "serverTiming": [],
+    "unloadEventStart": 0,
+    "unloadEventEnd": 0,
+    "domInteractive": 76,
+    "domContentLoadedEventStart": 1083,
+    "domContentLoadedEventEnd": 1083,
+    "domComplete": 1239,
+    "loadEventStart": 1239,
+    "loadEventEnd": 1239,
+    "type": "navigate",
+    "redirectCount": 0
+  },
+  "paints": [
+    {
+      "name": "first-contentful-paint",
+      "startTime": 2514
+    }
+  ],
+  "entries": {
+    "lcp": [],
+    "cls": [],
+    "fcp": [
+      {
+        "name": "first-contentful-paint",
+        "entryType": "paint",
+        "startTime": 2514.0000000000005,
+        "duration": 0
+      }
+    ]
+  },
+  "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1"
+}

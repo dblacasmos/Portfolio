@@ -14,6 +14,17 @@ export function lerpHex(a: string, b: string, t: number) {
     return `#${r}${g}${b2}`;
 }
 
+// Hex (#rrggbb) -> rgba(r,g,b,a) seguro
+export function rgbaFromHex(hex: string, alpha = 1) {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim());
+    if (!m) return `rgba(0,0,0,${alpha})`;
+    const r = parseInt(m[1], 16);
+    const g = parseInt(m[2], 16);
+    const b = parseInt(m[3], 16);
+    const a = Math.max(0, Math.min(1, alpha));
+    return `rgba(${r},${g},${b},${a})`;
+}
+
 // rojo -> naranja -> cian (para AmmoBar)
 export function rampAmmoColor(frac01: number) {
     const C_RED = "#ff3b3b";

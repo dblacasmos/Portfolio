@@ -7,16 +7,31 @@ export const isCoarsePointer = () => {
 
 export const isMobileOrTablet = () => {
     if (typeof window === "undefined") return false;
-    // Criterio híbrido: pointer “coarse” o ancho <= 1024
-    return isCoarsePointer() || window.innerWidth <= 1024;
+    // Override manual para tests o forzar HUD móvil
+    if (localStorage.getItem("__FORCE_MOBILE") === "1") return true;
+    // Criterio híbrido: pointer “coarse”, hover:none o ancho <= 1024
+    const noHover = window.matchMedia?.("(hover: none)")?.matches ?? false;
+    return isCoarsePointer() || noHover || window.innerWidth <= 1024;
 };
 
 export function useIsMobileOrTablet() {
     const [val, setVal] = useState(isMobileOrTablet());
     useEffect(() => {
-        const onResize = () => setVal(isMobileOrTablet());
-        window.addEventListener("resize", onResize);
-        return () => window.removeEventListener("resize", onResize);
+        const onChange = () => setVal(isMobileOrTablet());
+        window.addEventListener("resize", onChange);
+        try {
+            const mqCoarse = window.matchMedia("(pointer: coarse)");
+            const mqNoHover = window.matchMedia("(hover: none)");
+            mqCoarse.addEventListener?.("change", onChange);
+            mqNoHover.addEventListener?.("change", onChange);
+            return () => {
+                window.removeEventListener("resize", onChange);
+                mqCoarse.removeEventListener?.("change", onChange);
+                mqNoHover.removeEventListener?.("change", onChange);
+            };
+        } catch {
+            return () => window.removeEventListener("resize", onChange);
+        }
     }, []);
     return val;
 }

@@ -16,11 +16,27 @@ export const CFG = {
         dronesTotal: 5,
         playerMagSize: 20,
         playerAmmoTotal: 500,
+    },
 
-        // AI / combate
-        droneDetectRange: 180,
-        droneFireIntervalMs: 800,
-        droneHitsToDie: 3,
+    // ===========================
+    // VIEWPORT / ESCALADO
+    // ===========================
+    viewport: {
+        // Resolución de diseño (tu portátil MSI GF63: 1920×1080, 16:9)
+        design: { width: 1920, height: 1080 },
+        // "contain" = encaja sin recortar (barras si hace falta). "cover" = rellena, puede recortar.
+        strategy: "contain" as "contain" | "cover",
+        // Topes de escala para móviles/monitores grandes
+        minScale: 0.10,
+        maxScale: 1.25,
+    },
+
+    // =================================
+    // ENVIRONMENT / REFLEJOS
+    // =================================
+    env: {
+        /** Intensidad global de reflejos PBR (envMapIntensity por material) */
+        intensity: 1.2,
     },
 
     // ===========================
@@ -545,7 +561,7 @@ export const CFG = {
     // RENDER
     // ===========================
     render: {
-        maxAnisotropy: 4,
+        maxAnisotropy: 12,
         minMipmapSize: 512, // usado por tuneMaterials para decidir si genera mips
         useShadowMap: false,
         toneMappingExposure: 1,

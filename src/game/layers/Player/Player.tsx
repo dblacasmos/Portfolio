@@ -6,6 +6,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import Hud from "../Hud/Hud";
 import { useAmmo } from "../../../hooks/useUiAmmo";
+import { useInput } from "@/hooks/useInput";
 import { useKeyboard } from "../../../hooks/useKeyboard";
 import { ColliderEnvBVH } from "../../utils/collision/colliderEnvBVH";
 import { CFG } from "@/constants/config";
@@ -188,17 +189,25 @@ const Player = ({
     const playServoOut = () => { if (ZOOM_OUT_SRC) (audioManager as any)?.playSfx?.(ZOOM_OUT_SRC); };
 
     // Ratón: LMB dispara, RMB zoom (hold/toggle)
+    const enableTouch = useInput((s) => s.enableTouch)
     useEffect(() => {
         const el = gl.domElement;
 
         const onPointerDown = (e: PointerEvent) => {
             if (menuOpen || editEnabled || uiLocked) return;
+            // En dispositivos táctiles NO usamos pointer-lock ni manejamos clicks de ratón.
+            if (enableTouch) return;
             const locked = document.pointerLockElement === el;
 
             // Disparo
             if (e.button === 0) {
                 if (!locked && !requestingLockRef.current) {
-                    try { requestingLockRef.current = true; el.requestPointerLock(); } catch { requestingLockRef.current = false; }
+                    try {
+                        requestingLockRef.current = true;
+                        el.requestPointerLock?.();
+                    } catch {
+                        requestingLockRef.current = false;
+                    }
                     return;
                 }
                 primeAudio();
@@ -378,9 +387,18 @@ const Player = ({
         const d = (e: KeyboardEvent) => {
             if (menuOpen || editEnabled || uiLocked) return;
             manualKeys.current[e.code] = true;
+
+            // Desbloquea audio también con teclado (autoplay)
+            primeAudio();
+
             if (e.code === "Space" && grounded.current) velY.current = JUMP_SPEED;
             if (e.code === "ShiftLeft" || e.code === "ShiftRight") setCrouch(true);
-            if (e.code === "KeyR") { if (!reloading) triggerReloadAnim(); reload(); }
+            if (e.code === "KeyR") {
+                if (!reloading) triggerReloadAnim();
+                // Reproducir SFX de recarga dentro del mismo gesto
+                (audioManager as any)?.playSfx?.(ASSETS.audio.reload);
+                reload();
+            }
         };
         const u = (e: KeyboardEvent) => {
             manualKeys.current[e.code] = false;
@@ -519,11 +537,19 @@ const Player = ({
         if (mag <= 0 && reserve <= 0) return;
 
         if (mag <= 0) {
-            if (reserve > 0 && !reloading) { triggerReloadAnim(); reload(); }
+            if (reserve > 0 && !reloading) {
+                triggerReloadAnim();
+                (audioManager as any)?.playSfx?.(ASSETS.audio.reload);
+                reload();
+            }
             return;
         }
         if (!shoot()) {
-            if (mag <= 0 && reserve > 0 && !reloading) { triggerReloadAnim(); reload(); }
+            if (mag <= 0 && reserve > 0 && !reloading) {
+                triggerReloadAnim();
+                (audioManager as any)?.playSfx?.(ASSETS.audio.reload);
+                reload();
+            }
             return;
         }
 
@@ -559,8 +585,6 @@ const Player = ({
             reload();
         }
     }, [mag, reserve, reloading, reload]);
-
-    useEffect(() => { if (reloading) (audioManager as any)?.playSfx?.(ASSETS.audio.reload); }, [reloading]);
 
     const isDown = (code: string) => !!(keys.current[code] || manualKeys.current[code]);
 
@@ -761,23 +785,6 @@ const Player = ({
             }
         };
     }, []);
-
-    // Tecla "F" → modo inmersivo (FS + pointer lock del host)
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.code === "KeyF") {
-                e.preventDefault();
-                if (isFullscreen()) {
-                    exitImmersive();
-                } else {
-                    const host = gl.domElement as HTMLElement; // canvas → desde ahí inferimos host
-                    enterImmersive(host);
-                }
-            }
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [gl]);
 
     return (
         <>

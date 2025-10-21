@@ -51,7 +51,11 @@ export const Joystick: React.FC<Props> = ({ radius = 56 }) => {
             if (!enableTouch) return;
             if (activeId.current !== null) return;
             activeId.current = e.pointerId;
-            (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+            try {
+                // En iOS/Android algunos navegadores lanzan InvalidStateError si
+                // el puntero no es “capturable”. No pasa nada: seguimos sin capturar.
+                (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+            } catch { /* noop */ }
             getLocalCenter();
             handleMove(e);
         };
@@ -64,14 +68,13 @@ export const Joystick: React.FC<Props> = ({ radius = 56 }) => {
             const dy = e.clientY - cy;
             const len = Math.hypot(dx, dy);
             const max = R - Math.max(10, R * 0.25);
-            const k = len > 0 ? clamp(len / max, 0, 1) : 0;
-            // vector normalizado (-1..1)
-            const nx = (dx / (max || 1)) * clamp(1, 0, 1);
-            const ny = (dy / (max || 1)) * clamp(1, 0, 1);
+            // Normaliza por el radio de recorrido máximo y limita a [-1, 1]
+            const nx = clamp(dx / (max || 1), -1, 1);
+            const ny = clamp(dy / (max || 1), -1, 1);
 
             // mapeo: x = strafe, y = forward (positivo hacia arriba; invertimos)
-            const moveX = clamp(nx, -1, 1);
-            const moveY = clamp(-ny, -1, 1);
+            const moveX = nx;
+            const moveY = -ny; // invertimos eje Y para "arriba = positivo"
 
             // mueve el knob
             if (knobRef.current) {
@@ -99,16 +102,16 @@ export const Joystick: React.FC<Props> = ({ radius = 56 }) => {
             setMove({ x: 0, y: 0 }, "touch");
         };
 
-        el.addEventListener("pointerdown", handleDown);
-        el.addEventListener("pointermove", handleMove);
+        el.addEventListener("pointerdown", handleDown, { passive: false });
+        el.addEventListener("pointermove", handleMove, { passive: false });
         el.addEventListener("pointerup", end);
         el.addEventListener("pointercancel", end);
         el.addEventListener("pointerleave", end);
         window.addEventListener("resize", getLocalCenter);
 
         return () => {
-            el.removeEventListener("pointerdown", handleDown);
-            el.removeEventListener("pointermove", handleMove);
+            el.addEventListener("pointerdown", handleDown, { passive: false });
+            el.addEventListener("pointermove", handleMove, { passive: false });
             el.removeEventListener("pointerup", end);
             el.removeEventListener("pointercancel", end);
             el.removeEventListener("pointerleave", end);
@@ -122,6 +125,7 @@ export const Joystick: React.FC<Props> = ({ radius = 56 }) => {
             style={styles.base}
             className="relative select-none"
             aria-label="Joystick virtual"
+            onContextMenu={(e) => e.preventDefault()}
         >
             <div ref={knobRef} style={styles.knob} className="absolute" />
         </div>

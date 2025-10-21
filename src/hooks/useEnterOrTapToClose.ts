@@ -19,7 +19,7 @@ type Options = {
  * Desktop: ENTER cierra.
  * Móvil/Tablet: tap cierra (o tap en backdrop si closeOnBackdropOnly=true).
  */
-export function useEscOrTapToClose({
+export function useEnterOrTapToClose({
     enabled = true,
     onClose,
     closeOnBackdropOnly = false,
@@ -59,4 +59,4 @@ export function useEscOrTapToClose({
     }, [enabled, onClose, closeOnBackdropOnly, backdropElement, keyboardKey]);
 }
 
-export default useEscOrTapToClose;
+export default useEnterOrTapToClose;

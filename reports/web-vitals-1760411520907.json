@@ -1,0 +1,88 @@
+{
+  "url": "http://127.0.0.1:5173/intro",
+  "timestamp": 1760411520901,
+  "lcp": 1256,
+  "fcp": 704,
+  "cls": 0,
+  "navigation": {
+    "name": "http://127.0.0.1:5173/",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 411.5,
+    "initiatorType": "navigation",
+    "deliveryType": "",
+    "nextHopProtocol": "http/1.1",
+    "renderBlockingStatus": "non-blocking",
+    "workerStart": 0,
+    "workerRouterEvaluationStart": 0,
+    "workerCacheLookupStart": 0,
+    "workerMatchedSourceType": "",
+    "workerFinalSourceType": "",
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": 0.20000004768371582,
+    "domainLookupStart": 3.200000047683716,
+    "domainLookupEnd": 3.200000047683716,
+    "connectStart": 3.200000047683716,
+    "secureConnectionStart": 0,
+    "connectEnd": 5.200000047683716,
+    "requestStart": 5.5,
+    "responseStart": 11.399999976158142,
+    "firstInterimResponseStart": 0,
+    "finalResponseHeadersStart": 11.399999976158142,
+    "responseEnd": 12.100000023841858,
+    "transferSize": 3714,
+    "encodedBodySize": 3414,
+    "decodedBodySize": 3414,
+    "responseStatus": 200,
+    "serverTiming": [],
+    "unloadEventStart": 0,
+    "unloadEventEnd": 0,
+    "domInteractive": 24.800000071525574,
+    "domContentLoadedEventStart": 354.7000000476837,
+    "domContentLoadedEventEnd": 354.8000000715256,
+    "domComplete": 411.5,
+    "loadEventStart": 411.5,
+    "loadEventEnd": 411.5,
+    "type": "navigate",
+    "redirectCount": 0,
+    "activationStart": 0,
+    "criticalCHRestart": 0,
+    "notRestoredReasons": null
+  },
+  "paints": [
+    {
+      "name": "first-paint",
+      "startTime": 372
+    },
+    {
+      "name": "first-contentful-paint",
+      "startTime": 704
+    }
+  ],
+  "entries": {
+    "lcp": [
+      {
+        "name": "",
+        "entryType": "largest-contentful-paint",
+        "startTime": 1256,
+        "duration": 0,
+        "size": 4464,
+        "renderTime": 1256,
+        "loadTime": 0,
+        "id": "start-btn",
+        "url": ""
+      }
+    ],
+    "cls": [],
+    "fcp": [
+      {
+        "name": "first-contentful-paint",
+        "entryType": "paint",
+        "startTime": 704,
+        "duration": 0
+      }
+    ]
+  },
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36"
+}

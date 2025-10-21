@@ -4,6 +4,8 @@
 import * as THREE from "three";
 import { CFG } from "@/constants/config";
 
+/** Alias directo para que puedas importar HUD_LAYER */
+export const HUD_LAYER = CFG.layers.HUD;
 export const LAYERS = CFG.layers;
 
 export function setLayerRecursive(o: THREE.Object3D, layer: number) {

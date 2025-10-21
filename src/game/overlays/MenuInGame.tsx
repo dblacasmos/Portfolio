@@ -8,9 +8,8 @@ import { useGameStore } from "../utils/state/store";
 import { ASSETS } from "../../constants/assets";
 import { useUiClick } from "../../hooks/useUiClick";
 import { useHudEditorStore } from "../utils/state/hudEditor";
-import { useEscOrTapToClose } from "@/hooks/useEnterOrTapToClose";
-import { createPortal } from "react-dom";
-import { getOverlayRoot } from "@/game/utils/overlayPortal";
+import { useEnterOrTapToClose } from "@/hooks/useEnterOrTapToClose";
+import { audioManager } from "@/game/utils/audio/audio";
 
 /* ---------- UI bits ---------- */
 const Btn = (
@@ -55,9 +54,7 @@ function requestGamePointerLock() {
     } catch { }
 }
 function exitPointerLock() {
-    try {
-        document.exitPointerLock?.();
-    } catch { }
+    try { document.exitPointerLock?.(); } catch { }
 }
 
 /* ====================================
@@ -88,6 +85,7 @@ const MenuInGame: React.FC = () => {
     const [showCtrls, setShowCtrls] = useState(false);
     const [showAudio, setShowAudio] = useState(false);
     const [showOpts, setShowOpts] = useState(false);
+    const panelRef = useRef<HTMLDivElement | null>(null);
 
     // Estado UI para ADS mode (fallback si el store no existe)
     const readLocalAds = (): AdsMode => {
@@ -105,16 +103,10 @@ const MenuInGame: React.FC = () => {
     const applyAdsMode = (mode: AdsMode) => {
         setAdsMode(mode);
         if (setStoreAdsMode) {
-            try {
-                setStoreAdsMode(mode);
-            } catch { }
+            try { setStoreAdsMode(mode); } catch { }
         }
-        try {
-            localStorage.setItem("game.adsMode", mode);
-        } catch { }
-        try {
-            window.dispatchEvent(new CustomEvent("ads-mode", { detail: { mode } }));
-        } catch { }
+        try { localStorage.setItem("game.adsMode", mode); } catch { }
+        try { window.dispatchEvent(new CustomEvent("ads-mode", { detail: { mode } })); } catch { }
         playClick();
     };
 
@@ -124,35 +116,32 @@ const MenuInGame: React.FC = () => {
     /* ---------- Audio preview ---------- */
     useEffect(() => {
         if (!showAudio) {
-            try {
-                musicRef.current?.pause();
-                sfxRef.current?.pause();
-            } catch { }
+            try { musicRef.current?.pause(); sfxRef.current?.pause(); } catch { }
             return;
         }
         if (!musicRef.current) {
-            const a = new Audio(ASSETS.audio.musicCity);
-            a.loop = true;
-            a.preload = "auto";
+            const a = new Audio(ASSETS.audio?.musicCity || "");
+            a.loop = true; a.preload = "auto";
             musicRef.current = a;
         }
         if (!sfxRef.current) {
-            const a = new Audio(ASSETS.audio.buttonSound);
+            const a = new Audio(ASSETS.audio?.buttonSound || "");
             a.preload = "auto";
             sfxRef.current = a;
         }
-        try {
-            if (musicRef.current) {
-                musicRef.current.volume = volumes.music;
-                musicRef.current.currentTime = 0;
-                musicRef.current.play().catch(() => { });
-            }
-        } catch { }
-        return () => {
+        (async () => {
             try {
-                musicRef.current?.pause();
+                if (typeof audioManager.ensureStarted === "function") {
+                    await audioManager.ensureStarted();
+                }
+                if (musicRef.current) {
+                    musicRef.current.volume = volumes.music;
+                    musicRef.current.currentTime = 0;
+                    musicRef.current.play().catch(() => { });
+                }
             } catch { }
-        };
+        })();
+        return () => { try { musicRef.current?.pause(); } catch { } };
     }, [showAudio, volumes.music]);
 
     const handleMusic = (v: number) => {
@@ -166,10 +155,7 @@ const MenuInGame: React.FC = () => {
         setVolumes({ sfx: v });
         if (sfxRef.current) {
             sfxRef.current.volume = Math.max(0, Math.min(1, v));
-            try {
-                sfxRef.current.currentTime = 0;
-                sfxRef.current.play().catch(() => { });
-            } catch { }
+            try { sfxRef.current.currentTime = 0; sfxRef.current.play().catch(() => { }); } catch { }
         }
     };
 
@@ -188,7 +174,7 @@ const MenuInGame: React.FC = () => {
     }, [menuOpen, setMenuOpen]);
 
     // Tap en móvil/tablet = ESC (cerrar menú y volver a pointer lock)
-    useEscOrTapToClose({
+    useEnterOrTapToClose({
         enabled: menuOpen,
         onClose: () => {
             setMenuOpen(false);
@@ -199,13 +185,7 @@ const MenuInGame: React.FC = () => {
     });
 
     /* ---- Si el menú se muestra, salimos de pointer lock ---- */
-    useEffect(() => {
-        if (menuOpen) {
-            try {
-                document.exitPointerLock?.();
-            } catch { }
-        }
-    }, [menuOpen]);
+    useEffect(() => { if (menuOpen) exitPointerLock(); }, [menuOpen]);
 
     /* ---- Cursor visible mientras el menú esté abierto ---- */
     useEffect(() => {
@@ -214,11 +194,7 @@ const MenuInGame: React.FC = () => {
             document.body.classList.remove("hide-cursor");
             document.body.classList.add("show-cursor", "hud-cursor");
         } catch { }
-        return () => {
-            try {
-                document.body.classList.remove("show-cursor", "hud-cursor");
-            } catch { }
-        };
+        return () => { try { document.body.classList.remove("show-cursor", "hud-cursor"); } catch { } };
     }, [menuOpen]);
 
     // ✅ Devoluciones tempranas después de los hooks
@@ -237,16 +213,10 @@ const MenuInGame: React.FC = () => {
 
     // Cambiar mano y forzar render del Canvas
     const applyHand = (h: "left" | "right") => {
-        try {
-            setHand(h);
-        } catch { }
+        try { setHand(h); } catch { }
         try {
             (window as any).__invalidate?.();
-            requestAnimationFrame(() => {
-                try {
-                    (window as any).__invalidate?.();
-                } catch { }
-            });
+            requestAnimationFrame(() => { try { (window as any).__invalidate?.(); } catch { } });
         } catch { }
         playClick();
     };
@@ -255,17 +225,28 @@ const MenuInGame: React.FC = () => {
     const onStartEdit = () => {
         playClick();
         setMenuOpen(false);
-        requestAnimationFrame(() => {
-            setEditEnabled(true);
-        });
+        requestAnimationFrame(() => { setEditEnabled(true); });
     };
 
-    // ----------- PORTAL AL HOST DE FULLSCREEN -----------
-    const node = (
-        <div className="absolute inset-0 z-[999999] pointer-events-auto isolate">
+    return (
+        <div className="fixed inset-0 z-[999999] pointer-events-auto isolate">
+            {/* Backdrop clicable */}
+            <div
+                className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+                onClick={() => {
+                    // Si prefieres NO cerrar con backdrop, comenta estas 2 líneas.
+                    playClick();
+                    onPrimary();
+                }}
+            />
             <div className="absolute inset-0 grid place-items-center p-4">
                 <motion.div
-                    className="panel-glass w-[min(720px,92vw)]"
+                    ref={panelRef}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Menú"
+                    tabIndex={-1}
+                    className="panel-glass w-[min(720px,92vw)] outline-none"
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.18 }}
@@ -279,10 +260,7 @@ const MenuInGame: React.FC = () => {
 
                         <Btn
                             variant="ghost"
-                            onClick={() => {
-                                playClick();
-                                setShowCtrls((v) => !v);
-                            }}
+                            onClick={() => { playClick(); setShowCtrls((v) => !v); }}
                             aria-expanded={showCtrls}
                         >
                             CONTROLES
@@ -290,10 +268,7 @@ const MenuInGame: React.FC = () => {
 
                         <Btn
                             variant="ghost"
-                            onClick={() => {
-                                playClick();
-                                setShowAudio((v) => !v);
-                            }}
+                            onClick={() => { playClick(); setShowAudio((v) => !v); }}
                             aria-expanded={showAudio}
                         >
                             AUDIO
@@ -301,10 +276,7 @@ const MenuInGame: React.FC = () => {
 
                         <Btn
                             variant="ghost"
-                            onClick={() => {
-                                playClick();
-                                setShowOpts((v) => !v);
-                            }}
+                            onClick={() => { playClick(); setShowOpts((v) => !v); }}
                             aria-expanded={showOpts}
                         >
                             OPCIONES
@@ -336,20 +308,13 @@ const MenuInGame: React.FC = () => {
                                     <div>- R = Recargar arma</div>
                                     <div>- SPACE = Saltar</div>
                                     <div>- SHIFT = Agacharse</div>
-                                    <div>- F = FullScreen/NavScreen</div>
                                     <div>- V = Correr</div>
                                     <div>- Click Izq = Disparar</div>
                                     <div>- TAB = Abrir/Cerrar menú</div>
                                     <div className="col-span-2">- M = Expandir/Contraer Radar</div>
                                 </div>
                                 <div className="mt-4 flex justify-end gap-3">
-                                    <Btn
-                                        variant="ghost"
-                                        onClick={() => {
-                                            playClick();
-                                            setShowCtrls(false);
-                                        }}
-                                    >
+                                    <Btn variant="ghost" onClick={() => { playClick(); setShowCtrls(false); }}>
                                         CERRAR
                                     </Btn>
                                 </div>
@@ -379,18 +344,12 @@ const MenuInGame: React.FC = () => {
                                     />
                                 </div>
                                 <div className="mt-4 flex justify-between gap-3">
-                                    <Btn
-                                        variant="ghost"
-                                        onClick={() => {
-                                            playClick();
-                                            setShowAudio(false);
-                                        }}
-                                    >
+                                    <Btn variant="ghost" onClick={() => { playClick(); setShowAudio(false); }}>
                                         CERRAR
                                     </Btn>
                                 </div>
                                 <audio ref={musicRef} src={ASSETS.audio.musicCity} preload="auto" style={{ display: "none" }} />
-                                <audio ref={sfxRef} src={ASSETS.audio.buttonSound} preload="auto" style={{ display: "none" }} />
+                                <audio ref={sfxRef} src={ASSETS.audio?.buttonSound || ""} preload="auto" style={{ display: "none" }} />
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -460,13 +419,7 @@ const MenuInGame: React.FC = () => {
                                 </div>
 
                                 <div className="mt-5 flex justify-end gap-3">
-                                    <Btn
-                                        variant="ghost"
-                                        onClick={() => {
-                                            playClick();
-                                            setShowOpts(false);
-                                        }}
-                                    >
+                                    <Btn variant="ghost" onClick={() => { playClick(); setShowOpts(false); }}>
                                         CERRAR
                                     </Btn>
                                 </div>
@@ -477,8 +430,6 @@ const MenuInGame: React.FC = () => {
             </div>
         </div>
     );
-
-    return createPortal(node, getOverlayRoot());
 };
 
 export default MenuInGame;

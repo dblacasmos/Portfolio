@@ -2,13 +2,16 @@
   FILE: src/pages/Intro.tsx
   ============================= */
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ASSETS } from "../constants/assets";
-import { enterFullscreen, isFullscreen } from "../game/utils/immersive";
+import { enterAppFullscreen, isFullscreen } from "../game/utils/immersive";
 import { useRobotCursor } from "@/hooks/useRobotCursor";
 
-const isCoarsePointer = () => (typeof window !== "undefined" ? window.matchMedia?.("(pointer: coarse)")?.matches ?? false : false);
+const isCoarsePointer = () =>
+  typeof window !== "undefined"
+    ? window.matchMedia?.("(pointer: coarse)")?.matches ?? false
+    : false;
 
 // Pool de audio simple (evita cortar sonidos si se spamean clicks)
 function useSound(url: string, volume = 1, voices = 4) {
@@ -27,7 +30,8 @@ function useSound(url: string, volume = 1, voices = 4) {
   return () => {
     const pool = poolRef.current;
     const idle =
-      pool.find((a) => a.paused) ?? (pool[0]?.cloneNode(true) as HTMLAudioElement | undefined);
+      pool.find((a) => a.paused) ??
+      (pool[0]?.cloneNode(true) as HTMLAudioElement | undefined);
     if (!idle) return;
     try {
       idle.currentTime = 0;
@@ -55,21 +59,31 @@ export default function Intro() {
 
   const MUSIC_BASE_VOL = 0.4;
   const MUSIC_DUCK_VOL = MUSIC_BASE_VOL / 2;
-  const CRAWL_DURATION_S = 48; // duración del crawl
+  const reduce = useReducedMotion();
+  const CRAWL_DURATION_S = reduce ? 0.01 : 48; // respeta prefers-reduced-motion
   const DELAY = 500;
 
   // ENTER: cortar presentación y saltar a /main
   const doSkipToMain = () => {
-    try { mainVideoRef.current?.pause(); } catch { }
-    try { musicRef.current?.pause(); } catch { }
-    try { ttsAbortRef.current?.(); } catch { }
-    try { if (!isFullscreen()) enterFullscreen(); } catch { }
+    try {
+      mainVideoRef.current?.pause();
+    } catch { }
+    try {
+      musicRef.current?.pause();
+    } catch { }
+    try {
+      ttsAbortRef.current?.();
+    } catch { }
+    try {
+      if (!isFullscreen()) enterAppFullscreen();
+    } catch { }
     setTimeout(() => navigate("/main"), DELAY);
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Enter") return;
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault();
+      e.stopPropagation();
       doSkipToMain();
     };
     window.addEventListener("keydown", onKey, true);
@@ -103,9 +117,15 @@ export default function Intro() {
   // Limpieza al salir de la pantalla
   useEffect(() => {
     return () => {
-      try { mainVideoRef.current?.pause(); } catch { }
-      try { musicRef.current?.pause(); } catch { }
-      try { ttsAbortRef.current?.(); } catch { }
+      try {
+        mainVideoRef.current?.pause();
+      } catch { }
+      try {
+        musicRef.current?.pause();
+      } catch { }
+      try {
+        ttsAbortRef.current?.();
+      } catch { }
     };
   }, []);
 
@@ -135,13 +155,23 @@ export default function Intro() {
       utter.lang = "es-ES";
       utter.rate = 0.9;
       utter.pitch = 0.95;
-      utter.onstart = () => { const m = musicRef.current; if (m) m.volume = MUSIC_DUCK_VOL; };
-      utter.onend = () => { const m = musicRef.current; if (m) m.volume = MUSIC_BASE_VOL; };
+      utter.onstart = () => {
+        const m = musicRef.current;
+        if (m) m.volume = MUSIC_DUCK_VOL;
+      };
+      utter.onend = () => {
+        const m = musicRef.current;
+        if (m) m.volume = MUSIC_BASE_VOL;
+      };
 
       const pickVoice = () => {
         const voices = synth.getVoices();
         const prefer =
-          voices.find((v) => /es-ES/i.test(v.lang) && /male|hombre|Miguel|Jorge|Diego|Enrique/i.test(v.name)) ||
+          voices.find(
+            (v) =>
+              /es-ES/i.test(v.lang) &&
+              /male|hombre|Miguel|Jorge|Diego|Enrique/i.test(v.name)
+          ) ||
           voices.find((v) => /es-ES/i.test(v.lang)) ||
           voices.find((v) => /es/i.test(v.lang));
         if (prefer) utter.voice = prefer;
@@ -150,19 +180,30 @@ export default function Intro() {
       };
 
       if (synth.getVoices().length === 0) {
-        const onVoices = () => { pickVoice(); synth.removeEventListener("voiceschanged", onVoices); };
+        const onVoices = () => {
+          pickVoice();
+          synth.removeEventListener("voiceschanged", onVoices);
+        };
         synth.addEventListener("voiceschanged", onVoices);
       } else {
         pickVoice();
       }
 
-      ttsAbortRef.current = () => { try { synth.cancel(); } catch { } };
+      ttsAbortRef.current = () => {
+        try {
+          synth.cancel();
+        } catch { }
+      };
     }
   };
 
   const handleStart = () => {
-    try { playStartClick(); } catch { }
-    try { enterFullscreen(); } catch { }
+    try {
+      playStartClick();
+    } catch { }
+    try {
+      enterAppFullscreen();
+    } catch { }
     setTimeout(() => {
       setShowIntroVideo(true);
       setStartVideo(true);
@@ -185,12 +226,14 @@ export default function Intro() {
   };
 
   const handleExploreClick = () => {
-    try { playUiClick(); } catch { }
-    try { if (!isFullscreen()) enterFullscreen(); } catch { }
+    try {
+      playUiClick();
+    } catch { }
+    try {
+      if (!isFullscreen()) enterAppFullscreen();
+    } catch { }
     doSkipToMain();
   };
-
-  const prefersReducedMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
   return (
     <div id="intro" data-immersive-root className="fixed inset-0 overflow-hidden bg-black">
@@ -247,7 +290,7 @@ export default function Intro() {
 
       {/* STAR WARS CRAWL */}
       <AnimatePresence>
-        {showCrawl && !prefersReducedMotion && (
+        {showCrawl && !reduce && (
           <motion.div
             key="crawl"
             initial={{ opacity: 0 }}
@@ -260,7 +303,10 @@ export default function Intro() {
             <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/20 to-black/80 pointer-events-none" />
 
             <div className="relative w-full h-full grid place-items-center">
-              <div id="crawl-perspective" className="w-full max-w-[1100px] px-6 md:px-10 [perspective:650px]">
+              <div
+                id="crawl-perspective"
+                className="w-full max-w-[1100px] px-6 md:px-10 [perspective:650px]"
+              >
                 <motion.div
                   id="crawl-content"
                   className="mx-auto origin-bottom text-center text-cyan-100 transform-gpu subpixel-antialiased [will-change:transform,opacity]"
@@ -286,10 +332,13 @@ export default function Intro() {
                   {loreLines.map((line, i) => (
                     <p
                       key={i}
-                      className={`leading-[1.65] text-cyan-100 ${i < loreLines.length - 1 ? "mb-5" : ""}`}
+                      className={`leading-[1.65] text-cyan-100 ${i < loreLines.length - 1 ? "mb-5" : ""
+                        }`}
                       style={{
-                        fontSize: "clamp(1.15rem, 1.2vw + 0.9rem, 1.7rem)",
-                        textShadow: "0 0 1px rgba(34,211,238,1), 0 0 8px rgba(34,211,238,0.55)",
+                        fontSize:
+                          "clamp(1.15rem, 1.2vw + 0.9rem, 1.7rem)",
+                        textShadow:
+                          "0 0 1px rgba(34,211,238,1), 0 0 8px rgba(34,211,238,0.55)",
                       }}
                     >
                       {line}

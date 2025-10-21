@@ -1,0 +1,91 @@
+{
+  "url": "http://127.0.0.1:5173/intro",
+  "timestamp": 1760415644081,
+  "lcp": 998,
+  "fcp": 973,
+  "cls": 0,
+  "navigation": {
+    "name": "http://127.0.0.1:5173/",
+    "entryType": "navigation",
+    "startTime": 0,
+    "duration": 1244,
+    "initiatorType": "navigation",
+    "nextHopProtocol": "http/1.1",
+    "workerStart": 0,
+    "redirectStart": 0,
+    "redirectEnd": 0,
+    "fetchStart": -3,
+    "domainLookupStart": 235,
+    "domainLookupEnd": 236,
+    "connectStart": 236,
+    "connectEnd": 236,
+    "secureConnectionStart": 0,
+    "requestStart": 236,
+    "responseStart": 238,
+    "responseEnd": 238,
+    "transferSize": 3714,
+    "encodedBodySize": 3414,
+    "decodedBodySize": 3414,
+    "responseStatus": 200,
+    "contentType": "text/html",
+    "serverTiming": [],
+    "unloadEventStart": 0,
+    "unloadEventEnd": 0,
+    "domInteractive": 280,
+    "domContentLoadedEventStart": 999,
+    "domContentLoadedEventEnd": 1002,
+    "domComplete": 1243,
+    "loadEventStart": 1243,
+    "loadEventEnd": 1244,
+    "type": "navigate",
+    "redirectCount": 0
+  },
+  "paints": [
+    {
+      "name": "first-contentful-paint",
+      "startTime": 973
+    }
+  ],
+  "entries": {
+    "lcp": [
+      {
+        "name": "",
+        "entryType": "largest-contentful-paint",
+        "startTime": 998,
+        "duration": 0,
+        "renderTime": 998,
+        "loadTime": 0,
+        "size": 904,
+        "id": "",
+        "url": "",
+        "paintTime": 998,
+        "presentationTime": null
+      },
+      {
+        "name": "",
+        "entryType": "largest-contentful-paint",
+        "startTime": 998,
+        "duration": 0,
+        "renderTime": 998,
+        "loadTime": 0,
+        "size": 1041,
+        "id": "",
+        "url": "",
+        "paintTime": 998,
+        "presentationTime": null
+      }
+    ],
+    "cls": [],
+    "fcp": [
+      {
+        "name": "first-contentful-paint",
+        "entryType": "paint",
+        "startTime": 973,
+        "duration": 0,
+        "paintTime": 973,
+        "presentationTime": null
+      }
+    ]
+  },
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:142.0.1) Gecko/20100101 Firefox/142.0.1"
+}

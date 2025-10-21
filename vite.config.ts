@@ -1,45 +1,67 @@
-// FILE:vite.congif.ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tsconfigPaths from 'vite-tsconfig-paths'
-import path from 'node:path'
+// FILE: vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tsconfigPaths from 'vite-tsconfig-paths';
+import { visualizer } from 'rollup-plugin-visualizer';
+import glsl from 'vite-plugin-glsl';
+import path from 'node:path';
 
 // Normaliza para windows/unix
-const has = (id: string, needle: string) => id.replace(/\\/g, '/').includes(needle)
+const has = (id: string, needle: string) => id.replace(/\\/g, '/').includes(needle);
 
 export default defineConfig({
-  plugins: [react(), tsconfigPaths()],
+  plugins: [
+    react(),
+    tsconfigPaths(),
+    glsl({ include: ['**/*.glsl', '**/*.vert', '**/*.frag'] }),
+    // Reporte de bundle en dist/stats.html tras cada build
+    visualizer({ filename: 'dist/stats.html', gzipSize: true, brotliSize: true })
+  ],
   base: '/',
-  server: { host: true },
+  server: {
+    host: true,
+    port: 5173,
+    strictPort: true,
+  },
+  preview: {
+    host: true,
+    port: 4173,
+    strictPort: true,
+  },
   assetsInclude: ['**/*.glb', '**/*.gltf', '**/*.wasm', '**/*.ktx2', '**/*.bin'],
   build: {
     target: 'es2022',
-    chunkSizeWarningLimit: 3000, // three+gltf se pasa del umbral por defecto
+    chunkSizeWarningLimit: 4000, // three+gltf se pasa del umbral por defecto
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (!has(id, 'node_modules')) return undefined
-          if (has(id, 'node_modules/three/')) return 'three'
-          if (has(id, '@react-three/fiber') || has(id, '@react-three/drei')) return 'r3f'
-          if (has(id, '/howler/')) return 'audio'
-          if (has(id, 'node_modules/react/') || has(id, 'node_modules/react-dom/') || has(id, 'react-router-dom')) return 'react'
-          if (has(id, 'framer-motion')) return 'motion'
-          if (has(id, 'zustand')) return 'state'
+          if (!has(id, 'node_modules')) return undefined;
+          if (has(id, 'node_modules/three/')) return 'three';
+          if (has(id, '@react-three/fiber') || has(id, '@react-three/drei')) return 'r3f';
+          if (has(id, '/howler/')) return 'audio';
+          if (has(id, 'node_modules/react/') || has(id, 'node_modules/react-dom/') || has(id, 'react-router-dom')) return 'react';
+          if (has(id, 'framer-motion')) return 'motion';
+          if (has(id, 'zustand')) return 'state';
+          // Grande: saca Rapier del vendor. Se cargará sólo al entrar en /game.
+          if (has(id, '@dimforge/rapier3d-compat') || has(id, '@react-three/rapier')) return 'rapier';
+          // Otros pesos que no deben ir en vendor (lazy en vistas que lo usen)
+          if (has(id, 'troika-three-text')) return 'troika';
+          if (has(id, 'hls.js')) return 'hls';
           if (
             has(id, 'three-mesh-bvh') ||
             has(id, 'three-stdlib') ||
             has(id, 'examples/jsm/utils/BufferGeometryUtils')
-          ) return 'three-utils'
-          return 'vendor'
+          ) return 'three-utils';
+          return 'vendor';
         },
         entryFileNames: `assets/[name]-[hash].js`,
         chunkFileNames: `assets/[name]-[hash].js`,
         assetFileNames: (assetInfo) => {
-          const name = assetInfo.name ?? ''
-          if (/\.(glb|gltf|bin|ktx2|wasm)$/i.test(name)) return 'assets/models/[name]-[hash][extname]'
-          if (/\.(mp3|wav|ogg)$/i.test(name)) return 'assets/audio/[name]-[hash][extname]'
-          if (/\.(png|jpe?g|webp|avif|ktx2)$/i.test(name)) return 'assets/textures/[name]-[hash][extname]'
-          return 'assets/[name]-[hash][extname]'
+          const name = assetInfo.name ?? '';
+          if (/\.(glb|gltf|bin|ktx2|wasm)$/i.test(name)) return 'assets/models/[name]-[hash][extname]';
+          if (/\.(mp3|wav|ogg)$/i.test(name)) return 'assets/audio/[name]-[hash][extname]';
+          if (/\.(png|jpe?g|webp|avif|ktx2)$/i.test(name)) return 'assets/textures/[name]-[hash][extname]';
+          return 'assets/[name]-[hash][extname]';
         },
       },
     },
@@ -58,4 +80,4 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
-})
+});

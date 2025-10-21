@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
+import { AdaptiveDpr, PerformanceMonitor, Environment } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
 import Drones from "./layers/Enemies/Drones";
 import { CFG } from "../constants/config";
@@ -16,7 +16,6 @@ import { audioManager } from "./utils/audio/audio";
 import { useHudEditorStore } from "./utils/state/hudEditor";
 import Player from "./layers/Player/Player";
 import { ColliderEnvBVH } from "./utils/collision/colliderEnvBVH";
-import { ContextLostShield } from "./overlays/ContextLostOverlay";
 import { LaserSystem, type Laser, makeLaser } from "./layers/Shots/Lasers";
 import SceneRoot from "./layers/World/SceneRoot";
 import type { CityReadyInfo } from "./layers/World/City";
@@ -30,15 +29,15 @@ import { patchThreeColorAlphaWarning } from "./utils/three/fixColorAlpha";
 import { patchThreeIndex0AttributeNameWarning } from "./utils/three/fixIndex0Attr";
 import EndDoor from "./layers/World/EndDoor";
 import HudEditOverlay from "./overlays/HudEditOverlay";
-import Quality from "./graphics/quality";
+import Quality from "../engine/quality";
 import { initKTX2Loader, disposeKTX2Loader } from "@/game/utils/three/ktx2/ktx2";
 import { ASSETS } from "@/constants/assets";
 import { prepareRapier } from "@/game/utils/three/rapier/initRapier";
-import { requestPointerLock } from "@/game/utils/immersive";
+import { usePageVisibility } from "@/hooks/usePageVisibility";
+import { installImmersiveKeyTraps } from "@/game/utils/immersive";
 
 patchThreeColorAlphaWarning();
-patchThreeIndex0AttributeNameWarning();
-prepareRapier();
+patchThreeIndex0AttributeNameWarning(); // ← quitado el '+' que se había colado
 
 /* ------------------ Helpers & Dev Bridge ------------------ */
 
@@ -47,9 +46,13 @@ function DevBridge() {
   useEffect(() => {
     (window as any).__invalidate = () => invalidate();
     (window as any).__toggleMenu = (on?: boolean) =>
-      useGameStore.getState().setMenuOpen(on ?? !useGameStore.getState().menuOpen);
+      useGameStore.getState().setMenuOpen(
+        on ?? !useGameStore.getState().menuOpen
+      );
     (window as any).__exitLock = () => {
-      try { document.exitPointerLock(); } catch { }
+      try {
+        document.exitPointerLock();
+      } catch { }
     };
     (window as any).__scene = scene;
     (window as any).__camera = camera;
@@ -66,7 +69,9 @@ function DevBridge() {
       } catch { }
     };
     (window as any).__layers = CFG.layers;
-    try { (window as any).useGameStore = useGameStore; } catch { }
+    try {
+      (window as any).useGameStore = useGameStore;
+    } catch { }
     return () => {
       delete (window as any).__invalidate;
       delete (window as any).__toggleMenu;
@@ -75,7 +80,9 @@ function DevBridge() {
       delete (window as any).__camera;
       delete (window as any).__mem;
       delete (window as any).__layers;
-      try { delete (window as any).useGameStore; } catch { }
+      try {
+        delete (window as any).useGameStore;
+      } catch { }
     };
   }, [invalidate, scene, camera]);
   return null;
@@ -117,7 +124,9 @@ const Game: React.FC = () => {
   const envRef = useRef<ColliderEnvBVH | null>(null);
 
   // info límites de la ciudad
-  const cityInfoRef = useRef<{ center: THREE.Vector2; radius: number } | null>(null);
+  const cityInfoRef = useRef<{ center: THREE.Vector2; radius: number } | null>(
+    null
+  );
   const roadsMeshRef = useRef<THREE.Mesh | null>(null);
   const wallsMeshRef = useRef<THREE.Mesh | null>(null);
 
@@ -135,7 +144,9 @@ const Game: React.FC = () => {
   const [spawnLookAt, setSpawnLookAt] = useState<THREE.Vector3 | null>(null);
 
   const [endDoorAt, setEndDoorAt] = useState<THREE.Vector3 | null>(null);
-  const [endDoorLookAt, setEndDoorLookAt] = useState<THREE.Vector3 | null>(null);
+  const [endDoorLookAt, setEndDoorLookAt] = useState<THREE.Vector3 | null>(
+    null
+  );
   const endDoorMeshRef = useRef<THREE.Object3D | null>(null);
 
   // ¿puedo mover ~0.6 m desde aquí?
@@ -148,111 +159,148 @@ const Game: React.FC = () => {
     const rWalls = Math.max(0.05, rBase - (CFG.collision?.wallPadding ?? 0));
 
     const capStart = new THREE.Vector3(pos.x, (pos.y - eye) + rBase, pos.z);
-    const capEnd = new THREE.Vector3(pos.x, (pos.y - eye) + Math.max(eye - rBase, rBase), pos.z);
+    const capEnd = new THREE.Vector3(
+      pos.x,
+      (pos.y - eye) + Math.max(eye - rBase, rBase),
+      pos.z
+    );
 
     const dirs = [
-      new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
-      new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1),
-      new THREE.Vector3(1, 0, 1).normalize(), new THREE.Vector3(-1, 0, 1).normalize(),
-      new THREE.Vector3(1, 0, -1).normalize(), new THREE.Vector3(-1, 0, -1).normalize(),
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(-1, 0, 0),
+      new THREE.Vector3(0, 0, 1),
+      new THREE.Vector3(0, 0, -1),
+      new THREE.Vector3(1, 0, 1).normalize(),
+      new THREE.Vector3(-1, 0, 1).normalize(),
+      new THREE.Vector3(1, 0, -1).normalize(),
+      new THREE.Vector3(-1, 0, -1).normalize(),
     ];
     const tryLen = 0.6;
     for (const d of dirs) {
-      const corrected = env.sweepCapsule(capStart, capEnd, rWalls, d.clone().multiplyScalar(tryLen));
+      const corrected = env.sweepCapsule(
+        capStart,
+        capEnd,
+        rWalls,
+        d.clone().multiplyScalar(tryLen)
+      );
       if (corrected.length() > tryLen * 0.5) return true;
     }
     return false;
   }, []);
 
-  const handleSceneReady = useCallback((info: CityReadyInfo) => {
-    if (envRef.current) {
-      envRef.current.setMeshes(info.groundMesh ?? null, info.wallsMesh ?? null);
-    } else {
-      envRef.current = new ColliderEnvBVH(info.groundMesh ?? null, info.wallsMesh ?? null, {
-        separationEps: 0.001,
-        maxPasses: 4,
-        // Importante: no descartar triángulos por altura;
-        // asegura que el muro perimetral colisione con los drones.
-        minWallY: -Infinity,
-      });
-    }
-    cityInfoRef.current = { center: info.center, radius: info.radius };
-    roadsMeshRef.current = info.roadsMesh ?? null;
-    wallsMeshRef.current = info.wallsMesh ?? null;
-
-    groundMeshRef.current = info.groundMesh ?? null;
-    groundYRef.current = info.groundY;
-
-    forbidMeshRef.current = (info as any).forbidMesh ?? null;
-
-    try {
-      const side = (CFG.player.spawnSide ?? "east") as "east" | "west" | "north" | "south";
-      const baseInset = Math.max(1.0, CFG.player.spawnEdgeInset ?? 3.5);
-      const lateral = CFG.player.spawnLateralOffset ?? 0;
-
-      const dir2 = new THREE.Vector2(
-        side === "east" ? 1 : side === "west" ? -1 : 0,
-        side === "north" ? 1 : side === "south" ? -1 : 0
-      );
-      if (dir2.lengthSq() === 0) dir2.set(1, 0);
-
-      const fwd2 = new THREE.Vector2(-dir2.x, -dir2.y);
-      const right2 = new THREE.Vector2(fwd2.y, -fwd2.x).normalize();
-
-      const eyeH = CFG.move.standHeight;
-      const center3 = new THREE.Vector3(info.center.x, info.groundY + eyeH + 0.02, info.center.y);
-
-      let chosen: THREE.Vector3 | null = null;
-      const maxExtra = 6;
-      const stepSize = 0.5;
-
-      for (let extra = 0; extra <= maxExtra + 1e-6; extra += stepSize) {
-        const inset = baseInset + extra;
-        const r = Math.max(0, info.radius - inset);
-
-        let px = info.center.x + dir2.x * r;
-        let pz = info.center.y + dir2.y * r;
-
-        px += right2.x * lateral;
-        pz += right2.y * lateral;
-
-        const gy = envRef.current?.groundY(px, pz) ?? info.groundY;
-        const safeY = gy + eyeH + 0.02;
-        const pos = new THREE.Vector3(px, safeY, pz);
-
-        if (canMoveFrom(pos)) { chosen = pos; break; }
-      }
-
-      if (!chosen) {
-        const r = Math.max(0, info.radius - (baseInset + maxExtra));
-        chosen = new THREE.Vector3(
-          info.center.x + dir2.x * r + right2.x * lateral,
-          info.groundY + eyeH + 0.02,
-          info.center.y + dir2.y * r + right2.y * lateral
+  const handleSceneReady = useCallback(
+    (info: CityReadyInfo) => {
+      if (envRef.current) {
+        envRef.current.setMeshes(info.groundMesh ?? null, info.wallsMesh ?? null);
+      } else {
+        envRef.current = new ColliderEnvBVH(
+          info.groundMesh ?? null,
+          info.wallsMesh ?? null,
+          {
+            separationEps: 0.001,
+            maxPasses: 4,
+            // Importante: no descartar triángulos por altura;
+            // asegura que el muro perimetral colisione con los drones.
+            minWallY: -Infinity,
+          }
         );
       }
+      cityInfoRef.current = { center: info.center, radius: info.radius };
+      roadsMeshRef.current = info.roadsMesh ?? null;
+      wallsMeshRef.current = info.wallsMesh ?? null;
 
-      setSpawnAt(chosen);
-      playerSpawnRef.current = chosen;
-      setSpawnLookAt(center3);
+      groundMeshRef.current = info.groundMesh ?? null;
+      groundYRef.current = info.groundY;
 
-      // EndDoor en el lado opuesto
-      const doorInset = Math.max(0.5, (CFG as any)?.endDoor?.inset ?? 1.2);
-      const rDoor = Math.max(0, info.radius - doorInset);
-      const doorDir2 = new THREE.Vector2(-dir2.x, -dir2.y).normalize();
-      const rightDoor2 = new THREE.Vector2(dir2.y, -dir2.x).normalize();
-      const lateralDoor = (CFG as any)?.endDoor?.lateralOffset ?? 0;
-      const doorX = info.center.x + doorDir2.x * rDoor + rightDoor2.x * lateralDoor;
-      const doorZ = info.center.y + doorDir2.y * rDoor + rightDoor2.y * lateralDoor;
-      const doorGy = envRef.current?.groundY(doorX, doorZ) ?? info.groundY;
-      const doorPos = new THREE.Vector3(doorX, doorGy + 0.1, doorZ);
-      setEndDoorAt(doorPos);
-      endDoorRef.current = doorPos;
-      setEndDoorLookAt(new THREE.Vector3(info.center.x, doorGy + 1.2, info.center.y));
-    } catch { }
+      forbidMeshRef.current = (info as any).forbidMesh ?? null;
 
-    try { markGlobalLoadingStage("scene-ready"); } catch { }
-  }, [canMoveFrom]);
+      try {
+        const side = (CFG.player.spawnSide ?? "east") as
+          | "east"
+          | "west"
+          | "north"
+          | "south";
+        const baseInset = Math.max(1.0, CFG.player.spawnEdgeInset ?? 3.5);
+        const lateral = CFG.player.spawnLateralOffset ?? 0;
+
+        const dir2 = new THREE.Vector2(
+          side === "east" ? 1 : side === "west" ? -1 : 0,
+          side === "north" ? 1 : side === "south" ? -1 : 0
+        );
+        if (dir2.lengthSq() === 0) dir2.set(1, 0);
+
+        const fwd2 = new THREE.Vector2(-dir2.x, -dir2.y);
+        const right2 = new THREE.Vector2(fwd2.y, -fwd2.x).normalize();
+
+        const eyeH = CFG.move.standHeight;
+        const center3 = new THREE.Vector3(
+          info.center.x,
+          info.groundY + eyeH + 0.02,
+          info.center.y
+        );
+
+        let chosen: THREE.Vector3 | null = null;
+        const maxExtra = 6;
+        const stepSize = 0.5;
+
+        for (let extra = 0; extra <= maxExtra + 1e-6; extra += stepSize) {
+          const inset = baseInset + extra;
+          const r = Math.max(0, info.radius - inset);
+
+          let px = info.center.x + dir2.x * r;
+          let pz = info.center.y + dir2.y * r;
+
+          px += right2.x * lateral;
+          pz += right2.y * lateral;
+
+          const gy = envRef.current?.groundY(px, pz) ?? info.groundY;
+          const safeY = gy + eyeH + 0.02;
+          const pos = new THREE.Vector3(px, safeY, pz);
+
+          if (canMoveFrom(pos)) {
+            chosen = pos;
+            break;
+          }
+        }
+
+        if (!chosen) {
+          const r = Math.max(0, info.radius - (baseInset + maxExtra));
+          chosen = new THREE.Vector3(
+            info.center.x + dir2.x * r + right2.x * lateral,
+            info.groundY + eyeH + 0.02,
+            info.center.y + dir2.y * r + right2.y * lateral
+          );
+        }
+
+        setSpawnAt(chosen);
+        playerSpawnRef.current = chosen;
+        setSpawnLookAt(center3);
+
+        // EndDoor en el lado opuesto
+        const doorInset = Math.max(0.5, (CFG as any)?.endDoor?.inset ?? 1.2);
+        const rDoor = Math.max(0, info.radius - doorInset);
+        const doorDir2 = new THREE.Vector2(-dir2.x, -dir2.y).normalize();
+        const rightDoor2 = new THREE.Vector2(dir2.y, -dir2.x).normalize();
+        const lateralDoor = (CFG as any)?.endDoor?.lateralOffset ?? 0;
+        const doorX =
+          info.center.x + doorDir2.x * rDoor + rightDoor2.x * lateralDoor;
+        const doorZ =
+          info.center.y + doorDir2.y * rDoor + rightDoor2.y * lateralDoor;
+        const doorGy = envRef.current?.groundY(doorX, doorZ) ?? info.groundY;
+        const doorPos = new THREE.Vector3(doorX, doorGy + 0.1, doorZ);
+        setEndDoorAt(doorPos);
+        endDoorRef.current = doorPos;
+        setEndDoorLookAt(
+          new THREE.Vector3(info.center.x, doorGy + 1.2, info.center.y)
+        );
+      } catch { }
+
+      try {
+        markGlobalLoadingStage("scene-ready");
+      } catch { }
+    },
+    [canMoveFrom]
+  );
 
   // Forzamos remount del Canvas cuando cambie la calidad
   const [canvasKey, setCanvasKey] = useState(0);
@@ -269,24 +317,55 @@ const Game: React.FC = () => {
   const lostHandlerRef = useRef<((e: Event) => void) | null>(null);
   const restHandlerRef = useRef<(() => void) | null>(null);
 
+  // ==== Rapier: no montar <Physics> hasta que el wasm esté listo ====
+  const [rapierReady, setRapierReady] = useState(false);
   useEffect(() => {
-    try { if (!isGlobalLoadingActive()) showGlobalLoadingOverlay(); } catch { }
+    let alive = true;
+    prepareRapier()
+      .then(() => {
+        if (alive) setRapierReady(true);
+      })
+      .catch((err) => {
+        console.warn("[Rapier] init failed:", err);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (!isGlobalLoadingActive()) showGlobalLoadingOverlay();
+    } catch { }
   }, []);
 
   // Precarga SFX críticos
   useEffect(() => {
     const A = (ASSETS as any)?.audio || {};
-    const urls = [A.shotLaser, A.reload, A.step, A.explosionDron].filter(Boolean);
+    const urls = [A.shotLaser, A.reload, A.step, A.explosionDron].filter(
+      Boolean
+    );
     if (urls.length) {
       audioManager.loadMany(urls).catch(() => { });
     } else {
-      console.warn("[Game] Faltan URLs de SFX en ASSETS.audio (shotLaser, reload, step, explosionDron).");
+      console.warn(
+        "[Game] Faltan URLs de SFX en ASSETS.audio (shotLaser, reload, step, explosionDron)."
+      );
     }
     (window as any).__testSfx = async () => {
-      try { await audioManager.ensureStarted(); } catch { }
-      for (const u of urls) { audioManager.playSfx(u, 1.0); await new Promise(r => setTimeout(r, 250)); }
+      try {
+        await audioManager.ensureStarted();
+      } catch { }
+      for (const u of urls) {
+        audioManager.playSfx(u, 1.0);
+        await new Promise((r) => setTimeout(r, 250));
+      }
     };
-    return () => { try { delete (window as any).__testSfx; } catch { } };
+    return () => {
+      try {
+        delete (window as any).__testSfx;
+      } catch { }
+    };
   }, []);
 
   // ---- Desbloqueo de audio (autoplay policies)
@@ -315,11 +394,15 @@ const Game: React.FC = () => {
     }
 
     // 2) Al volver de pestaña oculta
-    const onVisibility = () => { if (!document.hidden) tryResume(); };
+    const onVisibility = () => {
+      if (!document.hidden) tryResume();
+    };
     document.addEventListener("visibilitychange", onVisibility);
 
     // 3) Al recuperar foco de la ventana
-    const onFocus = () => { tryResume(); };
+    const onFocus = () => {
+      tryResume();
+    };
     window.addEventListener("focus", onFocus);
 
     return () => {
@@ -332,20 +415,34 @@ const Game: React.FC = () => {
   useEffect(() => {
     return () => {
       // No cierres el contexto (no es recuperable). Suspende o para fuentes.
-      try { (audioManager as any)?.stopAll?.(); (audioManager as any).ctx?.suspend?.(); } catch { }
+      try {
+        (audioManager as any)?.stopAll?.();
+        (audioManager as any).ctx?.suspend?.();
+      } catch { }
       // Limpia listeners de contexto
       const gl = glRef.current;
       try {
         const canvas = gl?.domElement as HTMLCanvasElement | undefined;
-        if (canvas && lostHandlerRef.current) canvas.removeEventListener("webglcontextlost", lostHandlerRef.current);
-        if (canvas && restHandlerRef.current) canvas.removeEventListener("webglcontextrestored", restHandlerRef.current as any);
+        if (canvas && lostHandlerRef.current)
+          canvas.removeEventListener("webglcontextlost", lostHandlerRef.current);
+        if (canvas && restHandlerRef.current)
+          canvas.removeEventListener(
+            "webglcontextrestored",
+            restHandlerRef.current as any
+          );
       } catch { }
       // Cierra KTX2/basis (workers + handle)
-      try { ktx2HandleRef.current?.dispose?.(); } catch { }
-      try { disposeKTX2Loader(); } catch { }
+      try {
+        ktx2HandleRef.current?.dispose?.();
+      } catch { }
+      try {
+        disposeKTX2Loader();
+      } catch { }
       // Finalmente, si el Canvas se va a desmontar del todo, cierra el renderer
       if (!gl) return;
-      try { gl.dispose(); } catch { }
+      try {
+        gl.dispose();
+      } catch { }
     };
   }, []);
 
@@ -361,7 +458,9 @@ const Game: React.FC = () => {
     if (env.walls) hits.push(...rc.intersectObject(env.walls, true));
     if (env.ground) hits.push(...rc.intersectObject(env.ground, true));
     const hit = hits.sort((a, b) => a.distance - b.distance)[0];
-    return hit ? hit.point.clone().add(dir.clone().multiplyScalar(-0.01)) : to.clone();
+    return hit
+      ? hit.point.clone().add(dir.clone().multiplyScalar(-0.01))
+      : to.clone();
   }, []);
 
   const [lasers, setLasers] = useState<Laser[]>([]);
@@ -370,7 +469,8 @@ const Game: React.FC = () => {
   const mainCamRef = useRef<THREE.PerspectiveCamera | null>(null);
 
   // Overlays que bloquean la UI (NO incluye el propio menú)
-  const hasBlockingOverlay = hudEditEnabled || overlayActive || !!missionCardMode || accessVisible;
+  const hasBlockingOverlay =
+    hudEditEnabled || overlayActive || !!missionCardMode || accessVisible;
   const uiLocked = hasBlockingOverlay;
 
   // Mientras haya UI por encima (menú u overlays), el canvas no recibe eventos.
@@ -378,17 +478,16 @@ const Game: React.FC = () => {
     const b = document.body;
     const on = menuOpen || hasBlockingOverlay;
     b.classList.toggle("ui-blocking", on);
-    return () => { b.classList.remove("ui-blocking"); };
+    return () => {
+      b.classList.remove("ui-blocking");
+    };
   }, [menuOpen, hasBlockingOverlay]);
 
   useEffect(() => {
-    if (hasBlockingOverlay) { try { document.exitPointerLock?.(); } catch { } }
-  }, [hasBlockingOverlay]);
-
-  // Sal del pointer lock si hay UI por encima (para recuperar cursor real)
-  useEffect(() => {
     if (hasBlockingOverlay) {
-      try { document.exitPointerLock?.(); } catch { }
+      try {
+        document.exitPointerLock?.();
+      } catch { }
     }
   }, [hasBlockingOverlay]);
 
@@ -413,7 +512,9 @@ const Game: React.FC = () => {
   }, [menuOpen, hasBlockingOverlay]);
 
   useEffect(() => {
-    try { setGlobalLoadingProgress(1); } catch { }
+    try {
+      setGlobalLoadingProgress(1);
+    } catch { }
   }, []);
 
   // Activa EndDoor automáticamente cuando ya no quedan drones
@@ -428,7 +529,9 @@ const Game: React.FC = () => {
       if (!introShownRef.current) {
         introShownRef.current = true;
         setTimeout(() => {
-          try { setMissionCard && setMissionCard("intro"); } catch { }
+          try {
+            setMissionCard && setMissionCard("intro");
+          } catch { }
         }, 50);
       }
     };
@@ -443,14 +546,22 @@ const Game: React.FC = () => {
 
   // Sincroniza visibilidad global para que el Radar pueda leerla si no recibe props
   useEffect(() => {
-    try { (window as any).__endDoorVisible = !!endDoorEnabled; } catch { }
-    return () => { try { delete (window as any).__endDoorVisible; } catch { } };
+    try {
+      (window as any).__endDoorVisible = !!endDoorEnabled;
+    } catch { }
+    return () => {
+      try {
+        delete (window as any).__endDoorVisible;
+      } catch { }
+    };
   }, [endDoorEnabled]);
 
   // Cierra el menú si hay overlay bloqueando
   useEffect(() => {
     if (menuOpen && hasBlockingOverlay) {
-      try { useGameStore.getState().setMenuOpen(false); } catch { }
+      try {
+        useGameStore.getState().setMenuOpen(false);
+      } catch { }
     }
   }, [menuOpen, hasBlockingOverlay]);
 
@@ -463,13 +574,18 @@ const Game: React.FC = () => {
       if (st.menuOpen) return;
       if (hasBlockingOverlay) return;
       if ((window as any).__squelchMenuEsc) {
-        try { e.preventDefault(); e.stopPropagation(); } catch { }
+        try {
+          e.preventDefault();
+          e.stopPropagation();
+        } catch { }
         return;
       }
 
       e.preventDefault();
       e.stopPropagation();
-      try { document.exitPointerLock?.(); } catch { }
+      try {
+        document.exitPointerLock?.();
+      } catch { }
       st.setMenuOpen(true);
     };
 
@@ -480,7 +596,10 @@ const Game: React.FC = () => {
   const onPlayerShoot = useCallback(
     (from: THREE.Vector3, to: THREE.Vector3, color: Laser["color"] = "green") => {
       // Asegura el contexto de audio activo antes de cualquier SFX
-      try { const ctx: AudioContext | undefined = (audioManager as any)?.ctx; if (ctx && ctx.state !== "running") ctx.resume(); } catch { }
+      try {
+        const ctx: AudioContext | undefined = (audioManager as any)?.ctx;
+        if (ctx && ctx.state !== "running") ctx.resume();
+      } catch { }
 
       const getEnemies = dronesGetterRef.current;
       let firstHit: THREE.Intersection | null = null;
@@ -491,22 +610,28 @@ const Game: React.FC = () => {
           const rc = new THREE.Raycaster(from, dir, 0, from.distanceTo(to));
           rc.layers.set(CFG.layers.ENEMIES);
 
-          const aliveMeshes = meshes.filter(m => m && m.parent);
-          const hits = rc.intersectObjects(aliveMeshes, true).sort((a, b) => a.distance - b.distance);
+          const aliveMeshes = meshes.filter((m) => m && m.parent);
+          const hits = rc
+            .intersectObjects(aliveMeshes, true)
+            .sort((a, b) => a.distance - b.distance);
           if (hits.length) firstHit = hits[0];
         }
       }
       const clippedTo = clipLine(from, to);
       setLasers((prev) => [...prev, makeLaser(from, clippedTo, color)]);
       if (firstHit?.object) {
-        try { (window as any).hitDroneByMesh?.(firstHit.object); } catch { }
+        try {
+          (window as any).hitDroneByMesh?.(firstHit.object);
+        } catch { }
       }
     },
     [clipLine]
   );
 
   const onFirstFrame = useCallback(() => {
-    try { markGlobalLoadingStage("first-frame"); } catch { }
+    try {
+      markGlobalLoadingStage("first-frame");
+    } catch { }
   }, []);
 
   const registerTargetsStable = useCallback((getter: () => THREE.Object3D[]) => {
@@ -517,7 +642,9 @@ const Game: React.FC = () => {
   const fsRootRef = useRef<HTMLDivElement | null>(null);
   // Mantén una referencia al <video> de cutscene (si hay uno activo)
   const activeVideoRef = useRef<HTMLVideoElement | null>(null);
-  const activeVideoKindRef = useRef<null | "afterPortal" | "presentacion" | "capDos" | "video1">(null);
+  const activeVideoKindRef = useRef<
+    null | "afterPortal" | "presentacion" | "capDos" | "video1"
+  >(null);
 
   // --- Detiene selectivamente los audios “seguimiento ENTER”
   const stopTrackedAudios = useCallback(() => {
@@ -543,13 +670,19 @@ const Game: React.FC = () => {
 
   // Helpers globales para forzar fullscreen en el contenedor
   useEffect(() => {
+    installImmersiveKeyTraps();
     (window as any).__fsRoot = fsRootRef;
     (window as any).__enterFS = async () => {
-      const el = fsRootRef.current || document.getElementById("fs-root") || document.body;
-      try { await (el as any)?.requestFullscreen?.(); } catch { }
+      const el =
+        fsRootRef.current || document.getElementById("fs-root") || document.body;
+      try {
+        await (el as any)?.requestFullscreen?.();
+      } catch { }
     };
     (window as any).__exitFS = async () => {
-      try { await (document as any).exitFullscreen?.(); } catch { }
+      try {
+        await (document as any).exitFullscreen?.();
+      } catch { }
     };
     return () => {
       try {
@@ -564,102 +697,152 @@ const Game: React.FC = () => {
    * Reproduce un vídeo a pantalla completa y, al terminar o fallar, navega a Main.
    * - Se usa en la cinemática afterPortal. Pausa totalmente el juego debajo.
    */
-  const playCutsceneExclusive = useCallback(async (opts: {
-    src: string;
-    kind: "afterPortal" | "presentacion" | "capDos" | "video1";
-    fadeInMs?: number;
-    fadeOutMs?: number;
-    onEnd?: () => void;   // navegación/redirección si aplica
-  }) => {
-    const fadeInMs = Math.max(0, opts.fadeInMs ?? (CFG as any)?.endDoor?.fadeInMs ?? 220);
-    const fadeOutMs = Math.max(0, opts.fadeOutMs ?? (CFG as any)?.endDoor?.fadeOutMs ?? 220);
+  const playCutsceneExclusive = useCallback(
+    async (opts: {
+      src: string;
+      kind: "afterPortal" | "presentacion" | "capDos" | "video1";
+      fadeInMs?: number;
+      fadeOutMs?: number;
+      onEnd?: () => void; // navegación/redirección si aplica
+    }) => {
+      const fadeInMs = Math.max(
+        0,
+        opts.fadeInMs ?? (CFG as any)?.endDoor?.fadeInMs ?? 220
+      );
+      const fadeOutMs = Math.max(
+        0,
+        opts.fadeOutMs ?? (CFG as any)?.endDoor?.fadeOutMs ?? 220
+      );
 
-    // Bloquea juego debajo (render + audio + inputs)
-    try { document.exitPointerLock?.(); } catch { }
-    setOverlayActive(true);
-    try { useGameStore.getState().setPlaying(false); } catch { }
-    try { (audioManager as any)?.stopAll?.(); (audioManager as any).ctx?.suspend?.(); } catch { }
-    try { fsRootRef.current?.classList?.add("cutscene-active"); } catch { }
-
-    const nextUrl = (typeof (CFG as any)?.routes?.main === "string" && (CFG as any)?.routes?.main.trim())
-      ? (CFG as any).routes.main
-      : "/main";
-
-    // Backdrop negro
-    const backdrop = document.createElement("div");
-    backdrop.style.position = "fixed";
-    backdrop.style.inset = "0";
-    backdrop.style.background = "#000";
-    backdrop.style.zIndex = "999998";
-    backdrop.style.pointerEvents = "none";
-
-    // <video> superpuesto
-    const el = document.createElement("video");
-    el.src = opts.src;
-    el.playsInline = true;
-    el.autoplay = true;
-    el.controls = false;
-    el.loop = false;
-    el.muted = true; // mejor compat
-    el.preload = "auto";
-    el.style.position = "fixed";
-    el.style.inset = "0";
-    el.style.width = "100%";
-    el.style.height = "100%";
-    el.style.objectFit = "cover";
-    el.style.zIndex = "999999";
-    el.style.background = "#000";
-    el.style.opacity = "0";
-    el.style.transition = `opacity ${fadeInMs}ms ease`;
-
-    const cleanup = () => {
-      try { el.pause(); } catch { }
-      try { el.src = ""; el.load(); } catch { }
-      try { el.remove(); } catch { }
-      try { backdrop.remove(); } catch { }
-      activeVideoRef.current = null;
-      activeVideoKindRef.current = null;
-    };
-
-    const goNext = () => {
+      // Bloquea juego debajo (render + audio + inputs)
       try {
-        el.style.transition = `opacity ${fadeOutMs}ms ease`;
-        el.style.opacity = "0";
+        document.exitPointerLock?.();
       } catch { }
-      window.setTimeout(() => {
-        cleanup();
-        try { window.location.assign(nextUrl); } catch { (window as any).location.href = nextUrl; }
-      }, fadeOutMs);
-    };
-
-    document.body.appendChild(backdrop);
-    document.body.appendChild(el);
-    activeVideoRef.current = el;
-    activeVideoKindRef.current = opts.kind;
-
-    let safetyFired = false;
-    const safety = window.setTimeout(() => {
-      safetyFired = true;
-      goNext();
-    }, Math.max(4000, ((CFG as any)?.endDoor?.afterPortalTimeoutMs ?? 12000)));
-
-    const clearSafety = () => { try { window.clearTimeout(safety); } catch { } };
-
-    el.addEventListener("ended", () => { clearSafety(); if (!safetyFired) goNext(); });
-    el.addEventListener("error", () => { clearSafety(); if (!safetyFired) goNext(); });
-
-    try {
-      await el.play();
-      requestAnimationFrame(() => { try { el.style.opacity = "1"; } catch { } });
+      setOverlayActive(true);
       try {
-        el.muted = false;
-        el.volume = Math.max(0, Math.min(1, (CFG as any)?.audio?.cutsceneVolume ?? 1.0));
+        useGameStore.getState().setPlaying(false);
       } catch { }
-    } catch {
-      clearSafety();
-      goNext();
-    }
-  }, []);
+      try {
+        (audioManager as any)?.stopAll?.();
+        (audioManager as any).ctx?.suspend?.();
+      } catch { }
+      try {
+        fsRootRef.current?.classList?.add("cutscene-active");
+      } catch { }
+
+      const nextUrl =
+        typeof (CFG as any)?.routes?.main === "string" &&
+          (CFG as any)?.routes?.main.trim()
+          ? (CFG as any).routes.main
+          : "/main";
+
+      // Backdrop negro
+      const backdrop = document.createElement("div");
+      backdrop.style.position = "fixed";
+      backdrop.style.inset = "0";
+      backdrop.style.background = "#000";
+      backdrop.style.zIndex = "999998";
+      backdrop.style.pointerEvents = "none";
+
+      // <video> superpuesto
+      const el = document.createElement("video");
+      el.src = opts.src;
+      el.playsInline = true;
+      el.autoplay = true;
+      el.controls = false;
+      el.loop = false;
+      el.muted = true; // mejor compat
+      el.preload = "auto";
+      el.style.position = "fixed";
+      el.style.inset = "0";
+      el.style.width = "100%";
+      el.style.height = "100%";
+      el.style.objectFit = "cover";
+      el.style.zIndex = "999999";
+      el.style.background = "#000";
+      el.style.opacity = "0";
+      el.style.transition = `opacity ${fadeInMs}ms ease`;
+
+      const cleanup = () => {
+        try {
+          el.pause();
+        } catch { }
+        try {
+          el.src = "";
+          el.load();
+        } catch { }
+        try {
+          el.remove();
+        } catch { }
+        try {
+          backdrop.remove();
+        } catch { }
+        activeVideoRef.current = null;
+        activeVideoKindRef.current = null;
+      };
+
+      const goNext = () => {
+        try {
+          el.style.transition = `opacity ${fadeOutMs}ms ease`;
+          el.style.opacity = "0";
+        } catch { }
+        window.setTimeout(() => {
+          cleanup();
+          try {
+            window.location.assign(nextUrl);
+          } catch {
+            (window as any).location.href = nextUrl;
+          }
+        }, fadeOutMs);
+      };
+
+      document.body.appendChild(backdrop);
+      document.body.appendChild(el);
+      activeVideoRef.current = el;
+      activeVideoKindRef.current = opts.kind;
+
+      let safetyFired = false;
+      const safety = window.setTimeout(() => {
+        safetyFired = true;
+        goNext();
+      }, Math.max(4000, ((CFG as any)?.endDoor?.afterPortalTimeoutMs ?? 12000)));
+
+      const clearSafety = () => {
+        try {
+          window.clearTimeout(safety);
+        } catch { }
+      };
+
+      el.addEventListener("ended", () => {
+        clearSafety();
+        if (!safetyFired) goNext();
+      });
+      el.addEventListener("error", () => {
+        clearSafety();
+        if (!safetyFired) goNext();
+      });
+
+      try {
+        await el.play();
+        requestAnimationFrame(() => {
+          try {
+            el.style.opacity = "1";
+          } catch { }
+        });
+        try {
+          el.muted = false;
+          el.volume = Math.max(
+            0,
+            Math.min(1, (CFG as any)?.audio?.cutsceneVolume ?? 1.0)
+          );
+        } catch { }
+      } catch {
+        clearSafety();
+        goNext();
+      }
+    },
+    []
+  );
 
   const playAfterPortalAndNavigate = useCallback(async () => {
     const srcFromAssets = (ASSETS as any)?.video?.afterPortal as string | undefined;
@@ -677,7 +860,11 @@ const Game: React.FC = () => {
   // Exponer al watcher (tras pausar render)
   useEffect(() => {
     (window as any).__playAfterPortalImpl = playAfterPortalAndNavigate;
-    return () => { try { delete (window as any).__playAfterPortalImpl; } catch { } };
+    return () => {
+      try {
+        delete (window as any).__playAfterPortalImpl;
+      } catch { }
+    };
   }, [playAfterPortalAndNavigate]);
 
   // ENTER durante reproducción: corta audios seguidos y fuerza “ended”
@@ -689,21 +876,109 @@ const Game: React.FC = () => {
       if (!vid) return;
       e.preventDefault();
       e.stopPropagation();
-      try { vid.dispatchEvent(new Event("ended")); } catch { }
+      try {
+        vid.dispatchEvent(new Event("ended"));
+      } catch { }
     };
     window.addEventListener("keydown", onKeyEscToEnd, true);
     return () => window.removeEventListener("keydown", onKeyEscToEnd, true);
   }, [stopTrackedAudios]);
 
-  // ✅ Safety net: click en canvas → si no hay pointer lock, pedirlo
+  // DPR seguro y pausa por visibilidad
+  const pageVisible = usePageVisibility();
+  // Desktop: forzar nitidez mínima 1; móvil: permitir bajar un poco
+  const isMobile = matchMedia("(hover: none), (pointer: coarse)").matches;
+  const baseDpr = Math.min(2, window.devicePixelRatio || 1);
+  const hardDpr: [number, number] = isMobile ? [1.25, baseDpr] : [1.75, baseDpr];
+
+  // --- Resync explícito en cambios de fullscreen/viewport (corrige negro/FOV)
   useEffect(() => {
-    const c = document.querySelector(".game-canvas") as HTMLCanvasElement | null;
-    if (!c) return;
-    const onMouseDown = () => {
-      if (!document.pointerLockElement) requestPointerLock(c);
+    const resync = () => {
+      const gl = glRef.current;
+      const cam = mainCamRef.current;
+      const root = fsRootRef.current || document.getElementById("fs-root") || document.body;
+      const stage = document.getElementById("stage") || root;
+      if (!gl || !cam || !stage) return;
+      const rect = (stage as HTMLElement).getBoundingClientRect();
+      const w = Math.max(1, Math.round(rect.width));
+      const h = Math.max(1, Math.round(rect.height));
+      try {
+        gl.setSize(w, h, false);
+      } catch { }
+      cam.aspect = Math.max(1e-6, w / Math.max(1, h));
+      cam.updateProjectionMatrix();
     };
-    c.addEventListener("mousedown", onMouseDown);
-    return () => c.removeEventListener("mousedown", onMouseDown);
+    // Eventos que pueden alterar el viewport real
+    document.addEventListener("fullscreenchange", () => {
+      const fe = document.fullscreenElement as HTMLElement | null;
+      if (fe && fe.id !== "fs-root") {
+        // Sal y vuelve a entrar en #fs-root
+        (async () => {
+          try { await (document as any).exitFullscreen?.(); }
+          finally { (document.getElementById("fs-root") as any)?.requestFullscreen?.(); }
+        })();
+      }
+      resync();
+    });
+    // Safari iOS
+    // @ts-ignore
+    document.addEventListener("webkitfullscreenchange", resync);
+    // Cambios de layout fuera de fullscreen
+    window.addEventListener("resize", resync, { passive: true });
+    // iOS: barras del navegador cambian el viewport sin fullscreen
+    window.visualViewport?.addEventListener?.("resize", resync as any, { passive: true } as any);
+    return () => {
+      document.removeEventListener("fullscreenchange", resync);
+      // @ts-ignore
+      document.removeEventListener("webkitfullscreenchange", resync);
+      window.removeEventListener("resize", resync as any);
+      window.visualViewport?.removeEventListener?.("resize", resync as any);
+    };
+  }, []);
+
+  // Calcula escala global para encajar 1920x1080 dentro del viewport ===
+  useEffect(() => {
+    const DESIGN_W = CFG?.viewport?.design?.width ?? 1920;
+    const DESIGN_H = CFG?.viewport?.design?.height ?? 1080;
+    // publica dimensiones de diseño por si quieres cambiarlas en runtime
+    const r = document.documentElement;
+    try {
+      r.style.setProperty("--design-w", `${DESIGN_W}px`);
+      r.style.setProperty("--design-h", `${DESIGN_H}px`);
+    } catch { }
+    const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
+    const applyScale = () => {
+      const root = document.getElementById("fs-root") as HTMLElement | null;
+      const fe = document.fullscreenElement as HTMLElement | null;
+      const rect = (fe?.id === "fs-root" ? fe : root)?.getBoundingClientRect?.();
+      const rw = Math.max(1, Math.round(rect?.width ?? window.visualViewport?.width ?? window.innerWidth));
+      const rh = Math.max(1, Math.round(rect?.height ?? window.visualViewport?.height ?? window.innerHeight));
+      const strategy = CFG?.viewport?.strategy ?? "contain";
+      const raw = strategy === "cover"
+        ? Math.max(rw / DESIGN_W, rh / DESIGN_H)
+        : Math.min(rw / DESIGN_W, rh / DESIGN_H);
+      const minS = CFG?.viewport?.minScale ?? 0.10;
+      const maxS = CFG?.viewport?.maxScale ?? 1.25;
+      const clamped = clamp(raw, minS, maxS);
+      r.style.setProperty("--app-scale", String(clamped));
+    };
+    applyScale();
+    const onResize = () => applyScale();
+    const onFs = () => applyScale();
+    window.addEventListener("resize", onResize, { passive: true });
+    window.addEventListener("orientationchange", onResize, { passive: true });
+    window.visualViewport?.addEventListener?.("resize", onResize as any, { passive: true } as any);
+    document.addEventListener("fullscreenchange", onFs);
+    // @ts-ignore Safari
+    document.addEventListener("webkitfullscreenchange", onFs as any);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      window.visualViewport?.removeEventListener?.("resize", onResize as any);
+      document.removeEventListener("fullscreenchange", onFs);
+      // @ts-ignore
+      document.removeEventListener("webkitfullscreenchange", onFs as any);
+    };
   }, []);
 
   return (
@@ -712,164 +987,197 @@ const Game: React.FC = () => {
       <div
         id="fs-root"
         ref={fsRootRef}
-        style={{ position: "relative", width: "100%", height: "100%", isolation: "isolate" }}
       >
-        <HudEditOverlay exportLayout={() => useHudEditorStore.getState().exportLayout()} />
-
-        {/* Remontamos el Canvas cuando cambie la calidad para aplicar DPR/tex caps */}
-        <Canvas
-          className="game-canvas"
-          key={canvasKey}
-          dpr={[1, CFG.hud.ui.dprMax]}
-          camera={{ fov: 60, near: 0.01, far: 1000, position: [0, 2, 6] }}
-          gl={{
-            powerPreference: "high-performance",
-            antialias: false,
-            alpha: false,
-            stencil: false,
-            preserveDrawingBuffer: false,
-          }}
-          // Pausa cuando menú, overlay de carga o accessOverlay están activos
-          frameloop={menuOpen || overlayActive || accessVisible ? "never" : "always"}
-          onCreated={({ gl }) => {
-            const r = gl as THREE.WebGLRenderer;
-            const BASE = import.meta.env?.BASE_URL ?? "/";
-            try {
-              // Guardamos el "handle" si el init lo devuelve para liberarlo luego
-              ktx2HandleRef.current = initKTX2Loader(
-                r,
-                (CFG as any)?.decoders?.basisPath ?? (BASE + "basis/")
-              ) ?? null;
-            } catch { }
-            glRef.current = r;
-            r.shadowMap.enabled = false;
-            r.toneMapping = THREE.NoToneMapping;
-            (r as any).outputColorSpace = THREE.SRGBColorSpace;
-            r.toneMappingExposure = 1.15;
-            r.autoClear = false;
-            try { (window as any).__renderer = r; } catch { }
-
-            const canvas = r.domElement as HTMLCanvasElement;
-            try { if (!canvas.hasAttribute("tabindex")) canvas.setAttribute("tabindex", "-1"); } catch { }
-
-            const onLost = (e: Event) => { e.preventDefault(); setOverlayActive(true); };
-            const onRestored = () => { setOverlayActive(false); };
-
-            try {
-              canvas.addEventListener("webglcontextlost", onLost, false);
-              lostHandlerRef.current = onLost;
-              canvas.addEventListener("webglcontextrestored", onRestored, false);
-              restHandlerRef.current = onRestored;
-            } catch { }
-          }}
-        >
-          {/* PerformanceMonitor nos da señales para el modo Auto */}
-          <PerformanceMonitor
-            // @ts-ignore drei expone métricas en callbacks; lectura defensiva
-            onChange={(meta: any) => {
-              const fps = (meta?.fps ?? (1000 / (meta?.ms || 16.6))) as number;
-              Quality.feedAutoFpsSample(Math.max(1, Math.min(240, fps)));
-            }}
-          />
-          <AdaptiveDpr />
-
-          <FirstFramePing onReady={onFirstFrame} />
-          <CameraTap store={mainCamRef} />
-          <DevBridge />
-          <ContextLostShield />
-
-          <hemisphereLight
-            intensity={0.7}
-            color="#ffffff"
-            groundColor="#0b0d10"
-            onUpdate={(l) => {
-              l.layers.set(CFG.layers.WORLD);
-              l.layers.enable(CFG.layers.ENEMIES);
-              l.layers.enable(CFG.layers.PLAYER);
-              l.layers.enable(CFG.layers.WEAPON);
-              l.layers.enable(CFG.layers.SHOTS);
-            }}
-          />
-          <directionalLight
-            position={[8, 12, 6]}
-            intensity={1.0}
-            onUpdate={(l) => {
-              l.layers.set(CFG.layers.WORLD);
-              l.layers.enable(CFG.layers.ENEMIES);
-              l.layers.enable(CFG.layers.PLAYER);
-              l.layers.enable(CFG.layers.WEAPON);
-              l.layers.enable(CFG.layers.SHOTS);
-            }}
+        {/* Stage 1920x1080 escalado y centrado */}
+        <div id="stage" className="scaled-stage">
+          <HudEditOverlay
+            exportLayout={() => useHudEditorStore.getState().exportLayout()}
           />
 
-          <SceneRoot onReady={handleSceneReady} cityScale={CFG.city?.size ?? 1} />
+          {/* Remontamos el Canvas cuando cambie la calidad para aplicar DPR/tex caps */}
+          <Canvas
+            className="game-canvas"
+            key={canvasKey}
+            dpr={hardDpr} // Desktop >=1 para nitidez, móvil puede bajar un poco
+            camera={{ fov: 60, near: 0.01, far: 1000, position: [0, 2, 6] }}
+            gl={{
+              powerPreference: "high-performance",
+              antialias: false,
+              alpha: false,
+              stencil: false,
+              preserveDrawingBuffer: false,
+            }}
+            // Ahorro cuando menú/overlays/pestaña oculta: 'demand' (no 'never')
+            frameloop={
+              menuOpen || overlayActive || accessVisible || !pageVisible
+                ? "demand"
+                : "always"
+            }
+            resize={{ scroll: false, debounce: 0 }}
+            onCreated={({ gl, size }) => {
+              const r = gl as THREE.WebGLRenderer;
+              const BASE = import.meta.env?.BASE_URL ?? "/";
+              try {
+                // Guardamos el "handle" si el init lo devuelve para liberarlo luego
+                ktx2HandleRef.current =
+                  initKTX2Loader(
+                    r,
+                    (CFG as any)?.decoders?.basisPath ?? BASE + "basis/"
+                  ) ?? null;
+              } catch { }
+              glRef.current = r;
+              r.shadowMap.enabled = false;
+              r.toneMapping = THREE.NoToneMapping;
+              (r as any).outputColorSpace = THREE.SRGBColorSpace;
+              r.toneMappingExposure = 1.15;
+              r.autoClear = false;
+              try {
+                (window as any).__renderer = r;
+              } catch { }
 
-          {/* SOLO mostramos EndDoor cuando el store la habilita (5/5) */}
-          {cityInfoRef.current && endDoorEnabled && endDoorAt && endDoorLookAt && (
-            <EndDoor
-              center={cityInfoRef.current.center}
-              position={endDoorAt}
-              lookAt={endDoorLookAt}
-              groundY={groundYRef.current}
-              onReady={(m) => { endDoorMeshRef.current = m; }}
+              const canvas = r.domElement as HTMLCanvasElement;
+              try {
+                if (!canvas.hasAttribute("tabindex"))
+                  canvas.setAttribute("tabindex", "-1");
+              } catch { }
+
+              const onLost = (e: Event) => {
+                e.preventDefault();
+                setOverlayActive(true);
+              };
+              const onRestored = () => {
+                setOverlayActive(false);
+                try {
+                  // Usa el tamaño VISIBLE del stage escalado
+                  const stage = document.getElementById("stage") || document.getElementById("fs-root") || (r.domElement?.parentElement ?? document.body);
+                  const rect = (stage as HTMLElement).getBoundingClientRect();
+                  const w = Math.max(1, Math.round(rect.width));
+                  const h = Math.max(1, Math.round(rect.height));
+                  r.setPixelRatio(Math.max(1, Math.min(2, window.devicePixelRatio || 1)));
+                  r.setSize(w, h, false);
+                } catch { }
+              };
+
+              try {
+                canvas.addEventListener("webglcontextlost", onLost, false);
+                lostHandlerRef.current = onLost;
+                canvas.addEventListener("webglcontextrestored", onRestored, false);
+                restHandlerRef.current = onRestored;
+              } catch { }
+            }}
+          >
+            {/* PerformanceMonitor nos da señales para el modo Auto */}
+            <PerformanceMonitor
+              // @ts-ignore drei expone métricas en callbacks; lectura defensiva
+              onChange={(meta: any) => {
+                const fps = (meta?.fps ?? (1000 / (meta?.ms || 16.6))) as number;
+                Quality.feedAutoFpsSample(Math.max(1, Math.min(240, fps)));
+              }}
             />
-          )}
+            {/* AdaptiveDpr sólo en móvil para no bajar la nitidez en desktop */}
+            {isMobile && <AdaptiveDpr />}
 
-          {/* Watcher de salida (reproduce cinemática y redirige a Main.tsx) */}
-          <ExitWatcher
-            enabled={endDoorEnabled}
-            target={endDoorAt ?? null}
-            radius={(CFG as any)?.endDoor?.triggerRadius ?? 1.1}
-            onBeforeExit={() => {
-              // No limpiamos nada: reproducimos cinemática encima y luego navegamos.
-            }}
-          />
+            <FirstFramePing onReady={onFirstFrame} />
+            <CameraTap store={mainCamRef} />
+            <DevBridge />
 
-          <Player
-            env={envRef}
-            onShoot={onPlayerShoot}
-            debug={{ withWeapon: true, withHud: true }}
-            uiLocked={uiLocked}
-            getEnemyMeshes={() => dronesGetterRef.current?.() ?? []}
-            startAt={spawnAt ?? undefined}
-            startLookAt={spawnLookAt ?? undefined}
-          />
-
-          <LaserSystem
-            lasers={lasers}
-            setLasers={setLasers}
-            renderOrder={9000}
-            layer={CFG.layers.SHOTS}
-            hitTest={clipLine}
-          />
-
-          <Physics colliders={false} gravity={[0, -9.81, 0]}>
-            <Drones
-              envRef={envRef}
-              registerTargets={registerTargetsStable}
-              cityBoundsRef={cityInfoRef}
-              roadsMeshRef={roadsMeshRef}
-              wallsMeshRef={wallsMeshRef}
-              groundMeshRef={groundMeshRef}
-              groundYRef={groundYRef}
-              playerSpawnRef={playerSpawnRef}
-              endDoorRef={endDoorRef}
-              /* Bloquear spawn bajo mesa/ObjetoFinal */
-              forbidMeshRef={forbidMeshRef}
+            <hemisphereLight
+              intensity={0.7}
+              color="#ffffff"
+              groundColor="#0b0d10"
+              onUpdate={(l) => {
+                l.layers.set(CFG.layers.WORLD);
+                l.layers.enable(CFG.layers.ENEMIES);
+                l.layers.enable(CFG.layers.PLAYER);
+                l.layers.enable(CFG.layers.WEAPON);
+                l.layers.enable(CFG.layers.SHOTS);
+              }}
             />
-          </Physics>
+            <directionalLight
+              position={[8, 12, 6]}
+              intensity={1.0}
+              onUpdate={(l) => {
+                l.layers.set(CFG.layers.WORLD);
+                l.layers.enable(CFG.layers.ENEMIES);
+                l.layers.enable(CFG.layers.PLAYER);
+                l.layers.enable(CFG.layers.WEAPON);
+                l.layers.enable(CFG.layers.SHOTS);
+              }}
+            />
 
-          {/* HUD (layer HUD) */}
-          <LayeredComposer />
-        </Canvas>
+            <SceneRoot onReady={handleSceneReady} cityScale={CFG.city?.size ?? 1} />
 
-        <MissionCard />
-        <DestroyDroneCard />
-        <MenuInGame />
+            {/* SOLO mostramos EndDoor cuando el store la habilita (5/5) */}
+            {cityInfoRef.current && endDoorEnabled && endDoorAt && endDoorLookAt && (
+              <EndDoor
+                center={cityInfoRef.current.center}
+                position={endDoorAt}
+                lookAt={endDoorLookAt}
+                groundY={groundYRef.current}
+                onReady={(m) => {
+                  endDoorMeshRef.current = m;
+                }}
+              />
+            )}
+
+            {/* Watcher de salida (reproduce cinemática y redirige a Main.tsx) */}
+            <ExitWatcher
+              enabled={endDoorEnabled}
+              target={endDoorAt ?? null}
+              radius={(CFG as any)?.endDoor?.triggerRadius ?? 1.1}
+              onBeforeExit={() => {
+                // No limpiamos nada: reproducimos cinemática encima y luego navegamos.
+              }}
+            />
+
+            <Player
+              env={envRef}
+              onShoot={onPlayerShoot}
+              debug={{ withWeapon: true, withHud: true }}
+              uiLocked={uiLocked}
+              getEnemyMeshes={() => dronesGetterRef.current?.() ?? []}
+              startAt={spawnAt ?? undefined}
+              startLookAt={spawnLookAt ?? undefined}
+            />
+
+            <LaserSystem
+              lasers={lasers}
+              setLasers={setLasers}
+              renderOrder={9000}
+              layer={CFG.layers.SHOTS}
+              hitTest={clipLine}
+            />
+
+            {rapierReady && (
+              <Physics colliders={false} gravity={[0, -9.81, 0]}>
+                <Drones
+                  envRef={envRef}
+                  registerTargets={registerTargetsStable}
+                  cityBoundsRef={cityInfoRef}
+                  roadsMeshRef={roadsMeshRef}
+                  wallsMeshRef={wallsMeshRef}
+                  groundMeshRef={groundMeshRef}
+                  groundYRef={groundYRef}
+                  playerSpawnRef={playerSpawnRef}
+                  endDoorRef={endDoorRef}
+                  /* Bloquear spawn bajo mesa/ObjetoFinal */
+                  forbidMeshRef={forbidMeshRef}
+                />
+              </Physics>
+            )}
+
+            {/* HUD (layer HUD) */}
+            <LayeredComposer />
+          </Canvas>
+
+          <MissionCard />
+          <DestroyDroneCard />
+          <MenuInGame />
+        </div>
       </div>
     </div>
   );
-}
+};
 
 /* ========= Compositor de capas + cámara ortográfica de HUD ========= */
 function LayeredComposer() {
@@ -885,7 +1193,8 @@ function LayeredComposer() {
   useEffect(() => {
     (scene as any).userData.__uiCam = uiCam.current;
     return () => {
-      if ((scene as any).userData.__uiCam === uiCam.current) delete (scene as any).userData.__uiCam;
+      if ((scene as any).userData.__uiCam === uiCam.current)
+        delete (scene as any).userData.__uiCam;
     };
   }, [scene]);
 
@@ -962,11 +1271,21 @@ const ExitWatcher: React.FC<{
     if (!enabled || !target) return;
     const dist = camera.position.distanceTo(target);
     if (dist <= radius) {
-      try { window.dispatchEvent(new CustomEvent("enddoor-entered")); } catch { }
-      try { onBeforeExit?.(); } catch { }
+      try {
+        window.dispatchEvent(new CustomEvent("enddoor-entered"));
+      } catch { }
+      try {
+        onBeforeExit?.();
+      } catch { }
       didRef.current = true;
-      try { useGameStore.getState().setPlaying(false); } catch { }
-      setTimeout(() => { try { (window as any).__playAfterPortal?.(); } catch { } }, 0);
+      try {
+        useGameStore.getState().setPlaying(false);
+      } catch { }
+      setTimeout(() => {
+        try {
+          (window as any).__playAfterPortal?.();
+        } catch { }
+      }, 0);
     }
   });
   return null;

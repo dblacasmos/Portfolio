@@ -53,10 +53,11 @@ export const useInput = create<InputState>((set) => ({
         set((s) => (s.enableTouch === v ? s : { enableTouch: v })),
 
     setMove: (v, source = "keyboard") =>
-        set((s) => ({
-            move: typeof v === "function" ? (v as (p: Vec2) => Vec2)(s.move) : v,
-            lastSource: source,
-        })),
+        set((s) => {
+            const next = typeof v === "function" ? (v as (p: Vec2) => Vec2)(s.move) : v;
+            if (next.x === s.move.x && next.y === s.move.y) return s; // evita re-render inútil
+            return { move: next, lastSource: source };
+        }),
 
     addLook: (dx, dy, source = "keyboard") =>
         set((s) => ({
@@ -65,7 +66,7 @@ export const useInput = create<InputState>((set) => ({
         })),
 
     setButton: (k, v, source = "keyboard") =>
-        set(() => ({ [k]: v, lastSource: source } as any)),
+        set((s) => (s[k] === v ? s : ({ ...s, [k]: v, lastSource: source }))),
 
     resetLook: () => set({ look: { x: 0, y: 0 } }),
 }));

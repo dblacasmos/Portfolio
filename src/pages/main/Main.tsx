@@ -14,7 +14,11 @@ import { useRobotCursor } from "@/hooks/useRobotCursor";
 function BgVideo({ sources }: { sources: string[] }) {
   const [idx, setIdx] = useState(0);
   const src = sources[idx];
+  const reduced = typeof window !== "undefined"
+    ? window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+    : false;
 
+  if (reduced) return null;
   return (
     <video
       id="bgMain"
@@ -23,7 +27,7 @@ function BgVideo({ sources }: { sources: string[] }) {
       loop
       muted
       playsInline
-      preload="auto"
+      preload="metadata"
       onError={() => {
         // avanza al siguiente candidato si falla
         if (idx < sources.length - 1) setIdx((i) => i + 1);

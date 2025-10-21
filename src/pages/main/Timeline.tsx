@@ -16,6 +16,7 @@ import {
 import { hardCleanupBeforeMain } from "../../game/utils/cleanupMain";
 import { patchThreeIndex0AttributeNameWarning } from "@/game/utils/three/fixIndex0Attr";
 import { useRobotCursor } from "@/hooks/useRobotCursor";
+import { audioManager } from "@/game/utils/audio/audio";
 
 patchThreeIndex0AttributeNameWarning();
 
@@ -475,6 +476,21 @@ export default function Timeline() {
   // Acciones de UI
   const startGame = async () => {
     playClick();
+    // Asegura audio desbloqueado antes de navegar/inmersivo (Safari/Chrome móvil)
+    try {
+      await audioManager.ensureStarted?.();
+      // plan B por si el contexto sigue "suspended"
+      const ctx: AudioContext | undefined = (audioManager as any)?.ctx;
+      if (ctx && ctx.state !== "running") {
+        const resume = () => {
+          ctx.resume().catch(() => { });
+          window.removeEventListener("pointerdown", resume, true);
+          window.removeEventListener("keydown", resume, true);
+        };
+        window.addEventListener("pointerdown", resume, { once: true, capture: true });
+        window.addEventListener("keydown", resume, { once: true, capture: true });
+      }
+    } catch { }
     try {
       await purgeAppCaches();
     } catch { }
@@ -546,7 +562,7 @@ export default function Timeline() {
   const followVideoSrcs = useMemo(() => [ASSETS.video?.video1], []);
 
   return (
-    <div data-immersive-root className="fixed inset-0 overflow-hidden bg-black">
+    <div data-immersive-root className="fixed inset-0 overflow-hidden bg-black safe-stage">
       {/* ---------- Fase 1: CAP.2 ---------- */}
       <AnimatePresence initial={false}>
         {phase === "cap2" && (
@@ -790,7 +806,6 @@ function ControlsPanel({ onClose }: { onClose: () => void }) {
     ["Mirar", "Mouse"],
     ["Menú", "TAB"],
     ["Expandir/Contraer Radar", "M"],
-    ["FullScreen / NavScreen", "F"],
   ];
   const mid = Math.ceil(pairs.length / 2);
   const colA = pairs.slice(0, mid);
@@ -848,7 +863,7 @@ function AudioPanel({ onClose }: { onClose: () => void }) {
 
   const beepRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
-    const a = new Audio(ASSETS.audio.buttonSound);
+    const a = new Audio(ASSETS.audio?.buttonSound || "");
     a.preload = "auto";
     beepRef.current = a;
     return () => {
@@ -917,7 +932,7 @@ function AudioPanel({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
-      <audio ref={beepRef} src={ASSETS.audio.buttonSound} preload="auto" style={{ display: "none" }} />
+      <audio ref={beepRef} src={ASSETS.audio?.buttonSound || ""} preload="auto" style={{ display: "none" }} />
     </div>
   );
 }

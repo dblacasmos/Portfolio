@@ -476,15 +476,15 @@ const Drones: React.FC<DronesProps> = ({
     // Reproducir FX (vídeo + audio) con un pequeño retardo para sincronizar
     const playExplosionFx = (where: THREE.Vector3) => {
         const pos = where.clone();
+        const shotDur = (audioManager as any)?.getDuration?.(ASSETS.audio.shotLaser) ?? 0.3; // seg
         setTimeout(() => {
             const id = nextExplId.current++;
             setExplosions((prev) => [...prev, { id, pos }]);
             try {
-                const expDur = audioManager.getDuration(ASSETS.audio.explosionDron) ?? 1.2;
-                audioManager.squelchUrl(ASSETS.audio.shotLaser, expDur + 0.05);
+                // Reproduce la explosión DESPUÉS del disparo (sin solapar)
                 audioManager.playSfx(ASSETS.audio.explosionDron, 1.35);
             } catch { }
-        }, 100);
+        }, Math.max(100, Math.round(shotDur * 200 + 50)));
     };
 
     // Hit externo (desde Game.onPlayerShoot)
