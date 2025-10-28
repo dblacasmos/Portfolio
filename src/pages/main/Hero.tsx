@@ -11,14 +11,11 @@ import React, {
   useCallback,
 } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ASSETS } from "../../constants/assets";
-import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
-import { CFG } from "../../constants/config";
-import { isKTX2Ready } from "@/game/utils/three/ktx2/ktx2";
 
 /* ============ Util: DPR adaptativo ============ */
 function useAdaptiveDprRange(): [number, number] {
@@ -28,7 +25,7 @@ function useAdaptiveDprRange(): [number, number] {
   return lowMem ? [1, 1.25] : [1, 1.5];
 }
 
-/* ============ Sonido simple ============ */
+/* ============ Sonido simple (usa buttonSound por defecto) ============ */
 function useSound(url?: string, volume = 1) {
   const ref = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
@@ -203,10 +200,7 @@ function FuturisticPanel({
 
 /* ===================== Modelo ===================== */
 function RobotModel({ onBounds }: { onBounds: (box: THREE.Box3) => void }) {
-  const gltf = useDracoGLTF(ASSETS.models.robot, {
-    dracoPath: CFG.decoders.dracoPath,
-    meshopt: true,
-  });
+  const gltf = useGLTF(ASSETS.models.robot);
   const scene = (gltf as any)?.scene as THREE.Object3D | undefined;
   const inited = useRef(false);
 
@@ -263,6 +257,7 @@ export default function Hero() {
       } catch { }
       glRef.current = null;
       try { THREE.Cache.clear?.(); } catch { }
+      try { (useGLTF as any).clear?.(); } catch { }
     };
   }, []);
 
@@ -277,8 +272,10 @@ export default function Hero() {
     });
   };
 
-  // → TIMELINE: deja la media al propio Timeline (VRAM friendly)
-  const goToTimeline = () => navigate("/timeline");
+  // → TIMELINE: ahora deja toda la media al propio Timeline (VRAM friendly)
+  const goToTimeline = () => {
+    navigate("/timeline");
+  };
 
   const openBlog = () => { };
   const openTestimonials = () => { };
@@ -347,13 +344,5 @@ export default function Hero() {
   );
 }
 
-// Precarga del GLB con decoders
-const __preloadRobot = () => (useDracoGLTF as any).preload(ASSETS.models.robot, {
-  dracoPath: CFG.decoders.dracoPath,
-  meshopt: true,
-});
-if (isKTX2Ready()) {
-  __preloadRobot();
-} else if (typeof window !== "undefined") {
-  window.addEventListener("ktx2-ready", __preloadRobot, { once: true });
-}
+// Precarga del GLB
+useGLTF.preload(ASSETS.models.robot);

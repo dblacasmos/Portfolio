@@ -6,7 +6,8 @@
 ============================================================ */
 
 export const ASSETS = {
-    // Modelos (GLB ya optimizados con KTX2/Draco/Meshopt)
+
+    // Modelos
     models: {
         city: "/assets/models/CyberpunkCity.ktx2.glb",
         drone: "/assets/models/drone.ktx2.glb",
@@ -14,15 +15,27 @@ export const ASSETS = {
         weapon: "/assets/models/weapon.ktx2.glb",
     },
 
+    // Texturas e imágenes
+    textures: {
+        musgo: "/assets/textures/musgo.webp",
+        spawn: "/assets/textures/spawn.webp",
+    },
+
     img: {
         timeline: {
+            crosshair: "/assets/img/timeline/crosshair.webp",
             escudo: "/assets/img/timeline/escudo.webp",
             vida: "/assets/img/timeline/vida.webp",
             skySource: "/assets/img/timeline/skySource.webp",
         },
         ui: {
-            paneles: "/assets/ui/paneles.webp",
+            paneles: "/assets/ui/paneles.png",
         },
+    },
+
+    // Efectos
+    fx: {
+        impacts: "/assets/fx/impacts.webp",
     },
 
     // Audio
@@ -58,7 +71,6 @@ export const ASSETS = {
     // Decoders (GLTF/DRACO)
     decoders: {
         dracoPath: "/assets/draco/",
-        basisPath: "/assets/basis/",
     },
 } as const;
 

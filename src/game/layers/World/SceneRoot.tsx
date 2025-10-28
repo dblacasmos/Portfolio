@@ -17,12 +17,11 @@ export default function SceneRoot(props: Props) {
 
     const handleReady = React.useCallback(
         (info: CityReadyInfo) => {
-            onReady?.(info); // reenviamos cityRoot y masks
+            onReady?.(info); // ← reenvía cityRoot incluido
         },
         [onReady]
     );
 
-    // Centro y escala del domo basados en config
     const center = React.useMemo(() => new THREE.Vector2(0, 0), []);
     const radius = React.useMemo(
         () => 0.5 * Math.max(CFG.city.size.x, CFG.city.size.z) + ((CFG as any).dome?.margin ?? 0),

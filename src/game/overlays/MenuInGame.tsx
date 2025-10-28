@@ -52,7 +52,9 @@ function requestGamePointerLock() {
     } catch { }
 }
 function exitPointerLock() {
-    try { document.exitPointerLock?.(); } catch { }
+    try {
+        document.exitPointerLock?.();
+    } catch { }
 }
 
 /* ====================================
@@ -94,16 +96,24 @@ const MenuInGame: React.FC = () => {
     // Mantener sincronizado si el store cambia externamente
     useEffect(() => {
         if (storeAdsMode && storeAdsMode !== adsMode) setAdsMode(storeAdsMode);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [storeAdsMode]);
+    }, [storeAdsMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const applyAdsMode = (mode: AdsMode) => {
         setAdsMode(mode);
+        // Preferimos el store si existe
         if (setStoreAdsMode) {
-            try { setStoreAdsMode(mode); } catch { }
+            try {
+                setStoreAdsMode(mode);
+            } catch { }
         }
-        try { localStorage.setItem("game.adsMode", mode); } catch { }
-        try { window.dispatchEvent(new CustomEvent("ads-mode", { detail: { mode } })); } catch { }
+        // Persistencia básica
+        try {
+            localStorage.setItem("game.adsMode", mode);
+        } catch { }
+        // Evento para que otros sistemas (p.ej. Player) puedan reaccionar en vivo
+        try {
+            window.dispatchEvent(new CustomEvent("ads-mode", { detail: { mode } }));
+        } catch { }
         playClick();
     };
 
@@ -113,12 +123,16 @@ const MenuInGame: React.FC = () => {
     /* ---------- Audio preview ---------- */
     useEffect(() => {
         if (!showAudio) {
-            try { musicRef.current?.pause(); sfxRef.current?.pause(); } catch { }
+            try {
+                musicRef.current?.pause();
+                sfxRef.current?.pause();
+            } catch { }
             return;
         }
         if (!musicRef.current) {
             const a = new Audio(ASSETS.audio.musicCity);
-            a.loop = true; a.preload = "auto";
+            a.loop = true;
+            a.preload = "auto";
             musicRef.current = a;
         }
         if (!sfxRef.current) {
@@ -133,7 +147,11 @@ const MenuInGame: React.FC = () => {
                 musicRef.current.play().catch(() => { });
             }
         } catch { }
-        return () => { try { musicRef.current?.pause(); } catch { } };
+        return () => {
+            try {
+                musicRef.current?.pause();
+            } catch { }
+        };
     }, [showAudio, volumes.music]);
 
     const handleMusic = (v: number) => {
@@ -147,7 +165,10 @@ const MenuInGame: React.FC = () => {
         setVolumes({ sfx: v });
         if (sfxRef.current) {
             sfxRef.current.volume = Math.max(0, Math.min(1, v));
-            try { sfxRef.current.currentTime = 0; sfxRef.current.play().catch(() => { }); } catch { }
+            try {
+                sfxRef.current.currentTime = 0;
+                sfxRef.current.play().catch(() => { });
+            } catch { }
         }
     };
 
@@ -165,20 +186,26 @@ const MenuInGame: React.FC = () => {
         return () => window.removeEventListener("keydown", onKey, true);
     }, [menuOpen, setMenuOpen]);
 
-    /* ---- Si el menú se muestra, salimos de pointer lock ---- */
-    useEffect(() => { if (menuOpen) exitPointerLock(); }, [menuOpen]);
+    /* ---- Si el menú se muestra por cualquier vía, nos aseguramos de salir de pointer lock ---- */
+    useEffect(() => {
+        if (menuOpen) exitPointerLock();
+    }, [menuOpen]);
 
-    /* ---- Cursor visible mientras el menú esté abierto ---- */
+    /* ---- Cursor SIEMPRE visible mientras el menú esté abierto ---- */
     useEffect(() => {
         if (!menuOpen) return;
         try {
             document.body.classList.remove("hide-cursor");
             document.body.classList.add("show-cursor", "hud-cursor");
         } catch { }
-        return () => { try { document.body.classList.remove("show-cursor", "hud-cursor"); } catch { } };
+        return () => {
+            try {
+                document.body.classList.remove("show-cursor", "hud-cursor");
+            } catch { }
+        };
     }, [menuOpen]);
 
-    // ✅ Devoluciones tempranas después de los hooks
+    // ✅ IMPORTANTE: devoluciones tempranas VAN DESPUÉS de los hooks
     if (!menuOpen || editEnabled) return null;
 
     const onPrimary = () => {
@@ -192,10 +219,11 @@ const MenuInGame: React.FC = () => {
         nav("/main");
     };
 
-    // Cambiar mano y forzar render del Canvas
+    // Helper: cambiar mano + forzar un render del Canvas aunque el menú esté en frameloop="never"
     const applyHand = (h: "left" | "right") => {
         try { setHand(h); } catch { }
         try {
+            // invalida inmediatamente y de nuevo en el próximo frame por seguridad
             (window as any).__invalidate?.();
             requestAnimationFrame(() => { try { (window as any).__invalidate?.(); } catch { } });
         } catch { }
@@ -205,8 +233,11 @@ const MenuInGame: React.FC = () => {
     // Entrar a edición en el frame siguiente para evitar parpadeo
     const onStartEdit = () => {
         playClick();
-        setMenuOpen(false);
-        requestAnimationFrame(() => { setEditEnabled(true); });
+        setMenuOpen(false); // quita frameloop="never"
+        requestAnimationFrame(() => {
+            setEditEnabled(true); // muestra HudEditOverlay
+            // sin pointer lock: el editor necesita cursor libre
+        });
     };
 
     return (
@@ -227,7 +258,10 @@ const MenuInGame: React.FC = () => {
 
                         <Btn
                             variant="ghost"
-                            onClick={() => { playClick(); setShowCtrls((v) => !v); }}
+                            onClick={() => {
+                                playClick();
+                                setShowCtrls((v) => !v);
+                            }}
                             aria-expanded={showCtrls}
                         >
                             CONTROLES
@@ -235,7 +269,10 @@ const MenuInGame: React.FC = () => {
 
                         <Btn
                             variant="ghost"
-                            onClick={() => { playClick(); setShowAudio((v) => !v); }}
+                            onClick={() => {
+                                playClick();
+                                setShowAudio((v) => !v);
+                            }}
                             aria-expanded={showAudio}
                         >
                             AUDIO
@@ -243,12 +280,16 @@ const MenuInGame: React.FC = () => {
 
                         <Btn
                             variant="ghost"
-                            onClick={() => { playClick(); setShowOpts((v) => !v); }}
+                            onClick={() => {
+                                playClick();
+                                setShowOpts((v) => !v);
+                            }}
                             aria-expanded={showOpts}
                         >
                             OPCIONES
                         </Btn>
 
+                        {/* EDITAR INTERFACE fijo (gris) */}
                         <Btn variant="ghost" onClick={onStartEdit}>
                             EDITAR INTERFACE
                         </Btn>
@@ -282,7 +323,13 @@ const MenuInGame: React.FC = () => {
                                     <div className="col-span-2">- M = Expandir/Contraer Radar</div>
                                 </div>
                                 <div className="mt-4 flex justify-end gap-3">
-                                    <Btn variant="ghost" onClick={() => { playClick(); setShowCtrls(false); }}>
+                                    <Btn
+                                        variant="ghost"
+                                        onClick={() => {
+                                            playClick();
+                                            setShowCtrls(false);
+                                        }}
+                                    >
                                         CERRAR
                                     </Btn>
                                 </div>
@@ -312,7 +359,13 @@ const MenuInGame: React.FC = () => {
                                     />
                                 </div>
                                 <div className="mt-4 flex justify-between gap-3">
-                                    <Btn variant="ghost" onClick={() => { playClick(); setShowAudio(false); }}>
+                                    <Btn
+                                        variant="ghost"
+                                        onClick={() => {
+                                            playClick();
+                                            setShowAudio(false);
+                                        }}
+                                    >
                                         CERRAR
                                     </Btn>
                                 </div>
@@ -322,7 +375,7 @@ const MenuInGame: React.FC = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* OPCIONES */}
+                    {/* OPCIONES (mano + zoom ADS) */}
                     <AnimatePresence>
                         {showOpts && (
                             <motion.div
@@ -387,7 +440,13 @@ const MenuInGame: React.FC = () => {
                                 </div>
 
                                 <div className="mt-5 flex justify-end gap-3">
-                                    <Btn variant="ghost" onClick={() => { playClick(); setShowOpts(false); }}>
+                                    <Btn
+                                        variant="ghost"
+                                        onClick={() => {
+                                            playClick();
+                                            setShowOpts(false);
+                                        }}
+                                    >
                                         CERRAR
                                     </Btn>
                                 </div>

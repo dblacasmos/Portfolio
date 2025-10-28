@@ -4,12 +4,6 @@
 import React from "react";
 import { useThree } from "@react-three/fiber";
 
-/**
- * Cubre la pantalla cuando WebGL pierde el contexto.
- * - Escucha lost/restored en el canvas de R3F
- * - Intenta restaurar el estado de GL al recuperarse
- * - Tras ~1.5s sugiere recargar si no vuelve solo
- */
 export const ContextLostShield: React.FC = () => {
     const { gl } = useThree();
     const [lost, setLost] = React.useState(false);
@@ -20,8 +14,7 @@ export const ContextLostShield: React.FC = () => {
         const canvas = gl.domElement;
 
         const onLost = (e: Event) => {
-            // Evita el borrado automático del canvas
-            e.preventDefault();
+            e.preventDefault();                 // evita el auto-clear del navegador
             setLost(true);
             if (timerRef.current) window.clearTimeout(timerRef.current);
             timerRef.current = window.setTimeout(() => setSuggestReload(true), 1500);
@@ -30,16 +23,15 @@ export const ContextLostShield: React.FC = () => {
         const onRestored = () => {
             setLost(false);
             setSuggestReload(false);
-            // Reset de estado del renderer (blend/depth/cull…)
             try { gl.resetState(); } catch { }
             if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null; }
         };
 
-        // Importante: passive:false para que preventDefault funcione
+        // 👇 importante: passive:false para que preventDefault surta efecto
         canvas.addEventListener("webglcontextlost", onLost, { passive: false });
-        canvas.addEventListener("webglcontextrestored", onRestored as any, { passive: true });
+        canvas.addEventListener("webglcontextrestored", onRestored, { passive: true });
 
-        // Teclas de test (opcionales)
+        // (opcional) teclas de test: Ctrl+Alt+L / Ctrl+Alt+R
         const testKeys = (ev: KeyboardEvent) => {
             if (!(ev.ctrlKey && ev.altKey)) return;
             const ext: any = gl.getContext().getExtension("WEBGL_lose_context");
@@ -67,5 +59,3 @@ export const ContextLostShield: React.FC = () => {
         </div>
     );
 };
-
-export default ContextLostShield;

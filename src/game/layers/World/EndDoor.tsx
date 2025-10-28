@@ -132,7 +132,7 @@ export default function EndDoor({
         const video = document.createElement("video");
         video.src = videoUrl;
         video.crossOrigin = "anonymous";
-        video.loop = false;          // primera reproducción ÚNICA
+        video.loop = false;          // ▶ primera reproducción ÚNICA
         video.muted = true;
         video.playsInline = true;
         // Evita reservar red/memoria de más: sólo metadatos hasta que arranque.
@@ -384,15 +384,6 @@ export default function EndDoor({
         g.layers.set(layer);
         setLayerRecursive(g, layer);
 
-        // DEV: forzar visible si se desea (útil para ajustar sin gameplay)
-        const devForce = Boolean((CFG as any)?.endDoor?.devForceVisible);
-        if (devForce) {
-            try {
-                g.visible = true;
-                g.traverse?.((n: any) => n.visible = true);
-            } catch { }
-        }
-
         const y = Math.max(position.y, groundY + heightAboveGround);
         g.position.set(position.x, y, position.z);
 
@@ -403,16 +394,12 @@ export default function EndDoor({
         try {
             onReady?.(meshRef.current);
             (window as any).__endDoorMesh = meshRef.current;
-            (window as any).__endDoorGroup = groupRef.current;
         } catch { }
 
         return () => {
             try {
                 if ((window as any).__endDoorMesh === meshRef.current) {
                     delete (window as any).__endDoorMesh;
-                }
-                if ((window as any).__endDoorGroup === groupRef.current) {
-                    delete (window as any).__endDoorGroup;
                 }
             } catch { }
         };

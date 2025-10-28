@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
+import { AdaptiveDpr, PerformanceMonitor, useGLTF } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
 import Drones from "./layers/Enemies/Drones";
 import { CFG } from "../constants/config";
@@ -15,7 +15,7 @@ import { useGameStore } from "./utils/state/store";
 import { audioManager } from "./utils/audio/audio";
 import { useHudEditorStore } from "./utils/state/hudEditor";
 import Player from "./layers/Player/Player";
-import { ColliderEnvBVH } from "./utils/collision/colliderEnvBVH";
+import { ColliderEnvBVH } from "./utils/three/colliderEnvBVH";
 import { ContextLostShield } from "./overlays/ContextLostOverlay";
 import { LaserSystem, type Laser, makeLaser } from "./layers/Shots/Lasers";
 import SceneRoot from "./layers/World/SceneRoot";
@@ -30,7 +30,8 @@ import { patchThreeColorAlphaWarning } from "./utils/three/fixColorAlpha";
 import EndDoor from "./layers/World/EndDoor";
 import HudEditOverlay from "./overlays/HudEditOverlay";
 import Quality from "./graphics/quality";
-import { initKTX2Loader, disposeKTX2Loader } from "@/game/utils/three/ktx2/ktx2";
+import { initKTX2Loader } from "./utils/three/ktx2/ktx2";
+import { disposeObject3D } from "./utils/three/dispose";
 import { ASSETS } from "@/constants/assets";
 
 patchThreeColorAlphaWarning();
@@ -56,11 +57,12 @@ function DevBridge() {
         console.table({
           geometries: info?.memory?.geometries,
           textures: info?.memory?.textures,
-          programs: info?.programs?.length,
+          programs: info?.programs?.length
         });
       } catch { }
     };
     (window as any).__layers = CFG.layers;
+    // Debug helpers
     try { (window as any).useGameStore = useGameStore; } catch { }
     return () => {
       delete (window as any).__invalidate;
@@ -268,7 +270,7 @@ const Game: React.FC = () => {
     try { if (!isGlobalLoadingActive()) showGlobalLoadingOverlay(); } catch { }
   }, []);
 
-  // Precarga SFX críticos
+  // Precarga SFX críticos (disparo, recarga, pasos, explosión)
   useEffect(() => {
     const A = (ASSETS as any)?.audio || {};
     const urls = [A.shotLaser, A.reload, A.step, A.explosionDron].filter(Boolean);
@@ -277,6 +279,7 @@ const Game: React.FC = () => {
     } else {
       console.warn("[Game] Faltan URLs de SFX en ASSETS.audio (shotLaser, reload, step, explosionDron).");
     }
+    // Pequeño helper de debug manual en consola:
     (window as any).__testSfx = async () => {
       try { await audioManager.ensureStarted(); } catch { }
       for (const u of urls) { audioManager.playSfx(u, 1.0); await new Promise(r => setTimeout(r, 250)); }
@@ -284,7 +287,8 @@ const Game: React.FC = () => {
     return () => { try { delete (window as any).__testSfx; } catch { } };
   }, []);
 
-  // ---- Desbloqueo de audio (autoplay policies)
+  // ---- Desbloqueo de audio (autoplay policies) -------------------------
+  // Reanuda el AudioContext en el primer gesto y cuando vuelve el foco/pestaña.
   useEffect(() => {
     const ctx: AudioContext | undefined = (audioManager as any)?.ctx;
     if (!ctx) return;
@@ -293,6 +297,7 @@ const Game: React.FC = () => {
       try {
         if (ctx.state !== "running") {
           await ctx.resume();
+          // console.debug("[audio] ctx resumed:", ctx.state);
         }
       } catch { }
     };
@@ -326,7 +331,7 @@ const Game: React.FC = () => {
 
   useEffect(() => {
     return () => {
-      // No cierres el contexto (no es recuperable). Suspende o para fuentes.
+      // No cierres el contexto (no es recuperable). Suspende o simplemente para fuentes.
       try { (audioManager as any)?.stopAll?.(); (audioManager as any).ctx?.suspend?.(); } catch { }
       // Limpia listeners de contexto
       const gl = glRef.current;
@@ -335,9 +340,8 @@ const Game: React.FC = () => {
         if (canvas && lostHandlerRef.current) canvas.removeEventListener("webglcontextlost", lostHandlerRef.current);
         if (canvas && restHandlerRef.current) canvas.removeEventListener("webglcontextrestored", restHandlerRef.current as any);
       } catch { }
-      // Cierra KTX2/basis (workers + handle)
+      // Cierra KTX2 (si la implementación lo soporta)
       try { ktx2HandleRef.current?.dispose?.(); } catch { }
-      try { disposeKTX2Loader(); } catch { }
       // Finalmente, si el Canvas se va a desmontar del todo, cierra el renderer
       if (!gl) return;
       try { gl.dispose(); } catch { }
@@ -372,9 +376,18 @@ const Game: React.FC = () => {
     try { setGlobalLoadingProgress(1); } catch { }
   }, []);
 
-  // Activa EndDoor automáticamente cuando ya no quedan drones
+  // Reacciona al cierre del DestroyDroneCard #5
   useEffect(() => {
-    setEndDoorEnabled(!!allDronesDown);
+    const onDDCClose = (e: Event) => {
+      const idx = (e as CustomEvent).detail?.index;
+      if (idx === 5 && allDronesDown) {
+        // Mostramos la EndDoor en cuanto cierre la última tarjeta.
+        // (El vídeo arrancará con delay dentro de EndDoor.tsx)
+        try { setEndDoorEnabled(true); } catch { }
+      }
+    };
+    window.addEventListener("destroy-drone-card-closed", onDDCClose as any);
+    return () => window.removeEventListener("destroy-drone-card-closed", onDDCClose as any);
   }, [allDronesDown, setEndDoorEnabled]);
 
   useEffect(() => {
@@ -418,6 +431,7 @@ const Game: React.FC = () => {
       const st = useGameStore.getState();
       if (st.menuOpen) return;
       if (hasBlockingOverlay) return;
+      // Si algún overlay pide silenciar el ESC del menú, respétalo
       if ((window as any).__squelchMenuEsc) {
         try { e.preventDefault(); e.stopPropagation(); } catch { }
         return;
@@ -438,6 +452,7 @@ const Game: React.FC = () => {
       // Asegura el contexto de audio activo antes de cualquier SFX
       try { const ctx: AudioContext | undefined = (audioManager as any)?.ctx; if (ctx && ctx.state !== "running") ctx.resume(); } catch { }
 
+
       const getEnemies = dronesGetterRef.current;
       let firstHit: THREE.Intersection | null = null;
       if (getEnemies) {
@@ -455,6 +470,7 @@ const Game: React.FC = () => {
       const clippedTo = clipLine(from, to);
       setLasers((prev) => [...prev, makeLaser(from, clippedTo, color)]);
       if (firstHit?.object) {
+        // Si matamos al dron, su propia lógica en Drones.tsx lanzará vídeo+explosión con 100ms
         try { (window as any).hitDroneByMesh?.(firstHit.object); } catch { }
       }
     },
@@ -475,19 +491,22 @@ const Game: React.FC = () => {
   const activeVideoRef = useRef<HTMLVideoElement | null>(null);
   const activeVideoKindRef = useRef<null | "afterPortal" | "presentacion" | "capDos" | "video1">(null);
 
-  // --- Detiene selectivamente los audios “seguimiento ESC”
+  // --- Detiene selectivamente los audios "seguimiento ESC"
   const stopTrackedAudios = useCallback(() => {
     const A = (ASSETS as any)?.audio || {};
     const tryStop = (url?: string) => {
       if (!url) return;
       try {
+        // Preferimos una API específica si existe
         if (typeof (audioManager as any).stopUrl === "function") {
           (audioManager as any).stopUrl(url);
         } else if (typeof (audioManager as any).stop === "function") {
           (audioManager as any).stop(url);
         } else if (typeof (audioManager as any).squelchUrl === "function") {
+          // En su defecto: squelch inmediato (duración 0)
           (audioManager as any).squelchUrl(url, 0.001);
         } else {
+          // Fallback global si no hay API selectiva
           (audioManager as any)?.stopAll?.();
         }
       } catch { }
@@ -497,7 +516,7 @@ const Game: React.FC = () => {
     tryStop(A.capDos);
   }, []);
 
-  // Helpers globales para forzar fullscreen en el contenedor
+  // Helpers globales (opcionales) para forzar fullscreen en el contenedor
   useEffect(() => {
     (window as any).__fsRoot = fsRootRef;
     (window as any).__enterFS = async () => {
@@ -508,18 +527,16 @@ const Game: React.FC = () => {
       try { await (document as any).exitFullscreen?.(); } catch { }
     };
     return () => {
-      try {
-        delete (window as any).__fsRoot;
-        delete (window as any).__enterFS;
-        delete (window as any).__exitFS;
-      } catch { }
+      try { delete (window as any).__fsRoot; delete (window as any).__enterFS; delete (window as any).__exitFS; } catch { }
     };
   }, []);
 
   /**
    * Reproduce un vídeo a pantalla completa y, al terminar o fallar, navega a Main.
-   * - Se usa en la cinemática afterPortal. Pausa totalmente el juego debajo.
+   * - Intenta ASSETS.video.afterPortal, luego CFG.endDoor.afterPortalUrl y por último un fallback.
+   * - Libera recursos del <video> al finalizar.
    */
+  // ---------- Reproductor EXCLUSIVO de cutscenes (pausa totalmente el juego debajo) ----------
   const playCutsceneExclusive = useCallback(async (opts: {
     src: string;
     kind: "afterPortal" | "presentacion" | "capDos" | "video1";
@@ -530,18 +547,22 @@ const Game: React.FC = () => {
     const fadeInMs = Math.max(0, opts.fadeInMs ?? (CFG as any)?.endDoor?.fadeInMs ?? 220);
     const fadeOutMs = Math.max(0, opts.fadeOutMs ?? (CFG as any)?.endDoor?.fadeOutMs ?? 220);
 
-    // Bloquea juego debajo (render + audio + inputs)
+    // 0) Bloquea todo lo anterior del juego (render + audio + inputs)
     try { document.exitPointerLock?.(); } catch { }
-    setOverlayActive(true);
+    setOverlayActive(true); // → Canvas frameloop "never"
     try { useGameStore.getState().setPlaying(false); } catch { }
+    // Pausa/para el audio, pero NO cierres el contexto.
     try { (audioManager as any)?.stopAll?.(); (audioManager as any).ctx?.suspend?.(); } catch { }
+    // Opcional: ocultar visualmente el canvas para que solo se vea el vídeo
     try { fsRootRef.current?.classList?.add("cutscene-active"); } catch { }
 
-    const nextUrl = (typeof (CFG as any)?.routes?.main === "string" && (CFG as any)?.routes?.main.trim())
-      ? (CFG as any).routes.main
-      : "/main";
+    // 1) Monta el <video> superpuesto (exclusivo)
+    const urlCfg = (CFG as any)?.routes?.main;
+    const nextUrl = typeof urlCfg === "string" && urlCfg.trim().length ? urlCfg : "/main";
 
-    // Backdrop negro
+    const src = opts.src;
+
+    // Crea un contenedor negro por debajo para evitar parpadeos
     const backdrop = document.createElement("div");
     backdrop.style.position = "fixed";
     backdrop.style.inset = "0";
@@ -549,14 +570,15 @@ const Game: React.FC = () => {
     backdrop.style.zIndex = "999998";
     backdrop.style.pointerEvents = "none";
 
-    // <video> superpuesto
+    // Crea el <video> superpuesto
     const el = document.createElement("video");
-    el.src = opts.src;
+    el.src = src;
     el.playsInline = true;
     el.autoplay = true;
     el.controls = false;
     el.loop = false;
-    el.muted = true; // mejor compat
+    // Mejor compat: empieza muteado; si el navegador permite, desmutea tras play()
+    el.muted = true;
     el.preload = "auto";
     el.style.position = "fixed";
     el.style.inset = "0";
@@ -565,6 +587,7 @@ const Game: React.FC = () => {
     el.style.objectFit = "cover";
     el.style.zIndex = "999999";
     el.style.background = "#000";
+    // fundido de entrada
     el.style.opacity = "0";
     el.style.transition = `opacity ${fadeInMs}ms ease`;
 
@@ -578,6 +601,7 @@ const Game: React.FC = () => {
     };
 
     const goNext = () => {
+      // fundido de salida antes de navegar
       try {
         el.style.transition = `opacity ${fadeOutMs}ms ease`;
         el.style.opacity = "0";
@@ -588,16 +612,18 @@ const Game: React.FC = () => {
       }, fadeOutMs);
     };
 
+    // Inserta en DOM y reproduce
     document.body.appendChild(backdrop);
     document.body.appendChild(el);
     activeVideoRef.current = el;
     activeVideoKindRef.current = opts.kind;
 
+    // Si la reproducción falla o tarda demasiado, navegamos igualmente
     let safetyFired = false;
     const safety = window.setTimeout(() => {
       safetyFired = true;
       goNext();
-    }, Math.max(4000, ((CFG as any)?.endDoor?.afterPortalTimeoutMs ?? 12000)));
+    }, Math.max(4000, ((CFG as any)?.endDoor?.afterPortalTimeoutMs ?? 12000))); // 12s por defecto
 
     const clearSafety = () => { try { window.clearTimeout(safety); } catch { } };
 
@@ -606,17 +632,21 @@ const Game: React.FC = () => {
 
     try {
       await el.play();
+      // mostrar con fundido
       requestAnimationFrame(() => { try { el.style.opacity = "1"; } catch { } });
+      // Intento de desmutear si el navegador lo permite tras el primer frame
       try {
         el.muted = false;
         el.volume = Math.max(0, Math.min(1, (CFG as any)?.audio?.cutsceneVolume ?? 1.0));
       } catch { }
     } catch {
+      // Si no podemos auto-reproducir, navegamos sin bloquear
       clearSafety();
       goNext();
     }
-  }, []);
+  }, [setOverlayActive]);
 
+  // Implementación específica para AFTER PORTAL (exclusivo + navegar a Main)
   const playAfterPortalAndNavigate = useCallback(async () => {
     const srcFromAssets = (ASSETS as any)?.video?.afterPortal as string | undefined;
     const srcFromCfg = (CFG as any)?.endDoor?.afterPortalUrl as string | undefined;
@@ -630,22 +660,28 @@ const Game: React.FC = () => {
     });
   }, [playCutsceneExclusive]);
 
-  // Exponer al watcher (tras pausar render)
+  // Exponemos el impl del reproductor para que ExitWatcher pueda llamarlo tras pausar el render
   useEffect(() => {
     (window as any).__playAfterPortalImpl = playAfterPortalAndNavigate;
     return () => { try { delete (window as any).__playAfterPortalImpl; } catch { } };
   }, [playAfterPortalAndNavigate]);
 
-  // ESC durante reproducción: corta audios seguidos y fuerza “ended”
+  // ESC durante reproducción:
+  // - corta audios (introMusic, portal, capDos) si están activos
+  // - si hay un vídeo activo (presentacion, capDos, video1, afterPortal), dispara su 'ended'
   useEffect(() => {
     const onKeyEscToEnd = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       const vid = activeVideoRef.current;
+      // Siempre cortamos los audios seguidos por ESC si hay reproducción
       stopTrackedAudios();
-      if (!vid) return;
+      if (!vid) return; // no hay cutscene activa (solo audios)
       e.preventDefault();
       e.stopPropagation();
-      try { vid.dispatchEvent(new Event("ended")); } catch { }
+      try {
+        // Esto hace que se ejecute el flujo establecido (goNext / onEnd) del vídeo activo
+        vid.dispatchEvent(new Event("ended"));
+      } catch { }
     };
     window.addEventListener("keydown", onKeyEscToEnd, true);
     return () => window.removeEventListener("keydown", onKeyEscToEnd, true);
@@ -662,7 +698,7 @@ const Game: React.FC = () => {
           className="game-canvas"
           key={canvasKey}
           dpr={[1, CFG.hud.ui.dprMax]}
-          camera={{ fov: 60, near: 0.01, far: 1000, position: [0, 2, 6] }}
+          camera={{ fov: 70, near: 0.01, far: 1000, position: [0, 2, 6] }}
           gl={{
             powerPreference: "high-performance",
             antialias: false,
@@ -674,23 +710,19 @@ const Game: React.FC = () => {
           frameloop={menuOpen || overlayActive || accessVisible ? "never" : "always"}
           onCreated={({ gl }) => {
             const r = gl as THREE.WebGLRenderer;
-            const BASE = import.meta.env?.BASE_URL ?? "/";
-            try {
-              // Guardamos el "handle" si el init lo devuelve para liberarlo luego
-              ktx2HandleRef.current = initKTX2Loader(
-                r,
-                (CFG as any)?.decoders?.basisPath ?? (BASE + "basis/")
-              ) ?? null;
-            } catch { }
+            // Inicializa KTX2 y guarda handle (si lo devuelve) para liberar después.
+            try { ktx2HandleRef.current = initKTX2Loader(r, (CFG as any)?.decoders?.basisPath ?? "/assets/basis/") ?? null; } catch { }
             glRef.current = r;
             r.shadowMap.enabled = false;
             r.toneMapping = THREE.NoToneMapping;
             (r as any).outputColorSpace = THREE.SRGBColorSpace;
             r.toneMappingExposure = 1.15;
             r.autoClear = false;
+            // Exponer renderer para debug de memoria (__mem())
             try { (window as any).__renderer = r; } catch { }
 
             const canvas = r.domElement as HTMLCanvasElement;
+            // asegúrate de que puede recibir el foco (requisito en algunos navegadores para pointer-lock)
             try { if (!canvas.hasAttribute("tabindex")) canvas.setAttribute("tabindex", "-1"); } catch { }
 
             const onLost = (e: Event) => { e.preventDefault(); setOverlayActive(true); };
@@ -706,7 +738,7 @@ const Game: React.FC = () => {
         >
           {/* PerformanceMonitor nos da señales para el modo Auto */}
           <PerformanceMonitor
-            // @ts-ignore drei expone métricas en callbacks; lectura defensiva
+            // @ts-ignore drei expone métricas en callbacks; usamos una lectura defensiva
             onChange={(meta: any) => {
               const fps = (meta?.fps ?? (1000 / (meta?.ms || 16.6))) as number;
               Quality.feedAutoFpsSample(Math.max(1, Math.min(240, fps)));
@@ -743,7 +775,7 @@ const Game: React.FC = () => {
             }}
           />
 
-          <SceneRoot onReady={handleSceneReady} cityScale={CFG.city?.size ?? 1} />
+          <SceneRoot onReady={handleSceneReady} />
 
           {/* SOLO mostramos EndDoor cuando el store la habilita (5/5) */}
           {cityInfoRef.current && endDoorEnabled && endDoorAt && endDoorLookAt && (
@@ -762,7 +794,7 @@ const Game: React.FC = () => {
             target={endDoorAt ?? null}
             radius={(CFG as any)?.endDoor?.triggerRadius ?? 1.1}
             onBeforeExit={() => {
-              // No limpiamos nada: reproducimos cinemática encima y luego navegamos.
+              // NO limpiar nada antes: solo reproducir el afterPortal encima y luego redirigir.
             }}
           />
 
@@ -776,13 +808,7 @@ const Game: React.FC = () => {
             startLookAt={spawnLookAt ?? undefined}
           />
 
-          <LaserSystem
-            lasers={lasers}
-            setLasers={setLasers}
-            renderOrder={9000}
-            layer={CFG.layers.SHOTS}
-            hitTest={clipLine}
-          />
+          <LaserSystem lasers={lasers} setLasers={setLasers} renderOrder={9000} layer={CFG.layers.SHOTS} />
 
           <Physics colliders={false} gravity={[0, -9.81, 0]}>
             <Drones
@@ -807,7 +833,7 @@ const Game: React.FC = () => {
         <MissionCard />
         <DestroyDroneCard />
         <MenuInGame />
-      </div>
+      </div>{/* /#fs-root */}
     </div>
   );
 }
@@ -903,17 +929,26 @@ const ExitWatcher: React.FC<{
     if (!enabled || !target) return;
     const dist = camera.position.distanceTo(target);
     if (dist <= radius) {
+      // Notificar entrada en la puerta para que EndDoor pare el audio del portal
       try { window.dispatchEvent(new CustomEvent("enddoor-entered")); } catch { }
+      // Limpia recursos antes de navegar
       try { onBeforeExit?.(); } catch { }
       didRef.current = true;
       try { useGameStore.getState().setPlaying(false); } catch { }
-      setTimeout(() => { try { (window as any).__playAfterPortal?.(); } catch { } }, 0);
+      // Reproduce la cinemática "afterPortal" y luego navega a Main
+      try {
+        // micro delay para asegurarnos de que el canvas queda en pausa antes del overlay
+        setTimeout(() => {
+          try { (window as any).__playAfterPortal?.(); } catch { }
+        }, 0);
+      } catch { }
     }
   });
   return null;
 };
 
-// Bridge para reproducir la cinemática después de pausar el render
+// === Bridge ligero para invocar la cinemática desde ExitWatcher tras pausar render ===
+// (Esto evita problemas de política de reproducción en algunos navegadores al manipular DOM durante el frame)
 (() => {
   try {
     if (!(window as any).__playAfterPortal) {

@@ -104,7 +104,8 @@ canvas {
     @apply hover:cursor-robot-pointer;
   }
 
-  /* 🧷 Cuando el overlay ignora puntero, el target real es el <canvas>. */
+  /* 🧷 Cuando el overlay ignora puntero, el target real es el <canvas>.
+     Forzamos el mismo cursor también en el canvas. */
   body.show-cursor canvas,
   body.hud-cursor canvas,
   body.hud-editing canvas {

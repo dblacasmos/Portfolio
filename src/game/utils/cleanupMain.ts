@@ -1,8 +1,5 @@
-// =======================================
-// FILE: src/game/utils/cleanupMain.ts
-// =======================================
+// src/game/utils/cleanupMain.ts
 import type { WebGLRenderer } from "three";
-
 // Tip opcional para filtrar qué elementos NO se deben tocar
 export type KeepOpts = {
     keepIds?: string[];
@@ -47,26 +44,31 @@ function stopAllTTS() {
 }
 
 function stopHowlerAndAudioManager() {
-    // 1) Howler
+    // 1) Howler: intenta vía global; si no, import() dinámico (fire-and-forget)
     try {
         const w = window as any;
         if (w?.Howler) {
             w.Howler.stop?.();
             w.Howler.unload?.();
         } else {
+            // evita "no-floating-promises" si tienes esa regla
             void import("howler")
-                .then(({ Howler }) => { Howler?.stop?.(); Howler?.unload?.(); })
+                .then(({ Howler }) => {
+                    Howler?.stop?.();
+                    Howler?.unload?.();
+                })
                 .catch(() => { /* noop */ });
         }
     } catch { /* noop */ }
 
-    // 2) audioManager propio del juego
+    // 2) audioManager propio del juego: global o import() dinámico
     try {
         const w = window as any;
         const am = w?.audioManager ?? w?.__audioManager;
         if (am) {
             am.stopAll?.();
-            am.ctx?.suspend?.(); // no cerramos: close() es terminal
+            // Importante: no cerrar; 'close()' es terminal y causa "Cannot resume a closed AudioContext".
+            am.ctx?.suspend?.();
         } else {
             void import("@/game/utils/audio/audio")
                 .then((mod: any) => {
@@ -100,6 +102,8 @@ export function softCleanupMedia(opts: KeepOpts = {}) {
         const medias = Array.from(document.querySelectorAll("video, audio")) as HTMLMediaElement[];
         for (const m of medias) {
             if (shouldKeep(m, opts)) continue;
+            // El vídeo “overlay” de cutscene del Game tenía z-index muy alto y position:fixed
+            // lo cortamos también (a menos que esté ‘keep’).
             pauseAndReleaseMedia(m);
         }
     } catch { }
@@ -118,6 +122,7 @@ export function hardCleanupBeforeMain(opts: KeepOpts = {}) {
     // 2) WebGL renderers conocidos
     try {
         const w = window as any;
+        // nuestro renderer principal si quedó expuesto
         disposeThreeRenderer(w.__renderer as WebGLRenderer | undefined);
         if (w.__renderer) delete w.__renderer;
     } catch { }
@@ -131,7 +136,7 @@ export function hardCleanupBeforeMain(opts: KeepOpts = {}) {
         }
     } catch { }
 
-    // 4) vídeos superpuestos de cutscene
+    // 4) vídeos superpuestos de cutscene (posición fija y z-index alto)
     try {
         const overlays = Array.from(document.querySelectorAll("video")) as HTMLVideoElement[];
         for (const v of overlays) {

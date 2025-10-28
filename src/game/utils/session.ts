@@ -1,6 +1,7 @@
 /* =============================
-   FILE: src/game/utils/session.ts
-   ============================= */
+    FILE: src/game/utils/session.ts
+    ============================= */
+
 export const session = {
     hasActive(): boolean {
         try { return localStorage.getItem("gameSession") === "1"; }

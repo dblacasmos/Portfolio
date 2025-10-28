@@ -8,10 +8,18 @@ import { audioManager } from "./audio";
 
 /** Intenta parar/soltar audio para liberar hilos/memoria */
 export function destroyAudio() {
-    try { (audioManager as any)?.destroy?.(); } catch { }
-    try { (audioManager as any)?.stopAll?.(); } catch { }
     try {
-        // Cierra el AudioContext si es accesible (compat varios nombres)
+        // Si el manager ya expone destroy():
+        (audioManager as any)?.destroy?.();
+    } catch { }
+
+    try {
+        // Intenta parar fuentes conocidas:
+        (audioManager as any)?.stopAll?.();
+    } catch { }
+
+    try {
+        // Cierra el AudioContext si es accesible
         const ctx =
             (audioManager as any)?.audioCtx ??
             (audioManager as any)?.ctx ??

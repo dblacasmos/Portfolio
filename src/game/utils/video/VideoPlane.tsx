@@ -1,9 +1,10 @@
 /* ====================================
    FILE: src/game/utils/video/VideoPlane.tsx
    ==================================== */
+
 import * as THREE from "three";
 import React, { useEffect, useMemo, useRef } from "react";
-import { Quality } from "@/game/graphics/quality";
+import { QUALITY } from "@/game/utils/quality";
 import { pickVideoSrc, type SrcMap } from "@/game/utils/video/selectVideoSource";
 
 export type VideoPlaneProps = {
@@ -49,19 +50,24 @@ export const VideoPlane: React.FC<VideoPlaneProps> = ({
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const texRef = useRef<THREE.VideoTexture | null>(null);
 
-    // Modo actual (auto/low/medium/high) → preset fijo
-    const mode = Quality.get();
-    const fixedMode: "low" | "medium" | "high" = (mode === "auto" ? "medium" : mode);
-    const videoPrefs = Quality.presets[fixedMode].video;
+    // Obtiene las prefs del preset actual. Si no existe bandera global, usa "medium".
+    const presetKey = (typeof window !== "undefined" && (window as any).__QUALITY__) || "medium";
+    const pref = QUALITY[presetKey as keyof typeof QUALITY]?.video ?? QUALITY.medium.video;
 
-    // URL según preset
-    const chosen = useMemo(() => pickVideoSrc(srcSet, { ...videoPrefs }), [srcSet, videoPrefs]);
+    // Elige la URL de vídeo según el preset.
+    const chosen = useMemo(() => {
+        return pickVideoSrc(srcSet, { ...pref });
+    }, [srcSet, pref]);
 
-    // <video> + VideoTexture
+    // Crea y gestiona <video> + VideoTexture
     useEffect(() => {
+        // Limpia recursos previos si los hubiera
         const disposePrev = () => {
-            try { texRef.current?.dispose(); } catch { }
+            try {
+                texRef.current?.dispose();
+            } catch { }
             texRef.current = null;
+
             const v = videoRef.current;
             if (v) {
                 try { v.pause(); } catch { }
@@ -84,10 +90,10 @@ export const VideoPlane: React.FC<VideoPlaneProps> = ({
         videoRef.current = video;
 
         const tex = new THREE.VideoTexture(video);
-        tex.generateMipmaps = false; // menos VRAM y mejor rendimiento
+        tex.generateMipmaps = false; // ✅ menos VRAM y mejor rendimiento en vídeo
         tex.minFilter = THREE.LinearFilter;
         tex.magFilter = THREE.LinearFilter;
-        // Color space sRGB en builds modernas de three
+        // Color space sRGB para vídeos SDR (visualmente correcto en UI/overlays)
         (tex as any).colorSpace = (THREE as any).SRGBColorSpace ?? (THREE as any).sRGBEncoding;
 
         texRef.current = tex;
@@ -96,7 +102,7 @@ export const VideoPlane: React.FC<VideoPlaneProps> = ({
             onReady?.(video, tex);
             if (autoplay) {
                 video.play().catch(() => {
-                    /* móvil puede requerir gesto */
+                    /* en móvil puede requerir gesto del usuario */
                 });
             }
         };

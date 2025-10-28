@@ -1,34 +1,26 @@
-/* =====================================
+/* =========================================================
   FILE: src/game/layers/World/City.tsx
-======================================== */
+============================================================ */
 import { useEffect, useMemo, useRef } from "react";
-import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
+import { useGLTF } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { CFG } from "../../../constants/config";
+import { getKTX2 } from "@/game/utils/three/ktx2/ktx2";
 import { ASSETS } from "@/constants/assets";
-import { extractMergedMesh } from "../../utils/three/geometry/extractMergedMesh";
+import { extractMergedMesh } from "../../utils/three/extractMergedMesh";
 import { setLayerRecursive } from "@/game/utils/three/layers";
 import { optimizeStatic, tuneMaterials } from "../../utils/three/optimizeGLTF";
-import { isKTX2Ready } from "@/game/utils/three/ktx2/ktx2";
-import { prepareForMerge } from "@/game/utils/three/geometry/prepareForMerge";
 
-// BVH (idempotente) — carga dinámica para partir chunk
-let __bvhPatched = false;
-async function ensureBVH() {
-  if (__bvhPatched) return;
-  const { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } = await import('three-mesh-bvh');
-  (THREE.BufferGeometry as any).prototype.computeBoundsTree ??= computeBoundsTree;
-  (THREE.BufferGeometry as any).prototype.disposeBoundsTree ??= disposeBoundsTree;
-  (THREE.Mesh as any).prototype.raycast ??= acceleratedRaycast;
-  __bvhPatched = true;
-}
+// BVH (idempotente)
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from "three-mesh-bvh";
+(THREE.BufferGeometry as any).prototype.computeBoundsTree ??= computeBoundsTree;
+(THREE.BufferGeometry as any).prototype.disposeBoundsTree ??= disposeBoundsTree;
+(THREE.Mesh as any).prototype.raycast ??= acceleratedRaycast;
 
+const CITY_URL = ASSETS.models.city;
 const LAYER_WORLD = CFG.layers.WORLD;
-
-// cacheamos el merge una sola vez (evita hoisting de Rollup a imports con nombre)
-const MERGE = ((u: any) => u['mergeGeometries'] ?? u['mergeBufferGeometries'])(BufferGeometryUtils as any);
 
 export type CityReadyInfo = {
   groundMesh: THREE.Mesh | null;
@@ -39,7 +31,7 @@ export type CityReadyInfo = {
   groundY: number;
   height: number;
   cityRoot: THREE.Object3D | null;
-  // NUEVO: máscara de zonas prohibidas (mesa/ObjetoFinal)
+  // NUEVO:
   forbidMesh?: THREE.Mesh | null;
 };
 
@@ -49,41 +41,49 @@ type CityProps = {
 };
 
 /* ================= helpers (colliders + hull) ================= */
-
-// Geometría limpia para colisiones: non-indexed + sólo position
 function toColliderGeometry(src: THREE.BufferGeometry) {
-  const g = prepareForMerge(src);
-  Object.keys(g.attributes).forEach((n) => { if (n !== "position") (g as any).deleteAttribute(n); });
+  const base = src.clone();
+  const g = base.index ? base.toNonIndexed() : base;
+  Object.keys(g.attributes).forEach((n) => {
+    if (n !== "position") (g as any).deleteAttribute(n);
+  });
   g.computeBoundingBox?.();
   g.computeBoundingSphere?.();
   return g;
 }
-
 function mergeSafe(geoms: (THREE.BufferGeometry | null | undefined)[]) {
   const valid = geoms.filter(Boolean) as THREE.BufferGeometry[];
   if (!valid.length) return null;
   const cleaned = valid.map(toColliderGeometry);
-  const merged = MERGE(cleaned, false) as THREE.BufferGeometry | null;
+  const mergeFn =
+    (BufferGeometryUtils as any).mergeGeometries ??
+    (BufferGeometryUtils as any).mergeBufferGeometries;
+  const merged = mergeFn(cleaned, false) as THREE.BufferGeometry | null;
   const out = merged ?? cleaned[0].clone();
   out.computeBoundingBox?.();
   out.computeBoundingSphere?.();
   return out;
 }
-
 function dominantY(g?: THREE.BufferGeometry | null) {
   if (!g) return null;
   const pos = g.getAttribute("position") as THREE.BufferAttribute | undefined;
   if (!pos) return null;
-  const map = new Map<number, number>(), kf = 1000;
+  const map = new Map<number, number>(),
+    kf = 1000;
   for (let i = 0; i < pos.count; i++) {
     const k = Math.round(pos.getY(i) * kf);
     map.set(k, (map.get(k) ?? 0) + 1);
   }
-  let best: number | null = null, cnt = -1;
-  map.forEach((c, k) => { if (c > cnt) { cnt = c; best = k; } });
+  let best: number | null = null,
+    cnt = -1;
+  map.forEach((c, k) => {
+    if (c > cnt) {
+      cnt = c;
+      best = k;
+    }
+  });
   return best === null ? null : best / kf;
 }
-
 function convexHullXZ(points: THREE.Vector2[]): THREE.Vector2[] {
   if (points.length <= 3) return points.slice();
   const P = points.slice().sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
@@ -91,27 +91,41 @@ function convexHullXZ(points: THREE.Vector2[]): THREE.Vector2[] {
     (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
   const lower: THREE.Vector2[] = [];
   for (const p of P) {
-    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0)
+      lower.pop();
     lower.push(p);
   }
   const upper: THREE.Vector2[] = [];
   for (let i = P.length - 1; i >= 0; i--) {
     const p = P[i];
-    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0)
+      upper.pop();
     upper.push(p);
   }
-  upper.pop(); lower.pop();
+  upper.pop();
+  lower.pop();
   return lower.concat(upper);
 }
-
 function decimateXZFromPositions(pos: THREE.BufferAttribute, every = 6): THREE.Vector2[] {
   const out: THREE.Vector2[] = [];
-  for (let i = 0; i < pos.count; i += every) out.push(new THREE.Vector2(pos.getX(i), pos.getZ(i)));
+  for (let i = 0; i < pos.count; i += every)
+    out.push(new THREE.Vector2(pos.getX(i), pos.getZ(i)));
   return out;
+}
+function pointInPoly(p: THREE.Vector2, poly: THREE.Vector2[]) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const pi = poly[i],
+      pj = poly[j];
+    const intersect =
+      (pi.y > p.y) !== (pj.y > p.y) &&
+      p.x < ((pj.x - pi.x) * (p.y - pi.y)) / (pj.y - pi.y) + pi.x;
+    if (intersect) inside = !inside;
+  }
+  return inside;
 }
 
 /* ---------- PBR + sombras del modelo ---------- */
-// Ajustes rápidos por nombre para que el look PBR sea más creíble.
 function prepareShadowsAndPBR(root: THREE.Object3D) {
   const isGlassName = (n: string) => /glass|vidrio|crystal/i.test(n);
   const isMetalName = (n: string) => /metal|steel|alumin|iron|chrome/i.test(n);
@@ -170,33 +184,41 @@ const isForbidden = (m: THREE.Mesh) => {
   return n.includes("mesa") || n.includes("objetofinal") || n.includes("objectfinal");
 };
 
-// Extrae máscara unificada de zonas prohibidas aplicando transformaciones de mundo
 function extractForbiddenMesh(scene: THREE.Object3D) {
   const geos: THREE.BufferGeometry[] = [];
   scene.traverse((o: any) => {
-    if (!o?.isMesh || !isForbidden(o) || !o.geometry) return;
+    if (!o?.isMesh) return;
+    if (!isForbidden(o)) return;
+    if (!o.geometry) return;
     o.updateWorldMatrix(true, false);
     const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry).clone();
+    // aplicar transformaciones de mundo para una máscara precisa
     g.applyMatrix4(o.matrixWorld);
-    Object.keys(g.attributes).forEach((n) => { if (n !== "position") (g as any).deleteAttribute(n); });
+    // dejar solo position
+    Object.keys(g.attributes).forEach((n) => {
+      if (n !== "position") (g as any).deleteAttribute(n);
+    });
     g.computeBoundingBox?.();
     g.computeBoundingSphere?.();
     geos.push(g);
   });
   if (!geos.length) return null;
-  const geo = MERGE(geos, false) as THREE.BufferGeometry;
+  const mergeFn =
+    (BufferGeometryUtils as any).mergeGeometries ??
+    (BufferGeometryUtils as any).mergeBufferGeometries;
+  const geo = mergeFn(geos, false) as THREE.BufferGeometry;
   const mesh = new THREE.Mesh(
     geo,
     new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, depthTest: false })
   );
-  (mesh.geometry as any).computeBoundsTree?.();
+  (mesh.geometry as any).computeBoundsTree?.(); // BVH
   mesh.matrixAutoUpdate = false;
   mesh.updateMatrixWorld(true);
   mesh.layers.set(LAYER_WORLD);
   return mesh;
 }
 
-/* ======== Componente de debug (opcional) ======== */
+/* ======== Componente auxiliar para debug ======== */
 function ForbidDebug({ mesh }: { mesh: THREE.Mesh | null }) {
   if (!mesh) return null;
   return <primitive object={mesh} />;
@@ -205,12 +227,10 @@ function ForbidDebug({ mesh }: { mesh: THREE.Mesh | null }) {
 /* ========================================= */
 export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
   const rootRef = useRef<THREE.Group>(null!);
-  const { scene } = useDracoGLTF(ASSETS.models.city, {
-    dracoPath: CFG.decoders.dracoPath,
-    meshopt: true
-  }) as any;
+  const { gl } = useThree();
+  const { scene } = useGLTF(CITY_URL);
 
-  // ► Detectores básicos de piezas del modelo
+  // ► Suelo/carretera
   const isGround = (m: THREE.Mesh) => {
     const n = (m.name ?? "").toLowerCase();
     return (
@@ -225,6 +245,8 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
       n.includes("calzada")
     );
   };
+
+  // ► Paredes del modelo (si las hay)
   const isWallsStrict = (m: THREE.Mesh) => {
     const n = (m.name ?? "").toLowerCase();
     return n === "objectfinal" || n.includes("objectfinal");
@@ -236,25 +258,21 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     [scene]
   );
 
-  // Prepara capas, materiales y sombras una vez cargada la glTF
   useEffect(() => {
     if (!scene) return;
-    // asegura el parche BVH (lazy)
-    void ensureBVH();
     setLayerRecursive(scene, LAYER_WORLD);
     optimizeStatic(scene);
     tuneMaterials(scene);
     prepareShadowsAndPBR(scene);
   }, [scene]);
 
-  // Altura efectiva del suelo (con ajuste fino por config)
   const groundTopY = useMemo(() => {
     groundMeshRaw?.geometry.computeBoundingBox?.();
-    const base = dominantY(groundMeshRaw?.geometry) ?? groundMeshRaw?.geometry.boundingBox?.min.y ?? 0;
+    const base =
+      dominantY(groundMeshRaw?.geometry) ?? groundMeshRaw?.geometry.boundingBox?.min.y ?? 0;
     return base + (CFG.floorFill?.alignOffset ?? 0);
   }, [groundMeshRaw]);
 
-  // Hull XZ de la ciudad (se usa como apoyo para cálculos de centro/radio)
   const hull = useMemo(() => {
     let pts: THREE.Vector2[] = [];
     if (groundMeshRaw?.geometry) {
@@ -273,25 +291,28 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     return convexHullXZ(pts);
   }, [groundMeshRaw, scene]);
 
-  // AABB del modelo para centro y radio
-  const sceneBox = useMemo(() => new THREE.Box3().setFromObject(scene), [scene]);
+  const ringCenter = useMemo(
+    () =>
+      new THREE.Vector2(
+        hull.reduce((a, p) => a + p.x, 0) / hull.length,
+        hull.reduce((a, p) => a + p.y, 0) / hull.length
+      ),
+    [hull]
+  );
 
-  const ringCenter = useMemo(() => {
-    const c = sceneBox.getCenter(new THREE.Vector3());
-    return new THREE.Vector2(c.x, c.z);
-  }, [sceneBox]);
-
-  // Radio = 1/2 diagonal XZ del AABB
-  const radiusWall = useMemo(() => {
-    const width = sceneBox.max.x - sceneBox.min.x;
-    const depth = sceneBox.max.z - sceneBox.min.z;
-    return Math.sqrt(width * width + depth * depth) * 0.5;
-  }, [sceneBox]);
+  // Radio real hasta el borde (sin márgenes añadidos)
+  const radiusWall = useMemo(
+    () => hull.reduce((r, p) => Math.max(r, p.distanceTo(ringCenter)), 0),
+    [hull, ringCenter]
+  );
 
   const ringRadius = radiusWall;
   const offset = useMemo(() => new THREE.Vector3(-ringCenter.x, 0, -ringCenter.y), [ringCenter]);
 
-  // Alturas de paredes (cap superior opcional)
+  const sceneBox = useMemo(() => new THREE.Box3().setFromObject(scene), [scene]);
+
+  // ===== Altura de paredes =====
+  // 1) Altura “raw” como estaba
   const wallHeightRaw = useMemo(() => {
     const extra = CFG.bounds.heightExtra ?? 0;
     const hModel = Math.max(0, sceneBox.max.y - groundTopY);
@@ -299,94 +320,86 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     return Math.max(hModel + extra, minH);
   }, [sceneBox, groundTopY]);
 
-  // Tope visual para evitar paredes absurdamente altas
-  const WALL_MAX_HEIGHT = 1.2;
-  const wallHeight = useMemo(() => Math.min(WALL_MAX_HEIGHT, wallHeightRaw), [wallHeightRaw]);
+  // 2) Asegurar altura mínima de pared hasta un tope configurable (por defecto 3 m)
+  //    => groundTopY + height >= minTopY ⇒ height >= (minTopY - groundTopY)
+  const wallHeight = useMemo(() => {
+    const desiredTopY = ((CFG as any)?.bounds?.minTopY ?? 5.0);
+    const minHeightToReach = Math.max(0, desiredTopY - groundTopY);
+    return Math.max(wallHeightRaw, minHeightToReach);
+  }, [wallHeightRaw, groundTopY]);
 
-  /* ====== Pared perimetral RECTANGULAR (AABB) ======
-     La pared ocupa hacia el INTERIOR del AABB (controlado por wallThicknessIn).
-     Se puede empujar la caja hacia fuera con wallOffsetOut. */
+  /* ====== Pared perimetral RECTANGULAR (AABB) pegada al borde del modelo ====== */
   const wallRectGeo = useMemo(() => {
-    if (!scene) return null;
-    const b = new THREE.Box3().setFromObject(scene);
-    let minX = b.min.x, maxX = b.max.x, minZ = b.min.z, maxZ = b.max.z;
+    if (!hull.length) return null;
+    // AABB del perímetro XZ del modelo
+    let minX = +Infinity, maxX = -Infinity, minZ = +Infinity, maxZ = -Infinity;
+    for (const p of hull) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minZ) minZ = p.y;
+      if (p.y > maxZ) maxZ = p.y;
+    }
 
-    const thickIn = (CFG as any)?.bounds?.wallThicknessIn ?? (CFG as any)?.bounds?.wallThickness ?? 0.8;
-    const pushOut = Math.max(0, (CFG as any)?.bounds?.wallOffsetOut ?? 0.0);
+    // Paredes más anchas y desplazadas ligeramente hacia fuera
+    const thick = (CFG as any)?.bounds?.wallThickness ?? 0.8;
+    const pushOut = Math.max(0, (CFG as any)?.bounds?.wallOffsetOut ?? 0.6);
 
+    // 👉 Usamos la altura garantizada
     const height = wallHeight;
     const yMid = groundTopY + height * 0.5;
 
+    // Empujar ligeramente hacia fuera para “pegar” al borde exterior
     minX -= pushOut; maxX += pushOut; minZ -= pushOut; maxZ += pushOut;
     const width = (maxX - minX);
     const depth = (maxZ - minZ);
 
     const geos: THREE.BufferGeometry[] = [];
     // Norte (+Z)
-    geos.push(new THREE.BoxGeometry(width, height, thickIn).translate(minX + width * 0.5, yMid, maxZ - thickIn * 0.5));
+    geos.push(new THREE.BoxGeometry(width, height, thick).translate(minX + width * 0.5, yMid, maxZ + thick * 0.5));
     // Sur (-Z)
-    geos.push(new THREE.BoxGeometry(width, height, thickIn).translate(minX + width * 0.5, yMid, minZ + thickIn * 0.5));
+    geos.push(new THREE.BoxGeometry(width, height, thick).translate(minX + width * 0.5, yMid, minZ - thick * 0.5));
     // Este (+X)
-    geos.push(new THREE.BoxGeometry(thickIn, height, depth).translate(maxX - thickIn * 0.5, yMid, minZ + depth * 0.5));
+    geos.push(new THREE.BoxGeometry(thick, height, depth).translate(maxX + thick * 0.5, yMid, minZ + depth * 0.5));
     // Oeste (-X)
-    geos.push(new THREE.BoxGeometry(thickIn, height, depth).translate(minX + thickIn * 0.5, yMid, minZ + depth * 0.5));
+    geos.push(new THREE.BoxGeometry(thick, height, depth).translate(minX - thick * 0.5, yMid, minZ + depth * 0.5));
 
-    // “Techo” fino para evitar escapes por arriba
-    const ceilThick = Math.max(0.08, Math.min(0.2, thickIn * 0.25));
-    geos.push(
-      new THREE.BoxGeometry(width + thickIn * 2, ceilThick, depth + thickIn * 2)
-        .translate(minX + width * 0.5, groundTopY + height + ceilThick * 0.5, minZ + depth * 0.5)
-    );
+    // Techo invisible fino para evitar cualquier escape por arriba
+    const ceilThick = Math.max(0.08, Math.min(0.2, thick * 0.25));
+    geos.push(new THREE.BoxGeometry(width + thick * 2, ceilThick, depth + thick * 2)
+      .translate(minX + width * 0.5, groundTopY + height + ceilThick * 0.5, minZ + depth * 0.5));
 
-    return MERGE(geos, false) as THREE.BufferGeometry;
-  }, [scene, groundTopY, wallHeight]);
+    const mergeFn =
+      (BufferGeometryUtils as any).mergeGeometries ??
+      (BufferGeometryUtils as any).mergeBufferGeometries;
+    return mergeFn(geos, false) as THREE.BufferGeometry;
+  }, [hull, groundTopY, wallHeight]);
 
-  // “Safety floor” (visual y bloqueante) que no pisa los muros
+  // “Safety floor” fino por si quedaran agujeros del modelo fuera de la calzada
   const safetyFloorGeo = useMemo(() => {
     const b = new THREE.Box3().setFromObject(scene);
-    const margin = (CFG as any)?.bounds?.margin ?? 2;
-    const thickY = 0.2;
-    const thickIn = (CFG as any)?.bounds?.wallThicknessIn ?? (CFG as any)?.bounds?.wallThickness ?? 0.8;
-
-    const fullW = (b.max.x - b.min.x) + margin * 2;
-    const fullD = (b.max.z - b.min.z) + margin * 2;
-
-    const innerW = Math.max(0.1, fullW - thickIn * 2);
-    const innerD = Math.max(0.1, fullD - thickIn * 2);
-
-    const cx = (b.min.x + b.max.x) * 0.5;
-    const cz = (b.min.z + b.max.z) * 0.5;
-
-    return new THREE.BoxGeometry(innerW, thickY, innerD).translate(
-      cx,
-      groundTopY - thickY * 0.5,
-      cz
+    const margin = CFG.bounds.margin ?? 2,
+      thick = 0.2;
+    const w = b.max.x - b.min.x + margin * 2;
+    const d = b.max.z - b.min.z + margin * 2;
+    return new THREE.BoxGeometry(w, thick, d).translate(
+      (b.min.x + b.max.x) * 0.5,
+      groundTopY - thick * 0.5,
+      (b.min.z + b.max.z) * 0.5
     );
   }, [scene, groundTopY]);
 
-  const safetyFloorMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: 0x2e2e2e, roughness: 0.9, metalness: 0.0 }),
-    []
-  );
-
-  const safetyFloorVisual = useMemo<THREE.Mesh | null>(() => {
-    if (!safetyFloorGeo) return null;
-    const m = new THREE.Mesh(safetyFloorGeo, safetyFloorMat);
-    m.receiveShadow = true;
-    m.castShadow = false;
-    m.layers.set(LAYER_WORLD);
-    m.matrixAutoUpdate = false;
-    m.updateMatrixWorld(true);
-    return m;
-  }, [safetyFloorGeo, safetyFloorMat]);
-
-  // Colliders
+  //  Collider de paredes (modelo + rectángulo AABB)
   const wallsMesh = useMemo(() => {
     const geo = mergeSafe([wallsMeshRaw?.geometry, wallRectGeo]);
     if (!geo) return null;
     const m = new THREE.Mesh(
       geo,
-      new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide, depthWrite: false, depthTest: false })
+      new THREE.MeshBasicMaterial({
+        colorWrite: false,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        depthTest: false,
+      })
     );
     (m.geometry as any).computeBoundsTree?.();
     m.matrixAutoUpdate = false;
@@ -395,6 +408,7 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     return m;
   }, [wallsMeshRaw, wallRectGeo]);
 
+  //  Collider de suelo (con safety floor, para player/caídas)
   const groundMesh = useMemo(() => {
     const geo = mergeSafe([groundMeshRaw?.geometry, safetyFloorGeo]);
     if (!geo) return null;
@@ -409,6 +423,7 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     return m;
   }, [groundMeshRaw, safetyFloorGeo]);
 
+  //  Máscara de “suelo real” (sin safety floor) para proyecciones
   const roadsMesh = useMemo(() => {
     if (!groundMeshRaw?.geometry) return null;
     const geo = toColliderGeometry(groundMeshRaw.geometry);
@@ -423,30 +438,37 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     return m;
   }, [groundMeshRaw]);
 
+  // Máscara de “prohibidos” (mesa/ObjetoFinal)
   const forbidMesh = useMemo(() => extractForbiddenMesh(scene), [scene]);
 
-  // Debug opcional de zonas prohibidas
+  // Debug mesh preconstruido (narrowing correcto)
   const forbidDebugMesh = useMemo<THREE.Mesh | null>(() => {
     if (!forbidMesh) return null;
-    const mat = new THREE.MeshBasicMaterial({ color: 0x880000, transparent: true, opacity: 0.12 });
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x880000,
+      transparent: true,
+      opacity: 0.12,
+    });
     return new THREE.Mesh(forbidMesh.geometry, mat);
   }, [forbidMesh]);
 
-  // READY: informamos al resto del juego
+  // READY
   useEffect(() => {
     onReady({
       groundMesh: groundMesh ?? null,
       wallsMesh: wallsMesh ?? null,
       roadsMesh: roadsMesh ?? null,
-      center: new THREE.Vector2(0, 0), // el grupo se offsetea al montar
+      center: new THREE.Vector2(0, 0), // por el offset
       radius: ringRadius,
       groundY: groundTopY,
-      height: wallHeight,
+      height: wallHeight,          // ← reportamos la altura garantizada
       cityRoot: rootRef.current ?? null,
+      // NUEVO:
       forbidMesh: forbidMesh ?? null,
     });
   }, [groundMesh, wallsMesh, roadsMesh, ringRadius, groundTopY, wallHeight, forbidMesh, onReady]);
 
+  // Flag de debug no-constante para evitar "código inaccesible"
   const SHOW_FORBID_DEBUG = Boolean((CFG as any)?.debug?.showForbidMask);
 
   return (
@@ -454,20 +476,12 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
       <primitive object={scene} />
       {groundMesh && <primitive object={groundMesh} />}
       {wallsMesh && <primitive object={wallsMesh} />}
-      {safetyFloorVisual && <primitive object={safetyFloorVisual} />}
+
+      {/* Debug visual opcional de “prohibidos” */}
       {SHOW_FORBID_DEBUG ? <ForbidDebug mesh={forbidDebugMesh} /> : null}
     </group>
   );
 };
 
-// ► Preload consistente (usamos ASSETS.models.city como arriba)
-const __preloadCity = () => (useDracoGLTF as any).preload(ASSETS.models.city, {
-  dracoPath: CFG.decoders.dracoPath,
-  meshopt: true,
-});
-if (isKTX2Ready()) {
-  __preloadCity();
-} else if (typeof window !== "undefined") {
-  window.addEventListener("ktx2-ready", __preloadCity, { once: true });
-}
+(useGLTF as any).preload(CITY_URL, undefined, undefined, (l: any) => { try { l.setKTX2Loader?.(getKTX2()); } catch { } });
 export default City;

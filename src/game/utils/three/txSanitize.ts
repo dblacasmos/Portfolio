@@ -1,12 +1,6 @@
-// =======================================
-// FILE: src/game/utils/three/txSanitize.ts
-// =======================================
+// src/game/utils/three/txSanitize.ts
 import * as THREE from "three";
 
-/**
- * Ajustes seguros para texturas en materiales (especialmente KTX2).
- * No genera mipmaps en comprimidas; fuerza sRGB y filtros coherentes.
- */
 export function sanitizeMaterialTextures(mat: any) {
     const touch = (tx?: THREE.Texture | null) => {
         if (!tx) return;
@@ -14,7 +8,7 @@ export function sanitizeMaterialTextures(mat: any) {
         const hasMips = Array.isArray((tx as any).mipmaps) && (tx as any).mipmaps.length > 0;
 
         if (isCompressed) {
-            tx.generateMipmaps = false; // KTX2 ya trae mipmaps si los tiene
+            tx.generateMipmaps = false;                 // <- ¡nunca generes mipmaps en KTX2!
             tx.minFilter = hasMips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
             tx.magFilter = THREE.LinearFilter;
             (tx as any).anisotropy = 1;
@@ -34,7 +28,7 @@ export function sanitizeMaterialTextures(mat: any) {
     touch(mat.clearcoatNormalMap);
     touch(mat.transmissionMap);
 
-    // Limpieza de propiedades antiguas de three
+    // Warnings viejos de three
     if ((mat as any).index0AttributeName !== undefined) {
         delete (mat as any).index0AttributeName;
     }

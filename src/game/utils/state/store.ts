@@ -1,6 +1,7 @@
 // =============================
 // FILE: src/game/utils/state/store.ts
 // =============================
+
 import { create } from "zustand";
 import { CFG } from "@/constants/config";
 import { withAudioSync } from "./audioSync";
@@ -12,7 +13,6 @@ export type MissionCardMode = "intro" | "post-kill" | null;
 export type Hand = "right" | "left";
 export type AdsMode = "hold" | "toggle";
 export type AccessOverlayItem = { id: number; index: number; text: string };
-
 export type GameState = {
     // Flags UI/juego
     menuOpen: boolean;
@@ -84,7 +84,6 @@ export type GameState = {
 
     // Resets
     resetGame: () => void;
-    resetForNewRun: () => void; // ← faltaba en el tipo
 };
 
 // Helpers seguros con SSR
@@ -140,7 +139,7 @@ const initialFromConfig = () => ({
     endDoorEnabled: false,
     allDronesDown: false,
 
-    hand: readHand(), // LS/CFG
+    hand: readHand(), // Lee LS/CFG y normaliza
     adsMode: readAdsMode(),
 
     volumes: {
@@ -215,7 +214,7 @@ export const useGameStore = create<GameState>()(
         consumeBullet: () => {
             const m = get().ammoInMag;
             if (m > 0) {
-                // Sonido de disparo cuando se consume una bala
+                // Sonido de disparo SIEMPRE que se consuma una bala
                 try { audioManager.playSfx(ASSETS.audio.shotLaser, 0.75); } catch { }
                 set({ ammoInMag: m - 1 });
             }
@@ -241,6 +240,7 @@ export const useGameStore = create<GameState>()(
             const v: Hand = h === "left" ? "left" : "right";
             set({ hand: v });
             writeLocal("game.hand", v);
+            // Notificación opcional para UIs externas
             try { window.dispatchEvent(new CustomEvent("hand-changed", { detail: { hand: v } })); } catch { }
         },
 
@@ -248,7 +248,10 @@ export const useGameStore = create<GameState>()(
             const mode: AdsMode = m === "hold" ? "hold" : "toggle";
             set({ adsMode: mode });
             writeLocal("game.adsMode", mode);
-            try { window.dispatchEvent(new CustomEvent("ads-mode", { detail: { mode } })); } catch { }
+            // Notifica a quien lo necesite (p.ej. Player para cambiar entre hold/toggle en caliente)
+            try {
+                window.dispatchEvent(new CustomEvent("ads-mode", { detail: { mode } }));
+            } catch { }
         },
 
         // ---- Resets ----
@@ -269,9 +272,3 @@ export const useGameStore = create<GameState>()(
             }),
     }))
 );
-
-// DEBUG rápido en consola
-if (typeof window !== "undefined") {
-    (window as any).gameState = () => useGameStore.getState();
-    (window as any).setGame = (p: Partial<GameState>) => useGameStore.setState(p);
-}
