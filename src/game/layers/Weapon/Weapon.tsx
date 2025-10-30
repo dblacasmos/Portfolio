@@ -1,13 +1,14 @@
 // ====================================
 // FILE: src/game/layers/Weapon/Weapon.tsx
 // ====================================
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useMemo } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
 import { setLayerRecursive } from "../../utils/three/layers";
-import { tuneMaterials } from "../../utils/three/tuneMaterials";
+import { tuneMaterials } from "../../utils/textures/tuneMaterials";
+import { useGameStore } from "../../utils/state/store";
 
 export type WeaponAPI = { flash: () => void };
 export type WeaponProps = { hand?: "right" | "left" };
@@ -16,7 +17,14 @@ export const Weapon = forwardRef<WeaponAPI, WeaponProps>(function WeaponImpl(
     { hand = "right" },
     ref
 ) {
-    const url = CFG.weapon.modelUrl;
+    // ► NUEVO: arma actual desde el store (con fallback a CFG.weapon)
+    const currentWeaponKey = useGameStore((s) => s.currentWeapon);
+    const weaponCfg = useMemo(() => {
+        const cat = CFG.weapons as Record<string, any>;
+        return cat[currentWeaponKey] ?? { modelUrl: CFG.weapon.modelUrl };
+    }, [currentWeaponKey]);
+
+    const url = weaponCfg.modelUrl ?? CFG.weapon.modelUrl;
     const { scene } = useGLTF(url) as any;
 
     const rootRef = useRef<THREE.Group>(null!);

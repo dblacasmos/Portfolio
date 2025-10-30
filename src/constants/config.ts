@@ -9,6 +9,11 @@ export const CFG = {
     // ===========================
     gameplay: {
         dronesTotal: 5,
+
+        // ► NUEVO: valores iniciales centralizados
+        playerInitialHealth: 100,
+        playerInitialShield: 100,
+
         playerMagSize: 20,
         playerAmmoTotal: 500,
 
@@ -106,7 +111,7 @@ export const CFG = {
     },
 
     // ===========================
-    // ARMA EN OVERLAY
+    // ARMA EN OVERLAY (por compat)
     // ===========================
     weapon: {
         screenPos: [0.64, -0.10] as [number, number],
@@ -121,6 +126,21 @@ export const CFG = {
         sway: { amp: 0.02 },
         modelUrl: ASSETS.models.weapon,
     },
+
+    // ===========================
+    // ► NUEVO: catálogo de armas seleccionables
+    // ===========================
+    weapons: {
+        laserGun: {
+            modelUrl: ASSETS.models.weapon,  // reutiliza el actual
+            fireRate: 0.15,                  // seg entre disparos (informativo por ahora)
+            damage: 10,
+            ammoPerMag: 20,
+            sfxShot: ASSETS.audio.shotLaser,
+        },
+        // Ejemplo para futuro:
+        // plasmaGun: { modelUrl: ASSETS.models.plasmaGun, fireRate: 0.5, damage: 25, ammoPerMag: 6, sfxShot: ASSETS.audio.plasmaShot }
+    } as const,
 
     // ===========================
     // JUGADOR / SPAWN
@@ -148,6 +168,7 @@ export const CFG = {
         // (legacy – no se usa aquí, lo mantengo por compatibilidad)
         spawnForwardFromSpawnTex: 8,
     },
+
     // ===========================
     // RECARGA / MUNICIÓN
     // ===========================
@@ -342,8 +363,6 @@ export const CFG = {
                 gridCells: 16,
                 gridLineWidthPx: 1.0,
                 enemyPointSizePx: 11,
-                // poiPointSizePx: 6,
-                // ringThickness: 0.06,
             },
 
             layoutOverrides: {
@@ -467,7 +486,7 @@ export const CFG = {
     },
 
     // ===========================
-    // DRONES
+    // DRONES (parámetros específicos actuales)
     // ===========================
     drones: {
         size: 0.1,
@@ -482,8 +501,36 @@ export const CFG = {
             { x: 4.5, z: -1.0 },  // 2º carretera principal
             { x: 11.5, z: -1.1 },  // 1º más cercano
         ],
-
     },
+
+    // ===========================
+    // ► NUEVO: catálogo de tipos de enemigo
+    // ===========================
+    enemies: {
+        drone: {
+            modelUrl: ASSETS.models.drone,
+            health: 3,
+            speed: 5.6,
+            behavior: "flying" as const,
+        },
+        // Ejemplo futuro:
+        // soldier: { modelUrl: ASSETS.models.soldier, health: 5, speed: 1.0, behavior: "ground" as const }
+    } as const,
+
+    // ===========================
+    // ► NUEVO: definición de niveles
+    // ===========================
+    levels: [
+        {
+            name: "City",
+            modelUrl: ASSETS.models.city,
+            enemies: [
+                { type: "drone", count: 5 },
+            ],
+            // Punto de salida por defecto: Game calcula spawn real con el BVH
+            playerStart: { position: [0, 1.6, 6], lookAt: [0, 1.6, 0] },
+        },
+    ] as const,
 
     // ===========================
     // MODELOS / RUTAS

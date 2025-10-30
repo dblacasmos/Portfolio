@@ -4,7 +4,7 @@
 
 import * as THREE from "three";
 import React, { useEffect, useMemo, useRef } from "react";
-import { QUALITY } from "@/game/utils/quality";
+import { QUALITY } from "@/game/graphics/quality";
 import { pickVideoSrc, type SrcMap } from "@/game/utils/video/selectVideoSource";
 
 export type VideoPlaneProps = {

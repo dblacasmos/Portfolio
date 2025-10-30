@@ -33,8 +33,27 @@ export default tseslint.config([
       '@typescript-eslint/consistent-type-imports': ['warn', { prefer: 'type-imports' }],
     },
   },
+
+  // Tests unitarios / de componentes
   {
     files: ['**/*.test.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}'],
     rules: { '@typescript-eslint/no-explicit-any': 'off' },
+  },
+
+  // ✅ Override para e2e (Playwright)
+  {
+    files: ['e2e/**/*.{ts,tsx}'],
+    // Si quieres añadir reglas específicas Playwright:
+    // plugins: { playwright: (await import('eslint-plugin-playwright')).default },
+    // rules: { ...require('eslint-plugin-playwright').configs.recommended.rules },
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
   },
 ])

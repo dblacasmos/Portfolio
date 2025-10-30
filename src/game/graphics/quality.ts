@@ -24,11 +24,27 @@ function setCfg<T extends object>(obj: T, keyPath: (string | number | symbol)[],
 
 export type QualityMode = "low" | "medium" | "high" | "auto";
 
+// ---- Preferencias de vídeo para selección de fuente ----
+export type VideoPrefs = { maxWidth: number; maxHeight: number; prefer?: string[] };
+
+// Tabla de presets para R3F (render / HUD)
 type Preset = { dprMax: number; maxTextureSize: number };
 const PRESETS: Record<Exclude<QualityMode, "auto">, Preset> = {
     low: { dprMax: 1.0, maxTextureSize: 1024 },
     medium: { dprMax: 1.1, maxTextureSize: 2048 },
     high: { dprMax: 1.5, maxTextureSize: 4096 },
+};
+
+/**
+ * Presets de vídeo por calidad. Incluyen maxWidth y maxHeight,
+ * y una lista opcional de etiquetas preferidas para `pickVideoSrc`.
+ * Ajusta los valores a tu catálogo real si lo necesitas.
+ */
+export const QUALITY: Record<QualityMode, { video: VideoPrefs }> = {
+    low: { video: { maxWidth: 1280, maxHeight: 720, prefer: ["720p", "sd", "low"] } },
+    medium: { video: { maxWidth: 1920, maxHeight: 1080, prefer: ["1080p", "hd", "medium"] } },
+    high: { video: { maxWidth: 3840, maxHeight: 2160, prefer: ["2160p", "uhd", "4k", "high"] } },
+    auto: { video: { maxWidth: 1920, maxHeight: 1080, prefer: ["1080p", "hd", "medium"] } },
 };
 
 const STORAGE_KEY = "game.qualityMode";
@@ -53,7 +69,7 @@ export function getQuality(): QualityMode {
 export function setQuality(mode: QualityMode) {
     current = mode;
     try { localStorage.setItem(STORAGE_KEY, mode); } catch { }
-    if (mode !== "auto") applyPreset(PRESETS[mode]);
+    if (mode !== "auto") applyPreset(PRESETS[mode as Exclude<QualityMode, "auto">]);
     // Avisamos al resto del juego (Game.tsx escucha esto para remount suave del Canvas)
     try { window.dispatchEvent(new CustomEvent("quality-changed", { detail: { mode } })); } catch { }
 }
@@ -112,7 +128,7 @@ export function feedAutoFpsSample(fps: number) {
 
 // Al cargar, aplicamos preset si no es auto
 if (current !== "auto") {
-    applyPreset(PRESETS[current]);
+    applyPreset(PRESETS[current as Exclude<QualityMode, "auto">]);
 }
 
 export const Quality = {

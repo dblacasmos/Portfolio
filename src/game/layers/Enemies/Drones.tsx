@@ -9,7 +9,7 @@ import { CFG } from "../../../constants/config";
 import { useGameStore } from "../../utils/state/store";
 import { ASSETS } from "@/constants/assets";
 import { audioManager } from "../../utils/audio/audio";
-import type { ColliderEnvBVH } from "../../utils/three/colliderEnvBVH";
+import type { ColliderEnvBVH } from "../../utils/collision/colliderEnvBVH";
 
 /* ---------- Tipos ---------- */
 type WithDroneIndex = { userData: { __droneIndex?: number } };
@@ -37,11 +37,12 @@ type Spawn = { pos: THREE.Vector3; box: THREE.Box3; alive: boolean };
 type ExplosionFx = { id: number; pos: THREE.Vector3 };
 
 /* ---------- Parámetros ---------- */
-const WANT_COUNT = 5;           // nº de drones
+// Centralizado: número de drones desde config (una sola fuente de verdad)
+const WANT_COUNT = Math.max(0, CFG.gameplay.dronesTotal);
 const INNER_MARGIN = 1.0;       // margen contra paredes (para sectores AABB)
 const CLEAR_RADIUS = 0.05;      // separación respecto a paredes verticales
-const TARGET_ALT = 1;         // altura de vuelo sobre la calzada
-const UP_CLEARANCE = 1.2;         // espacio libre por arriba
+const TARGET_ALT = 1;           // altura de vuelo sobre la calzada
+const UP_CLEARANCE = 1.2;       // espacio libre por arriba
 
 // Nudging hacia el centro si hay pared cerca
 const NUDGE_STEP = 0.4;         // metros por empuje

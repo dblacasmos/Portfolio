@@ -13,6 +13,7 @@ export type MissionCardMode = "intro" | "post-kill" | null;
 export type Hand = "right" | "left";
 export type AdsMode = "hold" | "toggle";
 export type AccessOverlayItem = { id: number; index: number; text: string };
+
 export type GameState = {
     // Flags UI/juego
     menuOpen: boolean;
@@ -36,6 +37,9 @@ export type GameState = {
     // Preferencias
     hand: Hand;
     adsMode: AdsMode;
+
+    // ► NUEVO: arma actual seleccionada
+    currentWeapon: keyof typeof CFG.weapons;
 
     // Audio
     volumes: AudioVolumes;
@@ -82,8 +86,12 @@ export type GameState = {
     setHand: (h: Hand) => void;
     setAdsMode: (m: AdsMode) => void;
 
+    // ► NUEVO: selector de arma
+    setCurrentWeapon: (key: keyof typeof CFG.weapons) => void;
+
     // Resets
     resetGame: () => void;
+    resetForNewRun: () => void;
 };
 
 // Helpers seguros con SSR
@@ -117,6 +125,11 @@ const readAdsMode = (): AdsMode => {
     return v === "hold" ? "hold" : "toggle";
 };
 
+const readWeapon = (): keyof typeof CFG.weapons => {
+    const ls = (readLocal("game.weapon") || "").toString();
+    return (ls in CFG.weapons ? (ls as keyof typeof CFG.weapons) : "laserGun");
+};
+
 // ---- Estado base (de CONFIG) ----
 const initialFromConfig = () => ({
     // Mostramos el menú al arrancar; tras el overlay se cierra con resetForNewRun()
@@ -132,8 +145,10 @@ const initialFromConfig = () => ({
     ammoReserve: Math.max(0, CFG.gameplay?.playerAmmoTotal ?? 0),
     reloading: false,
 
-    health: 100,
-    shield: 100,
+    // ► Centralizado en config
+    health: Math.max(0, Math.min(100, CFG.gameplay?.playerInitialHealth ?? 100)),
+    shield: Math.max(0, Math.min(100, CFG.gameplay?.playerInitialShield ?? 100)),
+
     crosshairOnDrone: false,
     missionCardMode: null as MissionCardMode,
     endDoorEnabled: false,
@@ -141,6 +156,8 @@ const initialFromConfig = () => ({
 
     hand: readHand(), // Lee LS/CFG y normaliza
     adsMode: readAdsMode(),
+
+    currentWeapon: readWeapon(),
 
     volumes: {
         music: Math.max(0, Math.min(1, CFG.audio?.musicVolume ?? 0.8)),
@@ -251,6 +268,16 @@ export const useGameStore = create<GameState>()(
             // Notifica a quien lo necesite (p.ej. Player para cambiar entre hold/toggle en caliente)
             try {
                 window.dispatchEvent(new CustomEvent("ads-mode", { detail: { mode } }));
+            } catch { }
+        },
+
+        // ---- Arma actual ----
+        setCurrentWeapon: (key) => {
+            const k = (key in CFG.weapons ? key : "laserGun") as keyof typeof CFG.weapons;
+            set({ currentWeapon: k });
+            writeLocal("game.weapon", k);
+            try {
+                window.dispatchEvent(new CustomEvent("weapon-changed", { detail: { weapon: k } }));
             } catch { }
         },
 

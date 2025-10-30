@@ -24,6 +24,18 @@ export const ContextLostShield: React.FC = () => {
             setLost(false);
             setSuggestReload(false);
             try { gl.resetState(); } catch { }
+            // Opcional: feedback breve post-restore
+            try {
+                const hint = document.createElement("div");
+                hint.textContent = "Contexto WebGL restaurado.";
+                Object.assign(hint.style, {
+                    position: "fixed", top: "12px", left: "50%", transform: "translateX(-50%)",
+                    background: "rgba(0,0,0,.75)", color: "#c8fafe", padding: "6px 10px",
+                    border: "1px solid rgba(103,232,249,.35)", borderRadius: "10px", zIndex: 999999
+                });
+                document.body.appendChild(hint);
+                window.setTimeout(() => { try { hint.remove(); } catch { } }, 1800);
+            } catch (e) { console.debug("[WebGL] feedback post-restore falló:", e); }
             if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null; }
         };
 

@@ -13,12 +13,17 @@ const __DEV__ =
     typeof import.meta !== "undefined" &&
     !!((import.meta as any).env?.DEV);
 
-export function ensureBVH(geo: BufferGeometry, { autoBuildInDev = true } = {}) {
+/**
+ * Verifica que la geometría tenga BVH (boundsTree).
+ * En desarrollo, opcionalmente intenta construirlo on-the-fly.
+ * @returns boolean — true si ya tenía BVH; false si no (o si se intentó construir en dev).
+ */
+export function ensureBVH(geo: BufferGeometry, { autoBuildInDev = true } = {}): boolean {
     const g = geo as GeometryWithBVH;
 
     if (!g.boundsTree) {
         if (__DEV__) {
-            console.warn("[BVH] geometry sin boundsTree. Llama a geometry.computeBoundsTree() al cargar el mesh.");
+            console.warn("[BVH] geometry sin boundsTree. Llama a geometry.computeBoundsTree() al cargar el mesh (solo aviso en dev).");
             if (autoBuildInDev && typeof g.computeBoundsTree === "function") {
                 try {
                     g.computeBoundsTree();

@@ -10,6 +10,7 @@
     "dev": "vite",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:e2e": "tsc -p tsconfig.e2e.json --noEmit",
     "lint": "eslint . --cache",
     "lint:ci": "ESLINT_TYPED=1 eslint . --cache",
     "assets:ktx2": "node --experimental-json-modules scripts/convert-images.mjs",

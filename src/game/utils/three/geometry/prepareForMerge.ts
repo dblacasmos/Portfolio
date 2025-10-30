@@ -29,7 +29,6 @@ export function prepareForMerge(gIn: THREE.BufferGeometry): THREE.BufferGeometry
             // getX/getY/getZ/getW están disponibles; para itemSize > 4 rellenamos 0.
             for (let i = 0; i < ia.count; i++) {
                 for (let k = 0; k < ia.itemSize; k++) {
-                    // Acceso seguro sin usar toArray()
                     let v = 0;
                     if (k === 0) v = ia.getX(i);
                     else if (k === 1) v = ia.getY(i);

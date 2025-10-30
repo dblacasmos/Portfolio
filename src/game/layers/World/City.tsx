@@ -9,7 +9,7 @@ import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUti
 import { CFG } from "../../../constants/config";
 import { getKTX2 } from "@/game/utils/three/ktx2/ktx2";
 import { ASSETS } from "@/constants/assets";
-import { extractMergedMesh } from "../../utils/three/extractMergedMesh";
+import { extractMergedMesh } from "../../utils/three/geometry/extractMergedMesh";
 import { setLayerRecursive } from "@/game/utils/three/layers";
 import { optimizeStatic, tuneMaterials } from "../../utils/three/optimizeGLTF";
 

@@ -2,7 +2,6 @@
 // FILE: src/game/utils/three/colliderEnvBVH.ts
 // =======================================
 import * as THREE from "three";
-import { ensureBVH } from "./ensureBVH"; // ← ruta corregida
 import { CFG } from "@/constants/config";
 
 /* ---------- utilidades geométricas ---------- */
@@ -141,14 +140,13 @@ export class ColliderEnvBVH {
         const walls = this.walls;
         const geo = walls?.geometry as THREE.BufferGeometry | undefined;
         if (!walls || !geo) return step.clone();
-        if (!ensureBVH(geo, { autoBuildInDev: true })) return step.clone();
 
         const eps = this.opts.separationEps ?? 0.001;
         const maxPasses = Math.max(1, this.opts.maxPasses ?? 4);
         const flattenY = this.opts.flattenWallNormalY ?? true;
         const maxPushMul = this.opts.maxPushPerHitMul ?? 0.5;
 
-        // Valor pasado por opciones o CFG.collision.minWallY
+        // ► Usa el valor pasado por opciones o, si no, el de CFG.collision.minWallY
         const minY = this.opts.minWallY ?? (CFG.collision?.minWallY ?? -Infinity);
 
         const segStart = TMP.v1.copy(start).add(step);
@@ -175,8 +173,12 @@ export class ColliderEnvBVH {
                     TMP.c.copy(tri.c).applyMatrix4(walls.matrixWorld);
                     TMP.triWorld.set(TMP.a, TMP.b, TMP.c);
 
-                    // Filtrado por altura
-                    if (Math.max(TMP.triWorld.a.y, TMP.triWorld.b.y, TMP.triWorld.c.y) < minY) {
+                    // ► Filtrado por altura (ignora paredes/obstáculos bajos)
+                    if (Math.max(
+                        TMP.triWorld.a.y,
+                        TMP.triWorld.b.y,
+                        TMP.triWorld.c.y
+                    ) < minY) {
                         return false;
                     }
 
