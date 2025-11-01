@@ -18,18 +18,16 @@ export const ASSETS = {
     // Texturas e imágenes
     textures: {
         musgo: "/assets/textures/musgo.webp",
-        spawn: "/assets/textures/spawn.webp",
     },
 
     img: {
         timeline: {
-            crosshair: "/assets/img/timeline/crosshair.webp",
             escudo: "/assets/img/timeline/escudo.webp",
             vida: "/assets/img/timeline/vida.webp",
             skySource: "/assets/img/timeline/skySource.webp",
         },
         ui: {
-            paneles: "/assets/ui/paneles.png",
+            paneles: "/assets/ui/paneles.webp",
         },
     },
 

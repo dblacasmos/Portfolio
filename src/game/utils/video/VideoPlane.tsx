@@ -3,6 +3,7 @@
    ==================================== */
 
 import * as THREE from "three";
+import type { Mesh, Vector3, Euler, VideoTexture } from "three";
 import React, { useEffect, useMemo, useRef } from "react";
 import { QUALITY } from "@/game/graphics/quality";
 import { pickVideoSrc, type SrcMap } from "@/game/utils/video/selectVideoSource";
@@ -20,8 +21,8 @@ export type VideoPlaneProps = {
     aspect?: number;
 
     /** Transform opcional */
-    position?: THREE.Vector3 | [number, number, number];
-    rotation?: THREE.Euler | [number, number, number];
+    position?: Vector3 | [number, number, number];
+    rotation?: Euler | [number, number, number];
     scale?: number | [number, number, number];
 
     /** Orden de render y culling */
@@ -46,9 +47,9 @@ export const VideoPlane: React.FC<VideoPlaneProps> = ({
     frustumCulled = true,
     onReady,
 }) => {
-    const meshRef = useRef<THREE.Mesh>(null);
+    const meshRef = useRef<Mesh>(null);
     const videoRef = useRef<HTMLVideoElement | null>(null);
-    const texRef = useRef<THREE.VideoTexture | null>(null);
+    const texRef = useRef<VideoTexture | null>(null);
 
     // Obtiene las prefs del preset actual. Si no existe bandera global, usa "medium".
     const presetKey = (typeof window !== "undefined" && (window as any).__QUALITY__) || "medium";
@@ -81,6 +82,7 @@ export const VideoPlane: React.FC<VideoPlaneProps> = ({
         const video = Object.assign(document.createElement("video"), {
             src: chosen,
             crossOrigin: "anonymous",
+            // autoplay policies: mejor empezar silenciado
             loop: !!loop,
             muted: !!muted,
             playsInline: true,
@@ -101,8 +103,16 @@ export const VideoPlane: React.FC<VideoPlaneProps> = ({
         const handleCanPlay = () => {
             onReady?.(video, tex);
             if (autoplay) {
-                video.play().catch(() => {
-                    /* en móvil puede requerir gesto del usuario */
+                video.play().catch(async () => {
+                    // Reintento “silencioso” si no estaba muted (políticas móviles)
+                    try {
+                        if (!video.muted) {
+                            video.muted = true;
+                            await video.play();
+                        }
+                    } catch {
+                        /* en móvil puede requerir gesto del usuario */
+                    }
                 });
             }
         };

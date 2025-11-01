@@ -1,4 +1,4 @@
-// FILE:vite.congif.ts
+// FILE:vite.config.ts
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
@@ -36,7 +36,7 @@ export default defineConfig({
         chunkFileNames: `assets/[name]-[hash].js`,
         assetFileNames: (assetInfo) => {
           const name = assetInfo.name ?? ''
-          if (/\.(glb|gltf|bin|ktx2|wasm)$/i.test(name)) return 'assets/models/[name]-[hash][extname]'
+          if (/\.(glb|gltf|bin|wasm)$/i.test(name)) return 'assets/models/[name]-[hash][extname]'
           if (/\.(mp3|wav|ogg)$/i.test(name)) return 'assets/audio/[name]-[hash][extname]'
           if (/\.(png|jpe?g|webp|avif|ktx2)$/i.test(name)) return 'assets/textures/[name]-[hash][extname]'
           return 'assets/[name]-[hash][extname]'
@@ -52,10 +52,5 @@ export default defineConfig({
       '@react-three/drei',
       'three-mesh-bvh',
     ],
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
-    },
-  },
+  }
 })

@@ -287,7 +287,7 @@ export const CFG = {
             textMarginBottomPx: 20,
 
             /* ===== Tipografía y color ===== */
-            fontUrl: "/assets/fonts/Orbitron.tss", // DOM: se usa font-family; .tss se ignora
+            fontUrl: "/assets/fonts/Orbitron.ttf", // DOM: se usa font-family; .tss se ignora
             fontFamily:
                 "'Orbitron', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, sans-serif",
             textColor: "#7ef9ff",

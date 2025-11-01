@@ -35,4 +35,6 @@ build-reports/
 
 # Archivos grandes accidentales
 *.zip
-"Portfolio-React-TW-FM/" 
+
+test-results/
+playwright-report/

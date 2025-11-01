@@ -44,6 +44,13 @@ export function extractMergedMesh(
     // si three-mesh-bvh está parcheado
     (merged as any).computeBoundsTree?.();
 
+    // Limpieza de temporales para evitar fugas
+    try {
+        for (const g of geoms) {
+            try { g.dispose(); } catch { }
+        }
+    } catch { }
+
     const mat = new THREE.MeshBasicMaterial({
         colorWrite: false,
         depthTest: false,

@@ -3,6 +3,8 @@ import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
+import jsxA11y from 'eslint-plugin-jsx-a11y'
+import playwright from 'eslint-plugin-playwright'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config([
@@ -34,18 +36,31 @@ export default tseslint.config([
     },
   },
 
+
+  // Accesibilidad básica en JSX
+  {
+    files: ['**/*.{ts,tsx}'],
+    plugins: { 'jsx-a11y': jsxA11y },
+    rules: {
+      'jsx-a11y/alt-text': 'warn',
+      'jsx-a11y/aria-roles': 'warn',
+      'jsx-a11y/no-autofocus': 'warn'
+    }
+  },
   // Tests unitarios / de componentes
   {
     files: ['**/*.test.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}'],
     rules: { '@typescript-eslint/no-explicit-any': 'off' },
   },
 
-  // ✅ Override para e2e (Playwright)
+  // Override para e2e (Playwright)
   {
     files: ['e2e/**/*.{ts,tsx}'],
-    // Si quieres añadir reglas específicas Playwright:
-    // plugins: { playwright: (await import('eslint-plugin-playwright')).default },
-    // rules: { ...require('eslint-plugin-playwright').configs.recommended.rules },
+    plugins: { playwright },
+    rules: {
+      ...playwright.configs.recommended.rules,
+      '@typescript-eslint/no-explicit-any': 'off'
+    },
     languageOptions: {
       globals: {
         ...globals.browser,

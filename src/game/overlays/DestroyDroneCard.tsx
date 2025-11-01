@@ -210,100 +210,15 @@ const DestroyDroneCard: React.FC = () => {
                     }
                 });
                 resume = () => resumeList.forEach((fn) => fn());
-            } else {
-                const prev: number =
-                    am?.getMasterVolume?.() ??
-                    am?.getVolume?.() ??
-                    (typeof am?.masterVolume === "number" ? am.masterVolume : 1);
-                if (am?.setMasterVolume) am.setMasterVolume(0);
-                else if (am?.setVolume) am.setVolume(0);
-                else if ("masterVolume" in am) (am as any).masterVolume = 0;
-                resume = () => {
-                    if (am?.setMasterVolume) am.setMasterVolume(prev);
-                    else if (am?.setVolume) am.setVolume(prev);
-                    else if ("masterVolume" in am) (am as any).masterVolume = prev;
-                };
             }
         } catch { }
+
         return () => {
-            try {
-                resume?.();
-            } catch { }
+            try { resume?.(); } catch { }
         };
     }, [access.visible]);
 
-    /* ===== Voces ===== */
-    React.useEffect(() => {
-        const load = () => setVoices(window.speechSynthesis.getVoices());
-        load();
-        window.speechSynthesis.addEventListener("voiceschanged", load);
-        return () =>
-            window.speechSynthesis.removeEventListener("voiceschanged", load);
-    }, []);
-
-    React.useEffect(() => {
-        if (!access.visible || !voices.length) return;
-        const def = pickDefaultSpanishGoogleVoice(voices);
-        setSelectedURI(def?.voiceURI ?? null);
-    }, [access.visible, voices]);
-
-    /* ===== Reset DURO al abrir ===== */
-    React.useEffect(() => {
-        if (!access.visible) return;
-        sessionRef.current++;
-        const sid = sessionRef.current;
-
-        try {
-            window.speechSynthesis.cancel();
-        } catch { }
-
-        startedRef.current = false;
-        ttsFinishedRef.current = false;
-        boundariesSeenRef.current = false;
-        writerRunningRef.current = false;
-        charIdxRef.current = 0;
-
-        setTyped("");
-        setSpeaking(false);
-        setShowClose(false);
-
-        // ====== Crear portal dentro del elemento fullscreen (si lo hay) ======
-        // Si document.fullscreenElement existe pero es <canvas>, NO lo uses para el portal.
-        try {
-            const fsRootFromWin = (window as any).__fsRoot?.current as HTMLElement | null;
-            const fsEl = (document.fullscreenElement as HTMLElement | null);
-            const target =
-                fsRootFromWin ||
-                document.getElementById("fs-root") ||
-                ((fsEl && fsEl.tagName !== "CANVAS") ? fsEl : null) ||
-                (document.querySelector("[data-immersive-root]") as HTMLElement | null) ||
-                document.body;
-            const holder = document.createElement("div");
-            holder.style.position = "fixed";
-            holder.style.inset = "0";
-            holder.style.zIndex = "2147483647"; // por encima de todo
-            holder.style.pointerEvents = "none"; // el contenedor no, el contenido sí
-            target.appendChild(holder);
-            setPortalEl(holder);
-        } catch { setPortalEl(document.body); }
-
-        return () => {
-            if (sid === sessionRef.current) {
-                try { window.speechSynthesis.cancel(); } catch { }
-                try {
-                    if (portalEl && portalEl.parentElement) portalEl.parentElement.removeChild(portalEl);
-                } catch { }
-                setPortalEl(null);
-                if (writerRafRef.current != null) {
-                    cancelAnimationFrame(writerRafRef.current);
-                    writerRafRef.current = null;
-                }
-                writerRunningRef.current = false;
-            }
-        };
-    }, [access.visible]);
-
-    /* ===== Vídeo ===== */
+    /* ===== Video ===== */
     const ensureVideoPlaying = React.useCallback(() => {
         try {
             videoRef.current?.play().catch(() => { });
@@ -313,474 +228,267 @@ const DestroyDroneCard: React.FC = () => {
     React.useEffect(() => {
         if (!access.visible) return;
         ensureVideoPlaying();
-        const onVis = () => {
-            if (!document.hidden) ensureVideoPlaying();
-        };
+        const onVis = () => { if (!document.hidden) ensureVideoPlaying(); };
         document.addEventListener("visibilitychange", onVis, true);
         return () => document.removeEventListener("visibilitychange", onVis, true);
     }, [access.visible, ensureVideoPlaying]);
 
-    /* ===== Typewriter ===== */
-    const startWriter = React.useCallback(() => {
-        if (writerRunningRef.current) return;
-        // Cancelar cualquier RAF anterior por seguridad
-        if (writerRafRef.current != null) {
-            cancelAnimationFrame(writerRafRef.current);
-            writerRafRef.current = null;
-        }
-        writerRunningRef.current = true;
+    /* ===== Voces ===== */
+    React.useEffect(() => {
+        const load = () => setVoices(window.speechSynthesis.getVoices());
+        load();
+        window.speechSynthesis.addEventListener("voiceschanged", load);
+        return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
+    }, []);
 
-        const baseMs = 30;
-        const pause = 160;
-        let t0 = 0;
-        const sid = sessionRef.current;
+    React.useEffect(() => {
+        if (!access.visible || !voices.length) return;
+        const def = pickDefaultSpanishGoogleVoice(voices);
+        setSelectedURI(def?.voiceURI ?? null);
+    }, [access.visible, voices]);
 
-        const tick = (t: number) => {
-            // Cortafuegos: si la sesión cambió o el overlay ya no está visible, cortar.
-            if (sid !== sessionRef.current || !visibleRef.current) {
-                writerRunningRef.current = false;
-                if (writerRafRef.current != null) {
-                    cancelAnimationFrame(writerRafRef.current);
-                    writerRafRef.current = null;
-                }
-                return;
-            }
-            // Esperar a que arranque TTS, salvo que ya esté marcado como terminado
-            if (!startedRef.current && !ttsFinishedRef.current) {
-                writerRafRef.current = requestAnimationFrame(tick);
-                return;
-            }
-            // Si estamos siguiendo boundaries del TTS, esperar a onend
-            if (boundariesSeenRef.current && !ttsFinishedRef.current) {
-                writerRafRef.current = requestAnimationFrame(tick);
-                return;
-            }
-
-            if (!t0) t0 = t;
-            const dt = t - t0;
-
-            if (dt >= baseMs && charIdxRef.current < fullText.length) {
-                const ch = fullText[charIdxRef.current] ?? "";
-                charIdxRef.current += 1;
-                setTyped(fullText.slice(0, charIdxRef.current));
-                t0 = t + (/[.,;:!?]/.test(ch) ? pause : 0);
-            }
-
-            if (charIdxRef.current < fullText.length) {
-                writerRafRef.current = requestAnimationFrame(tick);
-            } else {
-                writerRunningRef.current = false;
-                setSpeaking(false);
-                setTimeout(() => setShowClose(true), 350);
-            }
-        };
-
-        writerRafRef.current = requestAnimationFrame(tick);
-        return () => {
-            if (writerRafRef.current != null) {
-                cancelAnimationFrame(writerRafRef.current);
-                writerRafRef.current = null;
-            }
-        };
-    }, [fullText]);
-
-    /* ===== Forzar finalización + silencio (para ESC) ===== */
-    const forceCompleteAndSilence = React.useCallback(() => {
-        try { window.speechSynthesis.cancel(); } catch { }
-
-        startedRef.current = true;
-        ttsFinishedRef.current = true;
-        boundariesSeenRef.current = false;
-
-        charIdxRef.current = fullText.length;
-        setTyped(fullText);
-        setSpeaking(false);
-        setShowClose(true);
-
-        try { videoRef.current?.pause(); } catch { }
-
-        if (writerRafRef.current != null) {
-            cancelAnimationFrame(writerRafRef.current);
-            writerRafRef.current = null;
-        }
-        writerRunningRef.current = false;
-    }, [fullText]);
-
-    /* ===== TTS ===== */
+    /* ===== Portal (fullscreen o no) ===== */
     React.useEffect(() => {
         if (!access.visible) return;
+        const getPortalEl = () => {
+            const fs =
+                (document.fullscreenElement as HTMLElement | null) ||
+                (document as any).webkitFullscreenElement ||
+                (document as any).mozFullScreenElement ||
+                (document as any).msFullscreenElement;
+            if (fs) return fs;
+            const immersive = document.querySelector("[data-immersive-root]") as HTMLElement | null;
+            return immersive || document.body;
+        };
+        setPortalEl(getPortalEl());
+        const ro = new ResizeObserver(() => setPortalEl(getPortalEl()));
+        try {
+            ro.observe(document.body);
+        } catch { }
+        return () => ro.disconnect();
+    }, [access.visible]);
 
+    /* ===== Arranque: contenedor vacío y TTS + typewriter sincronizados ===== */
+    React.useEffect(() => {
+        if (!access.visible) return;
+        sessionRef.current++;
         const sid = sessionRef.current;
 
-        requestAnimationFrame(() => {
-            if (sid === sessionRef.current) startWriter();
-        });
+        try { window.speechSynthesis.cancel(); } catch { }
+        setSpeaking(false);
+        setShowClose(false);
 
-        const speakWith = (voice: SpeechSynthesisVoice | null) => {
-            try { window.speechSynthesis.cancel(); } catch { }
+        // Reset de refs
+        charIdxRef.current = 0;
+        startedRef.current = false;
+        boundariesSeenRef.current = false;
+        writerRunningRef.current = false;
+        ttsFinishedRef.current = false;
 
-            const u = new SpeechSynthesisUtterance(fullText);
-            u.lang = voice?.lang || "es-ES";
-            if (voice) u.voice = voice;
-            u.rate = 1.06;
-            u.pitch = 0.92;
-            u.volume = 1.0;
+        // Texto ∅ desde el primer frame
+        setTyped("");
 
-            u.onstart = () => {
-                if (sid !== sessionRef.current) return;
-                startedRef.current = true;
-                setSpeaking(true);
-                ensureVideoPlaying();
-            };
-
-            u.onboundary = (ev: any) => {
-                if (sid !== sessionRef.current) return;
-                if (!startedRef.current) return;
-
-                boundariesSeenRef.current = true;
-                const idx = Math.min(fullText.length, (ev.charIndex ?? 0) + 1);
-                if (idx > charIdxRef.current) {
-                    charIdxRef.current = idx;
+        // start writer en el próximo frame (ya hay render ∅)
+        const startWriter = () => {
+            if (writerRunningRef.current) return;
+            writerRunningRef.current = true;
+            const baseMs = Math.max(10, Math.min(200, C.typewriterSpeed ?? 24));
+            const pause = Math.max(30, Math.min(500, C.typewriterPause ?? 140));
+            let t0 = 0;
+            const tick = (t: number) => {
+                if (!startedRef.current && !ttsFinishedRef.current) {
+                    writerRafRef.current = requestAnimationFrame(tick);
+                    return;
+                }
+                if (boundariesSeenRef.current) {
+                    writerRafRef.current = requestAnimationFrame(tick);
+                    return;
+                }
+                if (!t0) t0 = t;
+                const dt = t - t0;
+                if (dt >= baseMs && charIdxRef.current < fullText.length) {
+                    const ch = fullText[charIdxRef.current] ?? "";
+                    charIdxRef.current += 1;
                     setTyped(fullText.slice(0, charIdxRef.current));
+                    t0 = t + (/[.,;:!?]/.test(ch) ? pause : 0);
+                }
+                if (charIdxRef.current < fullText.length) {
+                    writerRafRef.current = requestAnimationFrame(tick);
+                } else {
+                    writerRunningRef.current = false;
+                    setSpeaking(false);
+                    setTimeout(() => { if (sid === sessionRef.current) setShowClose(true); }, 220);
                 }
             };
+            writerRafRef.current = requestAnimationFrame(tick);
+        };
 
-            const onFinish = () => {
-                if (sid !== sessionRef.current) return;
-                ttsFinishedRef.current = true;
-                setSpeaking(false);
-                try { videoRef.current?.pause(); } catch { }
-            };
-            u.onend = onFinish;
-            u.onerror = onFinish;
+        requestAnimationFrame(() => { if (sid === sessionRef.current) startWriter(); });
 
-            utterRef.current = u;
-            try {
-                window.speechSynthesis.speak(u);
-            } catch {
-                onFinish();
+        // TTS
+        const voice =
+            (selectedURI && voices.find((v) => v.voiceURI === selectedURI)) ||
+            pickDefaultSpanishGoogleVoice(voices) ||
+            null;
+
+        const rate = Math.max(0.6, Math.min(1.4, C.rate ?? 1.0));
+        const pitch = Math.max(0.5, Math.min(1.5, C.pitch ?? 0.78));
+        const vol = Math.max(0, Math.min(1, C.volume ?? 1.0));
+
+        const u = new SpeechSynthesisUtterance(fullText);
+        u.lang = voice?.lang || "es-ES";
+        if (voice) u.voice = voice;
+        u.rate = rate;
+        u.pitch = pitch;
+        u.volume = vol;
+
+        u.onstart = () => {
+            if (sid !== sessionRef.current) return;
+            startedRef.current = true;
+            setSpeaking(true);
+            ensureVideoPlaying();
+        };
+        u.onboundary = (ev: any) => {
+            if (sid !== sessionRef.current) return;
+            if (!startedRef.current) return;
+            boundariesSeenRef.current = true;
+            const idx = Math.min(fullText.length, (ev.charIndex ?? 0) + 1);
+            if (idx > charIdxRef.current) {
+                charIdxRef.current = idx;
+                setTyped(fullText.slice(0, charIdxRef.current));
             }
         };
-
-        const startTTS = () => {
-            const voice =
-                (selectedURI && voices.find((v) => v.voiceURI === selectedURI)) ||
-                pickDefaultSpanishGoogleVoice(voices) ||
-                null;
-            speakWith(voice);
+        const finish = () => {
+            if (sid !== sessionRef.current) return;
+            ttsFinishedRef.current = true;
+            setSpeaking(false);
+            try { videoRef.current?.pause(); } catch { }
+            if (charIdxRef.current >= fullText.length) {
+                setTyped(fullText);
+                setTimeout(() => { if (sid === sessionRef.current) setShowClose(true); }, 220);
+            }
         };
+        u.onend = finish;
+        u.onerror = finish;
 
-        requestAnimationFrame(() => {
-            if (sid === sessionRef.current) startTTS();
-        });
+        utterRef.current = u;
+        try { window.speechSynthesis.speak(u); } catch { finish(); }
 
         return () => {
             try { window.speechSynthesis.cancel(); } catch { }
+            if (writerRafRef.current) cancelAnimationFrame(writerRafRef.current);
             utterRef.current = null;
-            try {
-                if (videoRef.current) {
-                    videoRef.current.pause();
-                    videoRef.current.currentTime = 0;
-                }
-            } catch { }
         };
-    }, [access.visible, fullText, voices, selectedURI, ensureVideoPlaying, startWriter]);
+    }, [access.visible, fullText, voices, selectedURI]);
 
-    /* ===== Cerrar (ESC o botón) ===== */
+    const bgColor = rgbaFromHex(C.bgColor ?? "#0a1018", 0.88);
+    const borderColor = rgbaFromHex(C.borderColor ?? "#22d3ee", 0.35);
+
     const closeCard = React.useCallback(() => {
-        // 1) Marcar como completado + silenciar para evitar solapes posteriores
-        forceCompleteAndSilence();
-
-        // 2) Incrementar sesión y limpiar TTS/video por si hubiera restos
         sessionRef.current++;
         try { window.speechSynthesis.cancel(); } catch { }
         try {
             if (videoRef.current) {
                 videoRef.current.pause();
-                videoRef.current.currentTime = 0;
+                (videoRef.current as any).currentTime = 0;
             }
         } catch { }
-
-        // 2.1) Cancelar cualquier RAF del writer de la sesión que se cierra
-        if (writerRafRef.current != null) {
-            cancelAnimationFrame(writerRafRef.current);
-            writerRafRef.current = null;
-        }
-        writerRunningRef.current = false;
-
-        // 3) Reset refs/estado interno
         startedRef.current = false;
         boundariesSeenRef.current = false;
         writerRunningRef.current = false;
         ttsFinishedRef.current = false;
         charIdxRef.current = 0;
-
         setTyped("");
         setSpeaking(false);
         setShowClose(false);
-
-        // 4) Asegurar que el menú NO quede abierto
-        try { useGameStore.getState().setMenuOpen?.(false); } catch { }
-
-        // 5a) Notificar cierre con el índice actual (para Game.tsx)
-        try {
-            window.dispatchEvent(
-                new CustomEvent("destroy-drone-card-closed", { detail: { index: access.index | 0 } })
-            );
-        } catch { }
-        // 5b) Ocultar overlay
         hideAccessOverlay();
-
-        // 6) Asegurar “playing = true” y menú cerrado
-        try {
-            useGameStore.getState().setPlaying?.(true);
-            setTimeout(() => { try { useGameStore.getState().setMenuOpen?.(false); } catch { } }, 0);
-        } catch { }
-    }, [forceCompleteAndSilence, hideAccessOverlay]);
-
-    React.useEffect(() => {
-        if (!access.visible) return;
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                closeCard();
-            }
-        };
-        window.addEventListener("keydown", onKey, { passive: false, capture: true });
-        return () => {
-            window.removeEventListener("keydown", onKey, true);
-            // Por si se cerró por desmontaje, cancelar también el writer
-            if (writerRafRef.current != null) {
-                cancelAnimationFrame(writerRafRef.current);
-                writerRafRef.current = null;
-            }
-            writerRunningRef.current = false;
-        };
-    }, [access.visible, closeCard]);
+    }, [hideAccessOverlay]);
 
     const spanishVoices = React.useMemo(
-        () =>
-            voices.filter(
-                (v) =>
-                    /^es/i.test(v.lang || "es") ||
-                    /spanish|español/i.test(`${v.name} ${v.voiceURI}`)
-            ),
+        () => voices.filter((v) => /^es/i.test(v.lang || "es") || /spanish|español/i.test(`${v.name} ${v.voiceURI}`)),
         [voices]
     );
+    const onPickVoice = (uri: string) => setSelectedURI(uri);
 
     if (!access.visible) return null;
 
-    /* ===== Aplicar CFG ===== */
-    const widthPx: number = C.widthPx ?? 900;
-    const heightPct: number = C.heightPct ?? 70;
-    const marginTopPx: number = C.marginTopPx ?? 48;
-    const marginLeftPx: number = C.marginLeftPx ?? 0;
-    const yOffsetPx: number = C.yOffsetPx ?? 0;
+    return createPortal(
+        <div className="fixed inset-0 z-[75] flex items-start justify-center pt-8 sm:pt-12">
+            <div className="absolute inset-0" style={{ background: bgColor, backdropFilter: "blur(6px)" }} />
 
-    const cardBgColor = rgbaFromHex(C.cardBgColor ?? "#9e2940", C.cardBgOpacity ?? 0.35);
-    const cardBorderColor: string = C.cardBorderColor ?? "rgba(248,113,113,0.35)";
-    const cardShadowInset: string = C.cardShadowInset ?? "0 0 40px rgba(248,113,113,.18) inset";
-
-    const contentPadX: number = C.contentPadX ?? 20;
-    const contentPadY: number = C.contentPadY ?? 20;
-
-    const gapX: number = C.gapX ?? 16;
-
-    const videoWidthPx: number = C.videoWidthPx ?? 400;
-    const videoBg = rgbaFromHex(C.videoBgColor ?? "#062e3a", C.videoBgOpacity ?? 0.7);
-    const videoMarginTopPx: number = C.videoMarginTopPx ?? 0;
-    const videoMarginLeftPx: number = C.videoMarginLeftPx ?? 0;
-    const videoMarginBottomPx: number = C.videoMarginBottomPx ?? 16; // margen abajo
-
-    const textMarginLeftPx: number = (C as any).textMarginLeftPx ?? 0;
-    const textMarginRightPx: number = C.textMarginRightPx ?? 0;
-
-    const rawTextWidth: number | null = C.textWidthPx ?? null;
-    const autoTextWidth =
-        widthPx - 2 * contentPadX - videoWidthPx - gapX - textMarginRightPx - textMarginLeftPx;
-    const textWidthPx: number = Math.max(160, rawTextWidth ?? autoTextWidth);
-
-    const textBg = rgbaFromHex(C.textBgColor ?? "#062e3a", C.textBgOpacity ?? 0.7);
-    const textMarginTopPx: number = C.textMarginTopPx ?? videoMarginTopPx;
-    const textMarginBottomPx: number = C.textMarginBottomPx ?? 16; // margen abajo
-
-    // Tipografía
-    const fontFamily: string =
-        C.fontFamily ??
-        "'Orbitron', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, sans-serif";
-    const textColor: string = C.textColor ?? "#7ef9ff";
-    const textSizePx: number = C.textSizePx ?? 13;
-    const lineHeight: number = C.lineHeight ?? 1.5;
-    const textPaddingX: number = C.textPaddingX ?? 16;
-    const textPaddingY: number = C.textPaddingY ?? 12;
-
-    // Chips header
-    const headerSpeakingBg: string = C.headerSpeakingBg ?? "rgba(52,211,153,0.15)";
-    const headerSpeakingRing: string = C.headerSpeakingRing ?? "rgba(110,231,183,0.30)";
-    const headerIdleBg: string = C.headerIdleBg ?? "rgba(255,255,255,0.10)";
-    const headerIdleRing: string = C.headerIdleRing ?? "rgba(255,255,255,0.20)";
-
-    const title = `Acceso a archivo nº${Math.min(5, Math.max(1, access.index | 0))}`;
-
-    // ===== Render mediante portal: si estamos en fullscreen, el portal va dentro del elemento fullscreen =====
-    const overlayNode = (
-        <div
-            className="fixed inset-0 z-40 flex items-start justify-center"
-            style={{ paddingTop: marginTopPx, pointerEvents: "auto" }}
-        >
-            {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
-
-            {/* Card principal (rojo translúcido) */}
             <div
+                className="relative w-[min(1200px,100%)] h-[90%] rounded-2xl overflow-hidden shadow-[0_0_40px_rgba(56,189,248,.18)_inset]"
+                style={{ border: `1px solid ${borderColor}` }}
                 role="dialog"
                 aria-modal="true"
-                aria-label={title}
-                className="relative rounded-2xl overflow-hidden"
-                style={{
-                    width: Math.min(widthPx, window.innerWidth),
-                    height: `${Math.max(40, Math.min(100, heightPct))}%`,
-                    transform: `translate(${marginLeftPx}px, ${yOffsetPx}px)`,
-                    background: cardBgColor,
-                    border: `1px solid ${cardBorderColor}`,
-                    boxShadow: cardShadowInset,
-                }}
+                aria-label="Acceso"
             >
                 {/* Header */}
-                <div className="flex items-center justify-between gap-3" style={{ padding: "14px 20px 8px 20px" }}>
-                    <div className="text-white/90 font-semibold">{title}</div>
-
+                <div className="px-5 pt-4 pb-2 flex items-center justify-between gap-3">
+                    <div className="text-white/90 font-semibold">Acceso a Archivo</div>
                     <div className="flex items-center gap-2">
                         <div
-                            className="text-[11px] px-2 py-1 rounded-md ring-1"
-                            style={{
-                                background: speaking ? headerSpeakingBg : headerIdleBg,
-                                color: speaking ? "rgb(167 243 208)" : "white",
-                                borderColor: "transparent",
-                                outline: "none",
-                                boxSizing: "border-box",
-                                boxShadow: `0 0 0 1px ${speaking ? headerSpeakingRing : headerIdleRing} inset`,
-                            }}
+                            className={`text-[11px] px-2 py-1 rounded-md ring-1 ${speaking ? "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30" : "bg-white/10 text-white ring-white/20"
+                                }`}
                         >
-                            {speaking ? "Transmitiendo..." : "Listo"}
+                            {speaking ? "Reproduciendo" : "Listo"}
                         </div>
-
                         {spanishVoices.length > 1 && (
                             <VoiceSelect
                                 voices={spanishVoices}
                                 selectedURI={selectedURI}
-                                onPick={(uri) => setSelectedURI(uri)}
+                                onPick={onPickVoice}
+                                title="Seleccionar voz (ES)"
                             />
                         )}
                     </div>
                 </div>
 
-                {/* Contenido: padding desde CFG */}
-                <div
-                    className="h-full"
-                    style={{
-                        paddingLeft: contentPadX,
-                        paddingRight: contentPadX,
-                        paddingBottom: contentPadY,
-                    }}
-                >
-                    {/* Grid: vídeo a la izquierda (ancho fijo), texto a la derecha (ajustable) */}
-                    <div
-                        className="grid h-full"
-                        style={{
-                            gridTemplateColumns: `minmax(240px, ${videoWidthPx}px) ${Math.max(160, textWidthPx)}px`,
-                            columnGap: gapX,
-                            alignItems: "stretch",
-                        }}
-                    >
-                        {/* IZQUIERDA: contenedor vídeo */}
-                        <div
-                            className="rounded-xl overflow-hidden border relative"
-                            style={{
-                                background: videoBg,
-                                borderColor: "rgba(255,255,255,0.10)",
-                                marginTop: videoMarginTopPx,
-                                marginLeft: videoMarginLeftPx,
-                                marginBottom: videoMarginBottomPx,
-                            }}
-                        >
-                            <video
-                                ref={videoRef}
-                                src={ASSETS.video.avatarMission}
-                                loop
-                                muted
-                                playsInline
-                                className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 pointer-events-none opacity-[.10] [background:repeating-linear-gradient(transparent_0_2px,rgba(255,255,255,.08)_2px_3px)]" />
-                            <div className="absolute top-2 left-2 text-[10px] tracking-widest text-cyan-200/90">
-                                MENSAJE ENTRANTE...
+                {/* Grid: IZQ video / DER texto */}
+                <div className="grid grid-cols-1 md:grid-cols-[minmax(280px,420px)_1fr] gap-4 px-5 pb-5">
+                    {/* IZQUIERDA: video */}
+                    <div className="h-[400px] sm:h-[96%] md:h-[560px] rounded-xl overflow-hidden border border-white/10 bg-black relative">
+                        <video
+                            ref={videoRef}
+                            src={ASSETS.video.avatarMission}
+                            loop
+                            muted
+                            playsInline
+                            className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 pointer-events-none opacity-[.12] [background:repeating-linear-gradient(transparent_0_2px,rgba(255,255,255,.08)_2px_3px)]" />
+                        <div className="absolute top-2 left-2 text-[10px] tracking-widest text-cyan-200/90">ARCHIVO DESCLASIFICADO</div>
+                    </div>
+
+                    {/* DERECHA: texto y CTA */}
+                    <div className="grid grid-rows-[1fr_auto] gap-3">
+                        <div className="rounded-xl bg-black/25 border border-white/10 p-4 min-h-[160px]">
+                            {/* Empieza VACÍO */}
+                            <div className="text-cyan-200/90 text-[15px] sm:text-[10px] md:text-[10px] leading-relaxed whitespace-pre-wrap">
+                                {typed}
+                                {speaking && <span className="opacity-60 animate-pulse">▌</span>}
                             </div>
+                            <div className="mt-2 text-white/60 text-xs">Pulsa ESC para cerrar.</div>
                         </div>
 
-                        {/* DERECHA: contenedor del texto */}
-                        <div
-                            className="rounded-xl border flex flex-col"
-                            style={{
-                                background: textBg,
-                                borderColor: "rgba(255,255,255,0.10)",
-                                marginTop: textMarginTopPx,
-                                marginRight: textMarginRightPx,
-                                marginBottom: textMarginBottomPx,
-                                marginLeft: textMarginLeftPx,
-                            }}
-                        >
-                            {/* Banda identidad */}
-                            <div className="px-3 py-2 border-b border-white/10 flex items-center gap-3 bg-black/10">
-                                <div className="w-8 h-8 rounded-lg bg-cyan-400/20 grid place-items-center ring-1 ring-cyan-300/30">
-                                    <div className="size-3 rounded-full bg-emerald-300 animate-pulse" />
-                                </div>
-                                <div className="text-cyan-200/90 text-sm">OPERADOR — Acceso de archivos</div>
-                            </div>
-
-                            {/* Texto */}
-                            <div className="flex-1" style={{ padding: `${textPaddingY}px ${textPaddingX}px` }}>
-                                <div
-                                    className="whitespace-pre-wrap"
-                                    style={{
-                                        color: textColor,
-                                        fontFamily,
-                                        fontSize: `${textSizePx}px`,
-                                        lineHeight,
-                                    }}
+                        <div className="flex justify-end">
+                            {showClose ? (
+                                <button
+                                    onClick={closeCard}
+                                    className="px-2 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-300/40 text-cyan-100 text-sm"
                                 >
-                                    {typed}
-                                    {speaking && <span className="opacity-60 animate-pulse">▌</span>}
-                                </div>
-
-                                {/* Mensaje ESC parpadeando */}
-                                <div className="mt-8 text-[11px] text-cyan-200/80 animate-pulse select-none">
-                                    Pulsa <span className="font-semibold text-cyan-100">ESC</span> para CERRAR
-                                </div>
-
-                                {/* Botón dentro del contenedor de texto (sin footer aparte) */}
-                                <div className="flex justify-end" style={{ paddingTop: 24 }}>
-                                    {showClose ? (
-                                        <button
-                                            onClick={closeCard}
-                                            className="px-3 py-2 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-300/40 text-cyan-100 text-sm"
-                                        >
-                                            CERRAR
-                                        </button>
-                                    ) : (
-                                        <div style={{ height: 36 }} />
-                                    )}
-                                </div>
-                            </div>
+                                    CERRAR
+                                </button>
+                            ) : (
+                                <div className="h-9" />
+                            )}
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        portalEl || document.body
     );
-
-    return createPortal(overlayNode, portalEl ?? document.body);
 };
 
 /* ===================== VoiceSelect ===================== */
@@ -789,13 +497,10 @@ type VoiceSelectProps = {
     voices: SpeechSynthesisVoice[];
     selectedURI: string | null;
     onPick: (uri: string) => void;
+    title?: string;
 };
 
-const VoiceSelect: React.FC<VoiceSelectProps> = ({
-    voices,
-    selectedURI,
-    onPick,
-}) => {
+const VoiceSelect: React.FC<VoiceSelectProps> = ({ voices, selectedURI, onPick, title = "Seleccionar voz (ES)" }) => {
     const [open, setOpen] = React.useState(false);
     const ref = React.useRef<HTMLDivElement | null>(null);
 
@@ -805,13 +510,8 @@ const VoiceSelect: React.FC<VoiceSelectProps> = ({
     );
 
     React.useEffect(() => {
-        const onDown = (e: MouseEvent) => {
-            if (!ref.current) return;
-            if (!ref.current.contains(e.target as Node)) setOpen(false);
-        };
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setOpen(false);
-        };
+        const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
         window.addEventListener("mousedown", onDown, true);
         window.addEventListener("keydown", onKey, true);
         return () => {
@@ -829,18 +529,16 @@ const VoiceSelect: React.FC<VoiceSelectProps> = ({
                 aria-haspopup="listbox"
                 aria-expanded={open}
                 onClick={() => setOpen((v) => !v)}
-                className="text-[11px] h-7 px-2 rounded-md border bg-[rgba(9,12,16,0.8)] text-cyan-100 border-white/15 hover:bg-white/10 hover:border-white/25 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 flex items-center gap-1"
-                title="Seleccionar voz (ES)"
+                className="text-[11px] h-7 px-2 rounded-md border bg-[rgba(9,12,16,0.8)] text-cyan-100
+                   border-white/15 hover:bg-white/10 hover:border-white/25
+                   focus:outline-none focus:ring-2 focus:ring-cyan-400/40
+                   flex items-center gap-1"
+                title={title}
             >
                 <span className="truncate max-w-[12rem]">
                     {current ? current.name || current.voiceURI : "Voz (ES)"}
                 </span>
-                <svg
-                    className={`size-3 transition-transform ${open ? "rotate-180" : ""}`}
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden="true"
-                >
+                <svg className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" />
                 </svg>
             </button>
@@ -848,7 +546,8 @@ const VoiceSelect: React.FC<VoiceSelectProps> = ({
             {open && (
                 <div
                     role="listbox"
-                    className="absolute right-0 mt-1 w-64 max-h-64 overflow-auto rounded-md border border-white/12 bg-[rgba(6,10,14,0.96)] backdrop-blur-md shadow-xl z-50"
+                    className="absolute right-0 mt-1 w-64 max-h-64 overflow-auto rounded-md border
+                     border-white/12 bg-[rgba(6,10,14,0.96)] backdrop-blur-md shadow-xl z-50"
                 >
                     <div className="sticky top-0 px-2 py-1 text-[10px] tracking-wide text-cyan-200/80 bg-black/30 border-b border-white/10">
                         Voces en Español
@@ -862,29 +561,15 @@ const VoiceSelect: React.FC<VoiceSelectProps> = ({
                                         type="button"
                                         role="option"
                                         aria-selected={selected}
-                                        onClick={() => {
-                                            onPick(v.voiceURI);
-                                            setOpen(false);
-                                        }}
-                                        className={`w-full text-left px-2 py-1.5 text-[11px] transition ${selected
-                                            ? "bg-cyan-400/15 text-cyan-100"
-                                            : "text-white/90 hover:bg-cyan-400/10 hover:text-cyan-100"
-                                            }`}
+                                        onClick={() => { onPick(v.voiceURI); setOpen(false); }}
+                                        className={`w-full text-left px-2 py-1.5 text-[11px] transition
+                                ${selected ? "bg-cyan-400/15 text-cyan-100" : "text-white/90 hover:bg-cyan-400/10 hover:text-cyan-100"}`}
                                     >
                                         <div className="flex items-center justify-between">
                                             <span className="truncate">{v.name || v.voiceURI}</span>
                                             {selected && (
-                                                <svg
-                                                    className="size-3 shrink-0 text-cyan-200"
-                                                    viewBox="0 0 20 20"
-                                                    fill="currentColor"
-                                                    aria-hidden="true"
-                                                >
-                                                    <path
-                                                        fillRule="evenodd"
-                                                        d="M16.704 5.29a1 1 0 010 1.42l-7.004 7a1 1 0 01-1.414 0l-3-3a1 1 0 111.414-1.42l2.293 2.294 6.297-6.294a1 1 0 011.414 0z"
-                                                        clipRule="evenodd"
-                                                    />
+                                                <svg className="size-3 shrink-0 text-cyan-200" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                    <path fillRule="evenodd" d="M16.704 5.29a1 1 0 010 1.42l-7.004 7a1 1 0 01-1.414 0l-3-3a1 1 0 111.414-1.42l2.293 2.294 6.297-6.294a1 1 0 011.414 0z" clipRule="evenodd" />
                                                 </svg>
                                             )}
                                         </div>

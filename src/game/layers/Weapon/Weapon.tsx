@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
 import { setLayerRecursive } from "../../utils/three/layers";
-import { tuneMaterials } from "../../utils/textures/tuneMaterials";
+import { tuneMaterials } from "../../utils/three/textures/tuneMaterials";
 import { useGameStore } from "../../utils/state/store";
 
 export type WeaponAPI = { flash: () => void };
@@ -212,3 +212,12 @@ export const Weapon = forwardRef<WeaponAPI, WeaponProps>(function WeaponImpl(
 
 useGLTF.preload(CFG.weapon.modelUrl);
 export default Weapon;
+
+// Precarga opcional de todos los modelos definidos en CFG.weapons
+try {
+    const cat = CFG.weapons as Record<string, any>;
+    Object.keys(cat || {}).forEach((k) => {
+        const url = cat[k]?.modelUrl;
+        if (url) useGLTF.preload(url);
+    });
+} catch { }

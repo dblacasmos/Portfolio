@@ -57,11 +57,22 @@ export function useKeyboard(opts: UseKeyboardOptions = {}) {
             if (preventDefault) e.preventDefault();
         };
 
-        window.addEventListener("keydown", down);
-        window.addEventListener("keyup", up);
+        // Para compatibilidad de tipos en distintas lib.dom.d.ts, no pasamos 'passive'.
+        // (Si quieres usar passive: true, añade un feature check y castea a AddEventListenerOptions).
+        window.addEventListener("keydown", down, false);
+        window.addEventListener("keyup", up, false);
+
+        const resetAll = () => { keys.current = {}; };
+        const onVisChange = () => {
+            if (document.visibilityState !== "visible") resetAll();
+        };
+        window.addEventListener("blur", resetAll, false);
+        document.addEventListener("visibilitychange", onVisChange, false);
         return () => {
-            window.removeEventListener("keydown", down);
-            window.removeEventListener("keyup", up);
+            window.removeEventListener("keydown", down, false);
+            window.removeEventListener("keyup", up, false);
+            window.removeEventListener("blur", resetAll, false);
+            document.removeEventListener("visibilitychange", onVisChange, false);
         };
     }, [onDown, onUp, preventDefault, ignoreTyping]);
 

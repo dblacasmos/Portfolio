@@ -12,7 +12,6 @@ import { audioManager } from "../../utils/audio/audio";
 import type { ColliderEnvBVH } from "../../utils/collision/colliderEnvBVH";
 
 /* ---------- Tipos ---------- */
-type WithDroneIndex = { userData: { __droneIndex?: number } };
 
 export type DronesProps = {
     registerTargets: (getter: () => THREE.Object3D[]) => void;
@@ -105,8 +104,6 @@ function isFreeAbove(p: THREE.Vector3, walls: THREE.Mesh | null, upClearance = U
     const hit = RC.intersectObject(walls, true)[0];
     return !(hit && hit.distance < upClearance);
 }
-
-const distXZ = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
 
 /* ====== NUEVO: AABB y sectorización en 5 cuadrados ====== */
 type Rect = { minX: number; maxX: number; minZ: number; maxZ: number };
@@ -538,17 +535,24 @@ const Drones: React.FC<DronesProps> = ({
     }, [incDestroyed]);
 
     // --- Hover del crosshair (rayo central) ---
-    const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+    // Evitar setState cada frame: guardar último estado en ref y solo avisar si cambia
+    const lastOverRef = useRef(false);
     useFrame(() => {
-        if (!spawns.length) { setCrosshairOnDrone(false); setHoverIdx(null); return; }
+        if (!spawns.length) {
+            if (lastOverRef.current) { setCrosshairOnDrone(false); lastOverRef.current = false; }
+            return;
+        }
         RC.setFromCamera(new THREE.Vector2(0, 0), camera);
         let found: number | null = null;
         for (let i = 0; i < spawns.length; i++) {
             const s = spawns[i]; if (!s.alive) continue;
             if (RC.ray.intersectsBox(s.box)) { found = i; break; }
         }
-        setHoverIdx(found);
-        setCrosshairOnDrone(found != null);
+        const over = found != null;
+        if (over !== lastOverRef.current) {
+            setCrosshairOnDrone(over);
+            lastOverRef.current = over;
+        }
     });
 
     // Helper DEV: window.__drones
@@ -768,7 +772,7 @@ const Drones: React.FC<DronesProps> = ({
             s.box.min.set(s.pos.x - half, s.pos.y - half, s.pos.z - half);
             s.box.max.set(s.pos.x + half, s.pos.y + half, s.pos.z + half);
             const proxy = targetsRef.current[i] as THREE.Mesh | null | undefined;
-            if (proxy) proxy.position.copy(s.pos);
+            if (proxy) { proxy.position.copy(s.pos); proxy.updateMatrixWorld(); }
             // Orientación del modelo (seguir la dir)
             const g = groupsRef.current[i];
             if (g) {
@@ -799,7 +803,7 @@ const Drones: React.FC<DronesProps> = ({
             s.box.max.set(s.pos.x + half, s.pos.y + half, s.pos.z + half);
 
             const proxy = targetsRef.current[i] as THREE.Mesh | null | undefined;
-            if (proxy) proxy.position.copy(s.pos);
+            if (proxy) { proxy.position.copy(s.pos); proxy.updateMatrixWorld(); }
 
             const g = groupsRef.current[i];
             if (g) {

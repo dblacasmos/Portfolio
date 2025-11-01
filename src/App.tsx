@@ -33,6 +33,11 @@ function useRouteCursorPolicy() {
       document.body.classList.add('show-cursor', 'hud-cursor');
       document.body.classList.remove('hide-cursor');
     }
+    return () => {
+      // cleanup defensivo
+      document.body.classList.remove('hide-cursor');
+      document.body.classList.remove('show-cursor', 'hud-cursor');
+    };
   }, [pathname]);
 }
 

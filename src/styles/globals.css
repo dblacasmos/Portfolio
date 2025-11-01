@@ -149,13 +149,26 @@ canvas {
   .btn-ghost {
     @apply inline-flex items-center justify-center select-none rounded-xl border text-white px-4 py-2 font-medium tracking-wide transition-colors duration-150 ease-out;
     border-color: var(--hud-frame);
-    background: color-mix(in oklab, black 70%, transparent);
+    /* Fallback sólido si no hay color-mix */
+    background: rgba(0, 0, 0, 0.55);
     backdrop-filter: blur(6px);
   }
 
+  @supports (background: color-mix(in oklab, black 70%, transparent)) {
+    .btn-ghost {
+      background: color-mix(in oklab, black 70%, transparent);
+    }
+  }
+
   .btn-ghost:hover {
-    background: color-mix(in oklab, black 58%, transparent);
+    background: rgba(255, 255, 255, 0.05);
     border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  @supports (background: color-mix(in oklab, black 58%, transparent)) {
+    .btn-ghost:hover {
+      background: color-mix(in oklab, black 58%, transparent);
+    }
   }
 
   .btn-ghost:focus-visible {
@@ -212,6 +225,13 @@ canvas {
   @keyframes spin {
     to {
       transform: rotate(360deg);
+    }
+  }
+
+  /* Reduce motion: desactiva animación del loader */
+  @media (prefers-reduced-motion: reduce) {
+    .loader-spinner {
+      animation: none !important;
     }
   }
 }

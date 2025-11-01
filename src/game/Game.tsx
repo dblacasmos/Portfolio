@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { AdaptiveDpr, PerformanceMonitor } from "@react-three/drei";
-// import { Physics } from "@react-three/rapier"; // ← eliminado: Rapier no se usa
 import Drones from "./layers/Enemies/Drones";
 import { CFG } from "../constants/config";
 import { MissionCard } from "./overlays/MissionCard";

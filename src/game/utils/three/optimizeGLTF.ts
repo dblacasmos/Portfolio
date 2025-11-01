@@ -2,7 +2,7 @@
    FILE: src/game/utils/three/optimizeGLTF.ts
    ==================================== */
 import * as THREE from "three";
-export { tuneMaterials } from "../textures/tuneMaterials";
+export { tuneMaterials } from "./textures/tuneMaterials";
 
 export function optimizeStatic(root: THREE.Object3D) {
     root.traverse((o: any) => {

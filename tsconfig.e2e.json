@@ -13,13 +13,7 @@
         "noEmit": true,
         "module": "ESNext",
         "moduleResolution": "Bundler",
-        "jsx": "react-jsx",
-        "baseUrl": ".",
-        "paths": {
-            "@/*": [
-                "src/*"
-            ]
-        }
+        "jsx": "react-jsx"
     },
     "include": [
         "e2e/**/*",

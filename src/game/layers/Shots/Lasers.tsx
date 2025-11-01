@@ -72,11 +72,17 @@ export const LaserSystem: React.FC<{
         let gCount = 0, rCount = 0;
         for (let i = 0; i < lasers.length; i++) {
             const l = lasers[i];
-            const arr = (l.color === "red") ? redPos : greenPos;
-            const idx = (l.color === "red") ? (rCount++) : (gCount++);
-            const off = idx * 6;
-            arr[off + 0] = l.from.x; arr[off + 1] = l.from.y; arr[off + 2] = l.from.z;
-            arr[off + 3] = l.to.x; arr[off + 4] = l.to.y; arr[off + 5] = l.to.z;
+            if (l.color === "red") {
+                if (rCount >= MAX_LASERS) continue; // clamp rojo
+                const off = (rCount++) * 6;
+                redPos[off + 0] = l.from.x; redPos[off + 1] = l.from.y; redPos[off + 2] = l.from.z;
+                redPos[off + 3] = l.to.x; redPos[off + 4] = l.to.y; redPos[off + 5] = l.to.z;
+            } else {
+                if (gCount >= MAX_LASERS) continue; // clamp verde
+                const off = (gCount++) * 6;
+                greenPos[off + 0] = l.from.x; greenPos[off + 1] = l.from.y; greenPos[off + 2] = l.from.z;
+                greenPos[off + 3] = l.to.x; greenPos[off + 4] = l.to.y; greenPos[off + 5] = l.to.z;
+            }
         }
 
         geoGreen.setDrawRange(0, Math.min(gCount * 2, MAX_LASERS * 2));

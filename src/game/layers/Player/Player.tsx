@@ -10,6 +10,7 @@ import { useKeyboard } from "../../../hooks/useKeyboard";
 import { ColliderEnvBVH } from "../../utils/collision/colliderEnvBVH";
 import { CFG } from "@/constants/config";
 import Weapon from "../Weapon/Weapon";
+import type { WeaponAPI } from "../Weapon/Weapon";
 import { audioManager } from "../../utils/audio/audio";
 import { useGameStore } from "../../utils/state/store";
 import { useHudEditorStore } from "../../utils/state/hudEditor";
@@ -56,7 +57,9 @@ const easeInOutSine = (t: number) => 0.5 * (1 - Math.cos(Math.PI * t));
 
 const GROUND_FALLBACK_Y = 0;
 
-const ADS_MODE: "hold" | "toggle" = ((CFG as any)?.look?.adsMode ?? "toggle");
+// ADS desde store para poder cambiar en caliente
+// (el valor por defecto sigue viniendo de CFG vía estado inicial del store)
+const adsMode = useGameStore((s) => s.adsMode);
 
 const Player = ({
     env,
@@ -114,6 +117,8 @@ const Player = ({
     });
 
     const weaponRigRef = useRef<THREE.Group>(null!);
+    // API del arma (muzzle flash)
+    const weaponApiRef = useRef<WeaponAPI | null>(null);
 
     const raycaster = useMemo(() => new THREE.Raycaster(), []);
     const raycasterEnemies = useMemo(() => new THREE.Raycaster(), []);
@@ -122,7 +127,6 @@ const Player = ({
     const tmpMove = useMemo(() => new THREE.Vector3(), []);
     const tmpDir = useMemo(() => new THREE.Vector3(), []);
     const tmpEnd = useMemo(() => new THREE.Vector3(), []);
-    const eulerYXZ = useMemo(() => new THREE.Euler(0, 0, 0, "YXZ"), []);
 
     useEffect(() => {
         raycaster.layers.set(CFG.layers.WORLD);
@@ -198,7 +202,7 @@ const Player = ({
 
             if (e.button === 2) {
                 if (!locked) return;
-                if (ADS_MODE === "hold") {
+                if (adsMode === "hold") {
                     zoomHeld.current = true;
                     zoomTarget.current = 1;
                     playServoIn();
@@ -212,7 +216,7 @@ const Player = ({
 
         const onPointerUp = (e: PointerEvent) => {
             if (e.button !== 2) return;
-            if (ADS_MODE === "hold") {
+            if (adsMode === "hold") {
                 zoomHeld.current = false;
                 if (zoomTarget.current !== 0) playServoOut();
                 zoomTarget.current = 0;
@@ -355,30 +359,6 @@ const Player = ({
         ignoreTyping: true,
     });
 
-    const manualKeys = useRef<Record<string, boolean>>({});
-    useEffect(() => {
-        const d = (e: KeyboardEvent) => {
-            if (menuOpen || editEnabled || uiLocked) return;
-            manualKeys.current[e.code] = true;
-            if (e.code === "Space" && grounded.current) velY.current = JUMP_SPEED;
-            if (e.code === "ShiftLeft" || e.code === "ShiftRight") setCrouch(true);
-            if (e.code === "KeyR") {
-                if (!reloading) triggerReloadAnim();
-                reload();
-            }
-        };
-        const u = (e: KeyboardEvent) => {
-            manualKeys.current[e.code] = false;
-            if (e.code === "ShiftLeft" || e.code === "ShiftRight") setCrouch(false);
-        };
-        window.addEventListener("keydown", d);
-        window.addEventListener("keyup", u);
-        return () => {
-            window.removeEventListener("keydown", d);
-            window.removeEventListener("keyup", u);
-        };
-    }, [menuOpen, editEnabled, uiLocked, reloading, reload]);
-
     const lastShotMs = useRef(0);
 
     const swayTargetX = useRef(0), swayTargetY = useRef(0);
@@ -427,7 +407,7 @@ const Player = ({
         rig.translateY(sy * halfH);
         rig.renderOrder = 10000;
 
-        const isDown = (code: string) => !!(keys.current[code] || manualKeys.current[code]);
+        const isDown = (code: string) => !!keys.current[code];
         const moving = isDown("KeyW") || isDown("KeyS") || isDown("KeyQ") || isDown("KeyE");
         const sprint = isDown("KeyV") ? SPRINT_MUL : 1;
         const moveTarget = moving ? 0.7 * sprint : 0;
@@ -508,6 +488,8 @@ const Player = ({
         triggerRecoil();
         try { (audioManager as any)?.playSfx?.(CFG.audio.shot.src); }
         catch (e) { console.warn("[Player] No se pudo reproducir SFX de disparo:", e); }
+        // Destello de boca del arma
+        try { weaponApiRef.current?.flash(); } catch { }
 
         (camera as THREE.PerspectiveCamera).getWorldDirection(tmpDir).normalize();
         const origin = (camera as THREE.PerspectiveCamera).position;
@@ -537,7 +519,7 @@ const Player = ({
 
     useEffect(() => { if (reloading) (audioManager as any)?.playSfx?.(CFG.audio.reload.src); }, [reloading]);
 
-    const isDown = (code: string) => !!(keys.current[code] || manualKeys.current[code]);
+    const isDown = (code: string) => !!keys.current[code];
 
     useFrame((_, rawDt) => {
         if (menuOpen || editEnabled || uiLocked) return;
@@ -672,7 +654,11 @@ const Player = ({
                 let obj: any = h.object;
                 let id: number | null = null;
                 while (obj && id == null) {
-                    if (obj.userData?.droneId) id = obj.userData.droneId as number;
+                    // ✅ no usar truthy: el id 0 es válido
+                    if (obj.userData && typeof obj.userData.droneId === "number") {
+                        id = obj.userData.droneId as number;
+                        break;
+                    }
                     obj = obj.parent;
                 }
 
@@ -763,7 +749,7 @@ const Player = ({
                             </mesh>
                         }
                     >
-                        <Weapon hand={hand} />
+                        <Weapon ref={weaponApiRef} hand={hand} />
                     </Suspense>
                 </group>
             )}

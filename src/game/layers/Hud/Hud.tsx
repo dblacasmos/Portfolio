@@ -244,7 +244,7 @@ export default function Hud({
         return () => window.removeEventListener("hud:toggle-radar", t as any);
     }, []);
 
-    // Hotkeys M (toggle radar) y F (fullscreen). Se ignoran en modo editor o con el menú abierto.
+    // Hotkey M (toggle radar). Se ignora en modo editor o con el menú abierto.
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             const menuOpen = useGameStore.getState().menuOpen;
@@ -252,12 +252,6 @@ export default function Hud({
             if (e.code === "KeyM") {
                 // Solo togglear aquí; no re-despaches el evento o se toggleará 2 veces
                 setRadarOn((v) => !v);
-                e.preventDefault();
-                e.stopPropagation();
-            } else if (e.code === "KeyF") {
-                const el = (gl?.domElement ?? document.documentElement) as any;
-                if (document.fullscreenElement) document.exitFullscreen?.();
-                else el?.requestFullscreen?.();
                 e.preventDefault();
                 e.stopPropagation();
             }

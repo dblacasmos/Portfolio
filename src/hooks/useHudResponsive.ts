@@ -28,7 +28,9 @@ export function useHudResponsive(): HudResponsive {
     const { size, gl } = useThree();
 
     const aspect = size.width / Math.max(1, size.height);
-    const dpr = gl.getPixelRatio?.() ?? (typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
+    const rawDpr = gl.getPixelRatio?.() ?? (typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1);
+    const cfgMax = Number((CFG as any)?.hud?.ui?.dprMax ?? rawDpr) || rawDpr;
+    const dpr = Math.min(Math.max(1, rawDpr), Math.max(1, cfgMax));
     const scale = useMemo(() => CFG.hud.ui.scaleForAspect(aspect), [aspect]);
 
     const bp: Breakpoints = useMemo(

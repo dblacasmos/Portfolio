@@ -605,10 +605,10 @@ const Radar: React.FC<RadarProps> = ({
                     <Text position={[0.92 * 1.08, 0, 0]} font={orbitronFont} fontSize={0.12} color={CYAN.getStyle()} anchorX="center" anchorY="middle" renderOrder={OVERLAY_ORDER + 3}>E</Text>
                 </group>
 
-                {/* Ticks de brújula */}
+                {/* Ticks de brújula (reutiliza geom/material memoizados) */}
                 <lineSegments frustumCulled={false} renderOrder={OVERLAY_ORDER + 2}>
-                    <primitive attach="geometry" object={useMemo(() => makeCompassTicksGeometry(0.92), [])} />
-                    <lineBasicMaterial color={CYAN.getStyle()} transparent opacity={0.85} depthTest={false} depthWrite={false} />
+                    <primitive attach="geometry" object={compassGeom} />
+                    <primitive attach="material" object={compassMat} />
                 </lineSegments>
 
                 {/* Grados */}

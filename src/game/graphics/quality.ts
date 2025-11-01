@@ -57,9 +57,18 @@ let current: QualityMode = ((): QualityMode => {
 })();
 
 function applyPreset(p: Preset) {
-    // Mutamos CFG de forma segura para que el Canvas lo recoja en el siguiente render
-    setCfg(CFG as any, ["hud", "ui", "dprMax"], p.dprMax);
-    setCfg(CFG as any, ["render", "maxTextureSize"], p.maxTextureSize);
+    // Mutamos CFG de forma segura para que el Canvas lo recoja en el siguiente render.
+    // Clamp del DPR al devicePixelRatio real para evitar oversampling en pantallas HiDPI.
+    const safeDpr =
+        typeof window !== "undefined"
+            ? Math.min(
+                Math.max(1, window.devicePixelRatio || 1),
+                Math.max(1, p.dprMax)
+            )
+            : Math.max(1, p.dprMax);
+
+    setCfg(CFG as any, ["hud", "ui", "dprMax"], safeDpr);
+    setCfg(CFG as any, ["render", "maxTextureSize"], Math.max(256, p.maxTextureSize));
 }
 
 export function getQuality(): QualityMode {

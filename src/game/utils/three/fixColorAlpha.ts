@@ -1,5 +1,5 @@
 /* ====================================
-   FILE: src/game/utils/three/fixThreeColorAlpha.ts
+   FILE: src/game/utils/three/fixColorAlpha.ts
    ==================================== */
 import * as THREE from "three";
 
