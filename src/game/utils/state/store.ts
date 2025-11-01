@@ -4,7 +4,6 @@
 
 import { create } from "zustand";
 import { CFG } from "@/constants/config";
-import { withAudioSync } from "./audioSync";
 import { ASSETS } from "@/constants/assets";
 import { audioManager } from "../audio/audio";
 
@@ -169,7 +168,7 @@ type BaseState = ReturnType<typeof initialFromConfig>;
 const INITIAL: BaseState = initialFromConfig();
 
 export const useGameStore = create<GameState>()(
-    withAudioSync((set, get) => ({
+    ((set, get) => ({
         ...INITIAL,
 
         // ---- Mutators básicos ----

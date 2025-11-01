@@ -11,6 +11,7 @@ import { MissionCard } from "./overlays/MissionCard";
 import MenuInGame from "./overlays/MenuInGame";
 import DestroyDroneCard from "./overlays/DestroyDroneCard";
 import { useGameStore } from "./utils/state/store";
+import AudioSyncBridge from "./utils/state/AudioSyncBridge";
 import { audioManager } from "./utils/audio/audio";
 import { useHudEditorStore } from "./utils/state/hudEditor";
 import Player from "./layers/Player/Player";
@@ -651,6 +652,7 @@ const Game: React.FC = () => {
   return (
     <div id="immersive-root" data-immersive-root className="game-root">
       <div id="fs-root" ref={fsRootRef} style={{ position: "relative", width: "100%", height: "100%" }}>
+        <AudioSyncBridge />
         <HudEditOverlay exportLayout={() => useHudEditorStore.getState().exportLayout()} />
 
         <Canvas
