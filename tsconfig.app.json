@@ -20,6 +20,11 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "verbatimModuleSyntax": false,
+    "typeRoots": [
+      "./src/types",
+      "./node_modules/@types",
+      "react-dom"
+    ],
     "types": [
       "vite/client",
       "three"
@@ -33,7 +38,7 @@
   },
   "include": [
     "src"
-  ],
+, "src/react-dom-shim.d.ts"  ],
   "exclude": [
     "node_modules",
     "dist"
