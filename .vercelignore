@@ -3,5 +3,4 @@ tests/
 test-results/
 playwright-report/
 build-reports/
-scripts/
 *.spec.ts

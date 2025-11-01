@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "prebuild": "node scripts/prebuild.mjs",
-    "build": "vite build",
+    "build": "npm run prebuild && vite build",
     "predev": "node scripts/prebuild.mjs",
     "dev": "vite",
     "preview": "vite preview",
@@ -35,7 +35,6 @@
     "three": "^0.179.1",
     "three-mesh-bvh": "^0.9.1",
     "zustand": "^5.0.8",
-    "gl-matrix": "^3.4.3",
     "three-stdlib": "^2.36.0"
   },
   "devDependencies": {
@@ -66,7 +65,8 @@
     "vite": "^7.0.7",
     "vite-tsconfig-paths": "^5.1.4",
     "eslint-plugin-jsx-a11y": "^6.9.0",
-    "eslint-plugin-playwright": "^1.6.2"
+    "eslint-plugin-playwright": "^1.6.2",
+    "gl-matrix": "^3.4.3"
   },
   "overrides": {
     "esbuild": "^0.25.10",
@@ -74,5 +74,8 @@
     "vite": {
       "esbuild": "^0.25.10"
     }
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
