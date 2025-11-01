@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import sharp from "sharp";
 import pLimit from "p-limit";
-import { walk, findExistingRoots, rel } from "./lib/fs-utils.mjs";
+import { walk, findExistingRoots, rel } from "./fs-utils.mjs";
 import cfg from "./config.vram.mjs";
 
 const repoRoot = process.cwd();

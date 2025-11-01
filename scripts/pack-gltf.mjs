@@ -9,7 +9,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import pLimit from "p-limit";
 import sharp from "sharp";
-import { walk, findExistingRoots, rel } from "./lib/fs-utils.mjs";
+import { walk, findExistingRoots, rel } from "./fs-utils.mjs";
 import cfg from "./config.vram.mjs";
 import { Minimatch } from "minimatch";
 

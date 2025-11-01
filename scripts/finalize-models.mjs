@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import cfg from "./config.vram.mjs";
-import { findExistingRoots, walk, rel } from "./lib/fs-utils.mjs";
+import { findExistingRoots, walk, rel } from "./fs-utils.mjs";
 
 const repoRoot = process.cwd();
 const roots = findExistingRoots(cfg.modelDirs.map((p) => path.join(repoRoot, p)));

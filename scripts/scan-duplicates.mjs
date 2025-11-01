@@ -3,7 +3,7 @@
 // Fix: evita incluir el mismo archivo dos veces si cae bajo múltiples raíces.
 import fs from "node:fs";
 import path from "node:path";
-import { walk, findExistingRoots, hashFile, rel, ensureDir } from "./lib/fs-utils.mjs";
+import { walk, findExistingRoots, hashFile, rel, ensureDir } from "./fs-utils.mjs";
 import cfg from "./config.vram.mjs";
 
 const repoRoot = process.cwd();
