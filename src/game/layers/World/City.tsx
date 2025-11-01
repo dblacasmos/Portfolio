@@ -7,7 +7,6 @@ import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { CFG } from "../../../constants/config";
-import { getKTX2 } from "@/game/utils/three/ktx2/ktx2";
 import { ASSETS } from "@/constants/assets";
 import { extractMergedMesh } from "../../utils/three/geometry/extractMergedMesh";
 import { setLayerRecursive } from "@/game/utils/three/layers";
@@ -227,10 +226,11 @@ function ForbidDebug({ mesh }: { mesh: THREE.Mesh | null }) {
 /* ========================================= */
 export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
   const rootRef = useRef<THREE.Group>(null!);
-  const { gl } = useThree();
+  // evita no-used-locals si el proyecto lo tiene activado
+  const { gl: _gl } = useThree();
   const { scene } = useDracoGLTF(CITY_URL);
 
-  // ► Suelo/carretera
+  // Suelo/carretera
   const isGround = (m: THREE.Mesh) => {
     const n = (m.name ?? "").toLowerCase();
     return (
@@ -246,7 +246,7 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     );
   };
 
-  // ► Paredes del modelo (si las hay)
+  // Paredes del modelo (si las hay)
   const isWallsStrict = (m: THREE.Mesh) => {
     const n = (m.name ?? "").toLowerCase();
     return n === "objectfinal" || n.includes("objectfinal");
@@ -312,7 +312,6 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
   const sceneBox = useMemo(() => new THREE.Box3().setFromObject(scene), [scene]);
 
   // ===== Altura de paredes =====
-  // 1) Altura “raw” como estaba
   const wallHeightRaw = useMemo(() => {
     const extra = CFG.bounds.heightExtra ?? 0;
     const hModel = Math.max(0, sceneBox.max.y - groundTopY);
@@ -320,8 +319,6 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     return Math.max(hModel + extra, minH);
   }, [sceneBox, groundTopY]);
 
-  // 2) Asegurar altura mínima de pared hasta un tope configurable (por defecto 3 m)
-  //    => groundTopY + height >= minTopY ⇒ height >= (minTopY - groundTopY)
   const wallHeight = useMemo(() => {
     const desiredTopY = ((CFG as any)?.bounds?.minTopY ?? 5.0);
     const minHeightToReach = Math.max(0, desiredTopY - groundTopY);
@@ -344,7 +341,7 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     const thick = (CFG as any)?.bounds?.wallThickness ?? 0.8;
     const pushOut = Math.max(0, (CFG as any)?.bounds?.wallOffsetOut ?? 0.6);
 
-    // 👉 Usamos la altura garantizada
+    // Usamos la altura garantizada
     const height = wallHeight;
     const yMid = groundTopY + height * 0.5;
 
@@ -461,14 +458,12 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
       center: new THREE.Vector2(0, 0), // por el offset
       radius: ringRadius,
       groundY: groundTopY,
-      height: wallHeight,          // ← reportamos la altura garantizada
+      height: wallHeight,
       cityRoot: rootRef.current ?? null,
-      // NUEVO:
       forbidMesh: forbidMesh ?? null,
     });
   }, [groundMesh, wallsMesh, roadsMesh, ringRadius, groundTopY, wallHeight, forbidMesh, onReady]);
 
-  // Flag de debug no-constante para evitar "código inaccesible"
   const SHOW_FORBID_DEBUG = Boolean((CFG as any)?.debug?.showForbidMask);
 
   return (
@@ -483,5 +478,7 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
   );
 };
 
-useDracoGLTF.preload(CITY_URL, undefined, undefined, (l: any) => { try { l.setKTX2Loader?.(getKTX2()); } catch { } });
+// ✔ preload con el hook tipado (sin argumentos extra)
+useDracoGLTF.preload(CITY_URL);
+
 export default City;
