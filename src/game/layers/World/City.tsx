@@ -57,7 +57,7 @@ function mergeSafe(geoms: (THREE.BufferGeometry | null | undefined)[]) {
   const cleaned = valid.map(toColliderGeometry);
   const mergeFn =
     (BufferGeometryUtils as any).mergeGeometries ??
-    (BufferGeometryUtils as any).mergeBufferGeometries;
+    (BufferGeometryUtils as any).mergeGeometries;
   const merged = mergeFn(cleaned, false) as THREE.BufferGeometry | null;
   const out = merged ?? cleaned[0].clone();
   out.computeBoundingBox?.();
@@ -205,7 +205,7 @@ function extractForbiddenMesh(scene: THREE.Object3D) {
   if (!geos.length) return null;
   const mergeFn =
     (BufferGeometryUtils as any).mergeGeometries ??
-    (BufferGeometryUtils as any).mergeBufferGeometries;
+    (BufferGeometryUtils as any).mergeGeometries;
   const geo = mergeFn(geos, false) as THREE.BufferGeometry;
   const mesh = new THREE.Mesh(
     geo,
@@ -370,7 +370,7 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
 
     const mergeFn =
       (BufferGeometryUtils as any).mergeGeometries ??
-      (BufferGeometryUtils as any).mergeBufferGeometries;
+      (BufferGeometryUtils as any).mergeGeometries;
     return mergeFn(geos, false) as THREE.BufferGeometry;
   }, [hull, groundTopY, wallHeight]);
 

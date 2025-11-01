@@ -317,3 +317,12 @@ File: `src/game/graphics/quality.ts`
 - This README documents **what’s in the repo**: routes, scripts, assets, and the engineering decisions (compression, collisions, HUD, audio).  
 - If you expand the city or add enemy types, reuse the pipeline (`models:pack`, `assets:ktx2`) to keep the footprint in check.  
 - To inspect bundle weight, enable `sourcemap` in `vite.config.ts` and check large chunks (Three + GLTF often flirt with the default limit; `chunkSizeWarningLimit` is tuned already).
+
+## Despliegue en Vercel y pipeline de assets (según auditoría)
+
+- **No ignores `scripts/prebuild.mjs`** en `.vercelignore`. Este script existe para orquestar la optimización de assets y **se salta automáticamente en Vercel/CI**.
+- Ejecuta el pipeline de assets **en local** (por ejemplo con `npm run prebuild` o al ejecutar `npm run build`). Confirma y commitea los **assets optimizados** (p. ej., `.ktx2`, `.ktx2.glb`) antes de desplegar.
+- En `vercel.json` se configuran cabeceras de caché de **1 año** para `/assets/*`.
+- Si modificas o añades modelos/texturas/sonidos, vuelve a ejecutar el pipeline local y commitea los resultados.
+
+> Este flujo evita fallos de despliegue por falta de `prebuild.mjs` y garantiza rendimiento óptimo al servir assets ya optimizados.
