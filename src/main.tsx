@@ -1,7 +1,8 @@
 /*  =============================
     FILE: src/main.tsx
     ============================= */
-import "./game/utils/three/patchBVH"; // side-effect opcional: parches BVH
+import "./game/utils/collision/patchBVH"; // side-effect: parches BVH para raycasting/colisión
+
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -13,6 +14,7 @@ if (!container) {
     throw new Error("#root no encontrado en index.html");
 }
 
+// Nota: mantenemos StrictMode sólo en PROD para evitar doble-render en dev.
 const Root = import.meta.env.PROD ? (
     <React.StrictMode>
         <BrowserRouter>

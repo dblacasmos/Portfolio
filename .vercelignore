@@ -1,0 +1,7 @@
+# Ignorar pruebas, artefactos y scripts no necesarios en el deploy
+tests/
+test-results/
+playwright-report/
+build-reports/
+scripts/
+*.spec.ts

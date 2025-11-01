@@ -1,5 +1,5 @@
 // =======================================
-// FILE: src/game/utils/three/patchBVH.ts
+// FILE: src/game/utils/collision/patchBVH.ts
 // =======================================
 import * as THREE from "three";
 import {
