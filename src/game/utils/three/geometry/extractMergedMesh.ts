@@ -34,8 +34,8 @@ export function extractMergedMesh(
 
     if (!geoms.length) return null;
 
-    // three recientes exportan mergeGeometries; anteriores, mergeGeometries (evita hoisting de Rollup)
-    const merge = ((u: any) => u["mergeGeometries"] ?? u["mergeGeometries"])(BufferGeometryUtils as any);
+    // three recientes exportan mergeGeometries; anteriores, mergeBufferGeometries (evita hoisting de Rollup)
+    const merge = ((u: any) => u["mergeGeometries"] ?? u["mergeBufferGeometries"])(BufferGeometryUtils as any);
 
     const merged: THREE.BufferGeometry = merge(geoms, false);
     merged.computeBoundingBox?.();

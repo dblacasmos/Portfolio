@@ -12,8 +12,11 @@ import React, {
 } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
+import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
 import * as THREE from "three";
+import { initKTX2Loader } from "@/game/utils/three/ktx2/ktx2";
 import { motion } from "framer-motion";
+import { CFG } from "@/constants/config";
 import { useNavigate } from "react-router-dom";
 import { ASSETS } from "../../constants/assets";
 
@@ -200,7 +203,7 @@ function FuturisticPanel({
 
 /* ===================== Modelo ===================== */
 function RobotModel({ onBounds }: { onBounds: (box: THREE.Box3) => void }) {
-  const gltf = useGLTF(ASSETS.models.robot);
+  const gltf = useDracoGLTF(ASSETS.models.robot);
   const scene = (gltf as any)?.scene as THREE.Object3D | undefined;
   const inited = useRef(false);
 
@@ -241,6 +244,9 @@ export default function Hero() {
   const glRef = useRef<THREE.WebGLRenderer | null>(null);
   const cleanedOnce = useRef(false);
   const dprRange = useAdaptiveDprRange();
+
+  // ► NUEVO: estado para abrir el modelo sólo cuando KTX2 está listo
+  const [ktxReady, setKtxReady] = useState(false);
 
   // Prefetch ligero: calentamos /timeline (cinemática + paneles)
   useEffect(() => { import("./Timeline").catch(() => { }); }, []);
@@ -290,6 +296,12 @@ export default function Hero() {
           frameloop="demand"
           shadows={false}
           onCreated={({ gl }) => {
+            try {
+              const h = initKTX2Loader(gl as any, (CFG as any)?.decoders?.basisPath ?? "/assets/basis/");
+              if (h) setKtxReady(true);
+            } catch (e) {
+              console.warn("[Hero] KTX2 init failed", e);
+            }
             gl.shadowMap.enabled = false;
             (gl as any).toneMapping = THREE.NoToneMapping;
             (gl as any).outputColorSpace = THREE.SRGBColorSpace;
@@ -306,7 +318,7 @@ export default function Hero() {
           <directionalLight position={[-4, 1.2, -3]} intensity={0.8} color="#ffd166" castShadow={false} />
 
           <Suspense fallback={null}>
-            <RobotModel onBounds={handleBounds} />
+            {ktxReady ? <RobotModel onBounds={handleBounds} /> : null}
             {positions && <Projector positions={positions} setScreenCoords={setScreenCoords} />}
           </Suspense>
 
@@ -345,4 +357,3 @@ export default function Hero() {
 }
 
 // Precarga del GLB
-useGLTF.preload(ASSETS.models.robot);

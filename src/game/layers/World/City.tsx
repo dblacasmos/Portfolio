@@ -2,7 +2,7 @@
   FILE: src/game/layers/World/City.tsx
 ============================================================ */
 import { useEffect, useMemo, useRef } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -57,7 +57,7 @@ function mergeSafe(geoms: (THREE.BufferGeometry | null | undefined)[]) {
   const cleaned = valid.map(toColliderGeometry);
   const mergeFn =
     (BufferGeometryUtils as any).mergeGeometries ??
-    (BufferGeometryUtils as any).mergeGeometries;
+    (BufferGeometryUtils as any).mergeBufferGeometries;
   const merged = mergeFn(cleaned, false) as THREE.BufferGeometry | null;
   const out = merged ?? cleaned[0].clone();
   out.computeBoundingBox?.();
@@ -205,7 +205,7 @@ function extractForbiddenMesh(scene: THREE.Object3D) {
   if (!geos.length) return null;
   const mergeFn =
     (BufferGeometryUtils as any).mergeGeometries ??
-    (BufferGeometryUtils as any).mergeGeometries;
+    (BufferGeometryUtils as any).mergeBufferGeometries;
   const geo = mergeFn(geos, false) as THREE.BufferGeometry;
   const mesh = new THREE.Mesh(
     geo,
@@ -228,7 +228,7 @@ function ForbidDebug({ mesh }: { mesh: THREE.Mesh | null }) {
 export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
   const rootRef = useRef<THREE.Group>(null!);
   const { gl } = useThree();
-  const { scene } = useGLTF(CITY_URL);
+  const { scene } = useDracoGLTF(CITY_URL);
 
   // ► Suelo/carretera
   const isGround = (m: THREE.Mesh) => {
@@ -370,7 +370,7 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
 
     const mergeFn =
       (BufferGeometryUtils as any).mergeGeometries ??
-      (BufferGeometryUtils as any).mergeGeometries;
+      (BufferGeometryUtils as any).mergeBufferGeometries;
     return mergeFn(geos, false) as THREE.BufferGeometry;
   }, [hull, groundTopY, wallHeight]);
 
@@ -483,5 +483,5 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
   );
 };
 
-(useGLTF as any).preload(CITY_URL, undefined, undefined, (l: any) => { try { l.setKTX2Loader?.(getKTX2()); } catch { } });
+useDracoGLTF.preload(CITY_URL, undefined, undefined, (l: any) => { try { l.setKTX2Loader?.(getKTX2()); } catch { } });
 export default City;

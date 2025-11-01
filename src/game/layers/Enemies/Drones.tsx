@@ -4,7 +4,7 @@ FILE: src/game/layers/Enemies/Drones.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useGLTF } from "@react-three/drei";
+import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
 import { CFG } from "../../../constants/config";
 import { useGameStore } from "../../utils/state/store";
 import { ASSETS } from "@/constants/assets";
@@ -302,7 +302,7 @@ const Drones: React.FC<DronesProps> = ({
     const aabbRectRef = useRef<Rect | null>(null);
 
     // Modelo del dron
-    const gltf = useGLTF(CFG.models.drone) as any;
+    const gltf = useDracoGLTF(CFG.models.drone) as any;
     const droneMeshes = useMemo(() => {
         const arr: { geo: THREE.BufferGeometry; mat: THREE.Material }[] = [];
         (gltf.scene as THREE.Object3D).traverse((o: any) => {
@@ -907,5 +907,5 @@ const Drones: React.FC<DronesProps> = ({
     );
 };
 
-useGLTF.preload(CFG.models.drone);
+useDracoGLTF.preload(CFG.models.drone);
 export default Drones;

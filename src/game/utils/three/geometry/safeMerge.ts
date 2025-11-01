@@ -2,7 +2,7 @@
 // FILE: src/game/utils/three/safeMerge.ts
 // =======================================
 import * as THREE from "three";
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 /** Convierte cualquier atributo (incl. interleaved/normalized) a BufferAttribute Float32 plano. */
 function toFloat32(attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) {

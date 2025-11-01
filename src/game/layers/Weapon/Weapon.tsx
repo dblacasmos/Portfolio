@@ -2,7 +2,7 @@
 // FILE: src/game/layers/Weapon/Weapon.tsx
 // ====================================
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useMemo } from "react";
-import { useGLTF } from "@react-three/drei";
+import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
@@ -25,7 +25,7 @@ export const Weapon = forwardRef<WeaponAPI, WeaponProps>(function WeaponImpl(
     }, [currentWeaponKey]);
 
     const url = weaponCfg.modelUrl ?? CFG.weapon.modelUrl;
-    const { scene } = useGLTF(url) as any;
+    const { scene } = useDracoGLTF(url) as any;
 
     const rootRef = useRef<THREE.Group>(null!);
     const wrapRef = useRef<THREE.Group>(null!); // wrapper para espejo en zurdo
@@ -210,7 +210,7 @@ export const Weapon = forwardRef<WeaponAPI, WeaponProps>(function WeaponImpl(
     );
 });
 
-useGLTF.preload(CFG.weapon.modelUrl);
+useDracoGLTF.preload(CFG.weapon.modelUrl);
 export default Weapon;
 
 // Precarga opcional de todos los modelos definidos en CFG.weapons
@@ -218,6 +218,6 @@ try {
     const cat = CFG.weapons as Record<string, any>;
     Object.keys(cat || {}).forEach((k) => {
         const url = cat[k]?.modelUrl;
-        if (url) useGLTF.preload(url);
+        if (url) useDracoGLTF.preload(url);
     });
 } catch { }

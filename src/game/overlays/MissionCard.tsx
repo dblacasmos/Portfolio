@@ -5,7 +5,7 @@
 import React from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useGLTF } from "@react-three/drei";
+import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
 import { ASSETS } from "../../constants/assets";
 import { useGameStore } from "../utils/state/store";
 import { audioManager } from "../utils/audio/audio";
@@ -35,7 +35,7 @@ const DRONE_MIN = 2.4;
 const DRONE_MAX = 7.5;
 
 function FitLevelAndRotateDrone({ distance }: { distance: number }) {
-    const { scene } = useGLTF(ASSETS.models.drone) as any;
+    const { scene } = useDracoGLTF(ASSETS.models.drone) as any;
     const group = React.useRef<THREE.Group>(null!);
     const { camera, size } = useThree();
 
@@ -122,7 +122,7 @@ function FitLevelAndRotateDrone({ distance }: { distance: number }) {
 
     return <group ref={group} />;
 }
-useGLTF.preload(ASSETS.models.drone);
+useDracoGLTF.preload(ASSETS.models.drone);
 
 /* ===================== Mission Card ===================== */
 
