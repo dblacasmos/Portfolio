@@ -1,24 +1,23 @@
-/* =====================================
+/* ===================================
   FILE: src/game/layers/World/City.tsx
-======================================== */
+====================================== */
 import { useEffect, useMemo, useRef } from "react";
 import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
-import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { CFG } from "../../../constants/config";
+import { CFG } from "@/constants/config";
 import { ASSETS } from "@/constants/assets";
-import { extractMergedMesh } from "../../utils/three/geometry/extractMergedMesh";
+import { extractMergedMesh } from "@/game/utils/three/geometry/extractMergedMesh";
 import { setLayerRecursive } from "@/game/utils/three/layers";
-import { optimizeStatic, tuneMaterials } from "../../utils/three/optimizeGLTF";
-import { isKTX2Ready } from "@/game/utils/three/ktx2/ktx2";
+import { optimizeStatic, tuneMaterials } from "@/game/utils/three/optimizeGLTF";
+import { isKTX2Ready } from "@/game/utils/textures/ktx2";
 import { prepareForMerge } from "@/game/utils/three/geometry/prepareForMerge";
 
 // BVH (idempotente) — carga dinámica para partir chunk
 let __bvhPatched = false;
 async function ensureBVH() {
   if (__bvhPatched) return;
-  const { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } = await import('three-mesh-bvh');
+  const { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } = await import("three-mesh-bvh");
   (THREE.BufferGeometry as any).prototype.computeBoundsTree ??= computeBoundsTree;
   (THREE.BufferGeometry as any).prototype.disposeBoundsTree ??= disposeBoundsTree;
   (THREE.Mesh as any).prototype.raycast ??= acceleratedRaycast;
@@ -28,7 +27,7 @@ async function ensureBVH() {
 const LAYER_WORLD = CFG.layers.WORLD;
 
 // cacheamos el merge una sola vez (evita hoisting de Rollup a imports con nombre)
-const MERGE = ((u: any) => u['mergeGeometries'] ?? u['mergeBufferGeometries'])(BufferGeometryUtils as any);
+const MERGE = ((u: any) => u["mergeGeometries"] ?? u["mergeBufferGeometries"])(BufferGeometryUtils as any);
 
 export type CityReadyInfo = {
   groundMesh: THREE.Mesh | null;
@@ -39,13 +38,13 @@ export type CityReadyInfo = {
   groundY: number;
   height: number;
   cityRoot: THREE.Object3D | null;
-  // NUEVO: máscara de zonas prohibidas (mesa/ObjetoFinal)
-  forbidMesh?: THREE.Mesh | null;
+  forbidMesh?: THREE.Mesh | null;           // máscara de zonas prohibidas (mesa/ObjetoFinal)
 };
 
 type CityProps = {
   onReady: (info: CityReadyInfo) => void;
   scale?: number;
+  envMapTexture?: THREE.Texture | null;     // Env map procedente del DomeSky (PMREM). Se aplicará solo a ventanas
 };
 
 /* ================= helpers (colliders + hull) ================= */
@@ -53,7 +52,9 @@ type CityProps = {
 // Geometría limpia para colisiones: non-indexed + sólo position
 function toColliderGeometry(src: THREE.BufferGeometry) {
   const g = prepareForMerge(src);
-  Object.keys(g.attributes).forEach((n) => { if (n !== "position") (g as any).deleteAttribute(n); });
+  Object.keys(g.attributes).forEach((n) => {
+    if (n !== "position") (g as any).deleteAttribute(n);
+  });
   g.computeBoundingBox?.();
   g.computeBoundingSphere?.();
   return g;
@@ -74,13 +75,20 @@ function dominantY(g?: THREE.BufferGeometry | null) {
   if (!g) return null;
   const pos = g.getAttribute("position") as THREE.BufferAttribute | undefined;
   if (!pos) return null;
-  const map = new Map<number, number>(), kf = 1000;
+  const map = new Map<number, number>(),
+    kf = 1000;
   for (let i = 0; i < pos.count; i++) {
     const k = Math.round(pos.getY(i) * kf);
     map.set(k, (map.get(k) ?? 0) + 1);
   }
-  let best: number | null = null, cnt = -1;
-  map.forEach((c, k) => { if (c > cnt) { cnt = c; best = k; } });
+  let best: number | null = null,
+    cnt = -1;
+  map.forEach((c, k) => {
+    if (c > cnt) {
+      cnt = c;
+      best = k;
+    }
+  });
   return best === null ? null : best / kf;
 }
 
@@ -100,7 +108,8 @@ function convexHullXZ(points: THREE.Vector2[]): THREE.Vector2[] {
     while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
     upper.push(p);
   }
-  upper.pop(); lower.pop();
+  upper.pop();
+  lower.pop();
   return lower.concat(upper);
 }
 
@@ -112,10 +121,14 @@ function decimateXZFromPositions(pos: THREE.BufferAttribute, every = 6): THREE.V
 
 /* ---------- PBR + sombras del modelo ---------- */
 // Ajustes rápidos por nombre para que el look PBR sea más creíble.
-function prepareShadowsAndPBR(root: THREE.Object3D) {
+// (Aplica envMap SOLO a materiales que parezcan ventanas/cristal)
+function prepareShadowsAndPBR(root: THREE.Object3D, opts?: { envMap?: THREE.Texture | null }) {
+  const envMap = opts?.envMap ?? null;
   const isGlassName = (n: string) => /glass|vidrio|crystal/i.test(n);
+  const isWindowName = (n: string) => /window|ventana|cristal|cristaler[ií]a|vidriera/i.test(n);
   const isMetalName = (n: string) => /metal|steel|alumin|iron|chrome/i.test(n);
   const isVarnishName = (n: string) => /clearcoat|barniz|car[_-\s]?paint|paint/i.test(n);
+  const envIntensity = (CFG as any)?.env?.intensity ?? 1.15;
 
   root.traverse((o: any) => {
     if (!o?.isMesh) return;
@@ -125,38 +138,58 @@ function prepareShadowsAndPBR(root: THREE.Object3D) {
     const mats: THREE.Material[] = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of mats) {
       const mat = m as any;
-      if (!mat || !("metalness" in mat || "roughness" in mat)) continue;
+      if (!mat) continue;
 
       const name = (mat.name || o.name || "").toString();
-      if (isMetalName(name)) {
-        if (typeof mat.metalness === "number") mat.metalness = Math.max(mat.metalness, 0.9);
-        if (typeof mat.roughness === "number") mat.roughness = Math.min(mat.roughness, 0.35);
-        if ("envMapIntensity" in mat) mat.envMapIntensity = Math.max(mat.envMapIntensity ?? 1.0, 1.15);
-      }
-      if (isVarnishName(name)) {
-        if ("clearcoat" in mat) mat.clearcoat = Math.max(mat.clearcoat ?? 0.8, 0.95);
-        if ("clearcoatRoughness" in mat) mat.clearcoatRoughness = Math.min(mat.clearcoatRoughness ?? 0.15, 0.18);
-        if ("envMapIntensity" in mat) mat.envMapIntensity = Math.max(mat.envMapIntensity ?? 1.0, 1.1);
-      }
-      if (isGlassName(name)) {
-        if ("transmission" in mat) {
-          mat.transmission = Math.max(mat.transmission ?? 0.8, 0.9);
-          mat.thickness = Math.max(mat.thickness ?? 0.08, 0.12);
-          mat.ior = mat.ior ?? 1.45;
-          mat.attenuationColor = mat.attenuationColor ?? new THREE.Color("#a8d7ff");
-          mat.attenuationDistance = mat.attenuationDistance ?? 2.5;
-          mat.transparent = true;
-          mat.depthWrite = false;
-        } else {
-          mat.transparent = true;
-          mat.opacity = Math.min(mat.opacity ?? 0.6, 0.6);
-          mat.depthWrite = false;
+
+      if ("metalness" in mat || "roughness" in mat) {
+        if (isMetalName(name)) {
+          if (typeof mat.metalness === "number") mat.metalness = Math.max(mat.metalness, 0.9);
+          if (typeof mat.roughness === "number") mat.roughness = Math.min(mat.roughness, 0.15);
+          // NO ponemos envMap global en metales
+          if ("envMapIntensity" in mat && !envMap) mat.envMapIntensity = envIntensity;
         }
-        if (typeof mat.roughness === "number") mat.roughness = Math.min(mat.roughness, 0.15);
-        if ("envMapIntensity" in mat) mat.envMapIntensity = Math.max(mat.envMapIntensity ?? 1.0, 1.2);
-        (o as any).castShadow = false;
-        (o as any).receiveShadow = true;
+
+        if (isVarnishName(name)) {
+          if ("clearcoat" in mat) mat.clearcoat = Math.max(mat.clearcoat ?? 0.8, 0.95);
+          if ("clearcoatRoughness" in mat) mat.clearcoatRoughness = Math.min(mat.clearcoatRoughness ?? 0.15, 0.18);
+          if ("envMapIntensity" in mat && !envMap) mat.envMapIntensity = envIntensity;
+        }
+
+        const looksLikeWindow =
+          isGlassName(name) || isWindowName(name) || (typeof mat.transmission === "number" && mat.transmission > 0);
+
+        if (looksLikeWindow) {
+          if ("transmission" in mat) {
+            mat.transmission = Math.max(mat.transmission ?? 0.8, 0.9);
+            mat.thickness = Math.max(mat.thickness ?? 0.08, 0.12);
+            mat.ior = mat.ior ?? 1.45;
+            mat.attenuationColor = mat.attenuationColor ?? new THREE.Color("#a8d7ff");
+            mat.attenuationDistance = mat.attenuationDistance ?? 2.5;
+            mat.transparent = true;
+            mat.depthWrite = false;
+          } else {
+            mat.transparent = true;
+            mat.opacity = Math.min(mat.opacity ?? 0.6, 0.6);
+            mat.depthWrite = false;
+          }
+          if (typeof mat.roughness === "number") mat.roughness = Math.min(mat.roughness, 0.15);
+
+          // SOLO a ventanas/cristal: aplica envMap del cielo
+          if (envMap && "envMap" in mat) {
+            mat.envMap = envMap;
+            if ("envMapIntensity" in mat) mat.envMapIntensity = Math.max(mat.envMapIntensity ?? 1.15, 1.25);
+          } else {
+            // Sin envMap, deja algo de respuesta especular
+            if ("envMapIntensity" in mat) mat.envMapIntensity = Math.max(mat.envMapIntensity ?? 1.0, 1.2);
+          }
+
+          // Ventanas no proyectan sombra dura
+          (o as any).castShadow = false;
+          (o as any).receiveShadow = true;
+        }
       }
+
       if ("toneMapped" in mat) mat.toneMapped = true;
       if ("fog" in mat) mat.fog = true;
       mat.needsUpdate = true;
@@ -178,7 +211,9 @@ function extractForbiddenMesh(scene: THREE.Object3D) {
     o.updateWorldMatrix(true, false);
     const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry).clone();
     g.applyMatrix4(o.matrixWorld);
-    Object.keys(g.attributes).forEach((n) => { if (n !== "position") (g as any).deleteAttribute(n); });
+    Object.keys(g.attributes).forEach((n) => {
+      if (n !== "position") (g as any).deleteAttribute(n);
+    });
     g.computeBoundingBox?.();
     g.computeBoundingSphere?.();
     geos.push(g);
@@ -203,11 +238,11 @@ function ForbidDebug({ mesh }: { mesh: THREE.Mesh | null }) {
 }
 
 /* ========================================= */
-export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
+export const City: React.FC<CityProps> = ({ onReady, scale = 1, envMapTexture = null }) => {
   const rootRef = useRef<THREE.Group>(null!);
   const { scene } = useDracoGLTF(ASSETS.models.city, {
     dracoPath: CFG.decoders.dracoPath,
-    meshopt: true
+    meshopt: true,
   }) as any;
 
   // ► Detectores básicos de piezas del modelo
@@ -244,8 +279,9 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     setLayerRecursive(scene, LAYER_WORLD);
     optimizeStatic(scene);
     tuneMaterials(scene);
-    prepareShadowsAndPBR(scene);
-  }, [scene]);
+    // aplica envMap SOLO a ventanas/cristales
+    prepareShadowsAndPBR(scene, { envMap: envMapTexture ?? null });
+  }, [scene, envMapTexture]);
 
   // Altura efectiva del suelo (con ajuste fino por config)
   const groundTopY = useMemo(() => {
@@ -309,7 +345,10 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
   const wallRectGeo = useMemo(() => {
     if (!scene) return null;
     const b = new THREE.Box3().setFromObject(scene);
-    let minX = b.min.x, maxX = b.max.x, minZ = b.min.z, maxZ = b.max.z;
+    let minX = b.min.x,
+      maxX = b.max.x,
+      minZ = b.min.z,
+      maxZ = b.max.z;
 
     const thickIn = (CFG as any)?.bounds?.wallThicknessIn ?? (CFG as any)?.bounds?.wallThickness ?? 0.8;
     const pushOut = Math.max(0, (CFG as any)?.bounds?.wallOffsetOut ?? 0.0);
@@ -317,9 +356,12 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     const height = wallHeight;
     const yMid = groundTopY + height * 0.5;
 
-    minX -= pushOut; maxX += pushOut; minZ -= pushOut; maxZ += pushOut;
-    const width = (maxX - minX);
-    const depth = (maxZ - minZ);
+    minX -= pushOut;
+    maxX += pushOut;
+    minZ -= pushOut;
+    maxZ += pushOut;
+    const width = maxX - minX;
+    const depth = maxZ - minZ;
 
     const geos: THREE.BufferGeometry[] = [];
     // Norte (+Z)
@@ -334,8 +376,11 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     // “Techo” fino para evitar escapes por arriba
     const ceilThick = Math.max(0.08, Math.min(0.2, thickIn * 0.25));
     geos.push(
-      new THREE.BoxGeometry(width + thickIn * 2, ceilThick, depth + thickIn * 2)
-        .translate(minX + width * 0.5, groundTopY + height + ceilThick * 0.5, minZ + depth * 0.5)
+      new THREE.BoxGeometry(width + thickIn * 2, ceilThick, depth + thickIn * 2).translate(
+        minX + width * 0.5,
+        groundTopY + height + ceilThick * 0.5,
+        minZ + depth * 0.5
+      )
     );
 
     return MERGE(geos, false) as THREE.BufferGeometry;
@@ -348,8 +393,8 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     const thickY = 0.2;
     const thickIn = (CFG as any)?.bounds?.wallThicknessIn ?? (CFG as any)?.bounds?.wallThickness ?? 0.8;
 
-    const fullW = (b.max.x - b.min.x) + margin * 2;
-    const fullD = (b.max.z - b.min.z) + margin * 2;
+    const fullW = b.max.x - b.min.x + margin * 2;
+    const fullD = b.max.z - b.min.z + margin * 2;
 
     const innerW = Math.max(0.1, fullW - thickIn * 2);
     const innerD = Math.max(0.1, fullD - thickIn * 2);
@@ -357,11 +402,7 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
     const cx = (b.min.x + b.max.x) * 0.5;
     const cz = (b.min.z + b.max.z) * 0.5;
 
-    return new THREE.BoxGeometry(innerW, thickY, innerD).translate(
-      cx,
-      groundTopY - thickY * 0.5,
-      cz
-    );
+    return new THREE.BoxGeometry(innerW, thickY, innerD).translate(cx, groundTopY - thickY * 0.5, cz);
   }, [scene, groundTopY]);
 
   const safetyFloorMat = useMemo(
@@ -460,11 +501,12 @@ export const City: React.FC<CityProps> = ({ onReady, scale = 1 }) => {
   );
 };
 
-// ► Preload consistente (usamos ASSETS.models.city como arriba)
-const __preloadCity = () => (useDracoGLTF as any).preload(ASSETS.models.city, {
-  dracoPath: CFG.decoders.dracoPath,
-  meshopt: true,
-});
+// Preload consistente (usamos ASSETS.models.city como arriba)
+const __preloadCity = () =>
+  (useDracoGLTF as any).preload(ASSETS.models.city, {
+    dracoPath: CFG.decoders.dracoPath,
+    meshopt: true,
+  });
 if (isKTX2Ready()) {
   __preloadCity();
 } else if (typeof window !== "undefined") {

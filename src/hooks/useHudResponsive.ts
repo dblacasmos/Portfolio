@@ -1,14 +1,14 @@
-/* ====================================
+/* ========================================
    FILE: src/game/hooks/useHudResponsive.ts
-   ==================================== */
+   ======================================== */
 import { useMemo } from "react";
 import { useThree } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
 
 export type Breakpoints = {
-    isMobile: boolean;   // < 640px
-    isTablet: boolean;   // 640–1023px
-    isDesktop: boolean;  // ≥ 1024px
+    isMobile: boolean;            // < 640px
+    isTablet: boolean;            // 640–1023px
+    isDesktop: boolean;           // ≥ 1024px
 };
 
 export type HudResponsive = {

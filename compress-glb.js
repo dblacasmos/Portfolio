@@ -1,4 +1,6 @@
-// compress-glb.js
+/*  =====================
+    FILE: compress-glb.js
+    ===================== */
 // Compresión Draco-only rápida para casos puntuales.
 // Uso:
 //   node compress-glb.js input.glb [output.glb] [--level=10]

@@ -1,13 +1,14 @@
-// =======================================
-// FILE: src/game/utils/three/safeMerge.ts
-// =======================================
+/*  ================================================
+    FILE: src/game/utils/three/geometry/safeMerge.ts
+    ================================================ */
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+// Import por espacio de nombres para ser compatible con diferentes versiones de three
+import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 /** Convierte cualquier atributo (normalizado/interleaved) a Float32 limpio. */
 function toFloat32(attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) {
-    // Usamos toArray() que ya resuelve interleaved + normalized correctamente
     const tmp: number[] = [];
+    // toArray() ya resuelve interleaved + normalized correctamente
     (attr as any).toArray(tmp);
     const itemSize = (attr as any).itemSize ?? 3;
     return new THREE.BufferAttribute(Float32Array.from(tmp), itemSize, false);
@@ -32,8 +33,16 @@ export function normalizeGeometryAttributes(g: THREE.BufferGeometry) {
     return out;
 }
 
-/** Merge seguro: normaliza primero, luego delega en BufferGeometryUtils. */
+type MergeFn = (geoms: THREE.BufferGeometry[], useGroups?: boolean) => THREE.BufferGeometry;
+
+/** Elige la función disponible según versión de three (mergeGeometries o mergeBufferGeometries). */
+const mergeGeometriesCompat: MergeFn = (
+    (BufferGeometryUtils as any).mergeGeometries ??
+    (BufferGeometryUtils as any).mergeBufferGeometries
+) as MergeFn;
+
+/** Merge seguro: normaliza primero, luego delega en BufferGeometryUtils (compat). */
 export function safeMergeGeometries(geoms: THREE.BufferGeometry[], useGroups = false) {
     const norm = geoms.map(normalizeGeometryAttributes);
-    return mergeGeometries(norm, useGroups);
+    return mergeGeometriesCompat(norm, useGroups);
 }

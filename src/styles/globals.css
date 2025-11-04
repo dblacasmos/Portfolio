@@ -1,6 +1,6 @@
-/* =============================
+/* ===========================
   FILE: src/styles/globals.css
-  ============================= */
+  ============================ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -12,6 +12,80 @@
   --hud-glass: rgba(9, 12, 16, 0.45);
   --hud-frame: rgba(255, 255, 255, 0.08);
   --hud-text: #e5e7eb;
+
+  /* Tipografía y spacing fluidos */
+  --fluid-step: clamp(0.92, 0.68rem + 0.35vw, 1.06);
+  --space-1: clamp(0.5rem, 0.42rem + 0.2vw, 0.75rem);
+  --space-2: clamp(0.75rem, 0.62rem + 0.35vw, 1rem);
+  --space-3: clamp(1rem, 0.85rem + 0.5vw, 1.5rem);
+  --radius: 12px;
+
+  /* Variables para tipografía y spacing fluidos base */
+  --fs-min: 14px;
+  --fs-max: 18px;
+  --space-min: 8px;
+  --space-max: 16px;
+
+  /* Accent global para inputs/checkbox/range compatibles */
+  accent-color: var(--hud-neon);
+
+  /* === Cursors (mismo arte que en tailwind.config.cjs) === */
+  --cursor-robot: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M3 2 L3 22 L10.5 17.5 L14 28 L18 26 L14 15.5 L23 15.5 Z' fill='%23ffffff' fill-opacity='0.95' stroke='%2300e5ff' stroke-width='1.5' stroke-linejoin='round'/><path d='M6 6 L12.5 13.5' stroke='%2300e5ff' stroke-width='1.5' stroke-linecap='round'/><circle cx='12' cy='10' r='1.4' fill='%2300e5ff'/></svg>") 3 2, auto;
+  --cursor-robot-pointer: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><circle cx='16' cy='16' r='9' fill='none' stroke='%2300e5ff' stroke-width='2'/><circle cx='16' cy='16' r='2.4' fill='%23ffffff' fill-opacity='0.95' stroke='%2300e5ff' stroke-width='1.3'/><path d='M16 4 L16 7 M28 16 L25 16 M16 28 L16 25 M4 16 L7 16' stroke='%2300e5ff' stroke-width='1.5' stroke-linecap='round'/></svg>") 16 16, pointer;
+}
+
+/* Altura segura iOS: svh/dvh fallback */
+html,
+body {
+  min-height: 100svh;
+  /* usado también por el FireZone en mobile */
+}
+
+@supports not (height: 100svh) {
+
+  html,
+  body {
+    min-height: 100vh;
+  }
+}
+
+/* Enfoque accesible (AA) y visible */
+:where(button, [role="button"], a, input, select, textarea):focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}
+
+/* Utilidades screen-reader (útiles para skip links) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.not-sr-only {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Motion reduce global seguro */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 html,
@@ -19,6 +93,62 @@ body,
 #root {
   height: 100%;
   width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Contenedor seguro para fullscreen/viewport móvil */
+.safe-stage {
+  /* iOS Safari usa svh; resto dvh */
+  min-height: 100svh;
+  min-height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  touch-action: manipulation;
+  isolation: isolate;
+  /* crea stacking context para z-index predecible */
+  contain: layout style size;
+}
+
+.ui-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  /* cada control activará pointer-events:auto */
+}
+
+.ui-clickable {
+  pointer-events: auto;
+}
+
+/* Focus visible accesible por defecto */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid hsl(200 100% 50% / 0.9);
+  outline-offset: 3px;
+}
+
+/* llena el viewport sin “black bar” en iOS */
+#immersive-root,
+.game-root,
+#fs-root {
+  position: fixed;
+  inset: 0;
+  width: 100dvw;
+  height: 100dvh;
+}
+
+@supports not (height: 100dvh) {
+
+  #immersive-root,
+  .game-root,
+  #fs-root {
+    height: 100svh;
+  }
 }
 
 /* Ocultar el juego mientras dura la cutscene */
@@ -26,16 +156,36 @@ body,
   visibility: hidden;
 }
 
+/* Safe areas simple (bottom) para iOS */
+.safe-bottom {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
 /* El contenedor del juego debe ocupar todo el viewport (incluye fullscreen) */
 :where(#immersive-root, [data-immersive-root], .game-root) {
   width: 100vw;
   height: 100dvh;
   /* dvh para móviles con barras dinámicas */
+  overscroll-behavior-y: none;
+  contain: layout paint size;
+  /* layout estable en mobile UI chrome bars */
+}
+
+/* Fallback si el navegador no soporta dvh */
+@supports not (height: 100dvh) {
+  :where(#immersive-root, [data-immersive-root], .game-root) {
+    height: 100vh;
+  }
 }
 
 /* No pises la utilidad `fixed` de Tailwind: sólo aplica relative si NO es fixed */
 :where(#immersive-root, [data-immersive-root], .game-root):not(.fixed) {
   position: relative;
+}
+
+/* Fondo neutro para el contenedor fullscreen */
+#fs-root {
+  background: #000;
 }
 
 /* Asegura que el canvas y overlays llenen el contenedor del juego */
@@ -56,43 +206,56 @@ canvas {
 /* =================== Base =================== */
 @layer base {
 
-  /* 🌐 Tema + tipografía */
+  /* Tema + tipografía */
   body {
     @apply bg-black text-white;
     margin: 0;
     overflow: hidden;
+    /* Tipografía fluida base y legibilidad */
+    font-size: clamp(var(--fs-min), 1.2vw, var(--fs-max));
+    line-height: 1.5;
     font-family: 'Orbitron', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+    touch-action: manipulation;
   }
 
-  /* 🎯 Cursor ROBOT global por defecto */
+  /* Cursor ROBOT global por defecto */
   html,
   body {
     @apply cursor-robot;
   }
 
-  /* 🔵 Estado acción en controles interactivos */
+  /* Estado por defecto: flecha robot */
   a,
   button,
   [role="button"],
   .is-action {
-    @apply hover:cursor-robot-pointer;
+    cursor: var(--cursor-robot);
   }
 
-  /* 🕹️ Modo juego: ocultar cursor del SO cuando body tiene la clase .hide-cursor */
+  /* Hover/clickable: retícula robot (fuerza prioridad sobre cursor:pointer) */
+  a:hover,
+  button:hover,
+  [role="button"]:hover,
+  .is-action:hover {
+    cursor: var(--cursor-robot-pointer) !important;
+  }
+
+  /* Modo juego: ocultar cursor del SO cuando body tiene la clase .hide-cursor */
   body.hide-cursor,
   body.hide-cursor * {
     cursor: none !important;
   }
 
-  /* 🧩 Asegurar robot cuando la UI lo pida explícitamente */
+  /* Asegurar robot cuando la UI lo pida explícitamente */
   body.show-cursor,
   body.hud-cursor {
     @apply cursor-robot;
   }
 
-  /* ✏️ HUD Editor: siempre mostrar cursor y con estilo robot */
+  /* HUD Editor: siempre mostrar cursor y con estilo robot */
   body.hud-editing {
     @apply cursor-robot;
   }
@@ -104,16 +267,41 @@ canvas {
     @apply hover:cursor-robot-pointer;
   }
 
-  /* 🧷 Cuando el overlay ignora puntero, el target real es el <canvas>. */
+  /* Cuando el overlay ignora puntero, el target real es el <canvas>. */
   body.show-cursor canvas,
   body.hud-cursor canvas,
   body.hud-editing canvas {
     cursor: inherit !important;
   }
+
+  /* Elementos clicables en HUD/menús cuando hay hud-cursor */
+  body.hud-cursor .is-action,
+  body.hud-cursor button,
+  body.hud-cursor [role="button"] {
+    cursor: pointer;
+  }
+
+  /* Selección de texto más visible */
+  ::selection {
+    background: rgba(34, 211, 238, 0.35);
+    color: white;
+  }
 }
 
 /* =================== Components =================== */
 @layer components {
+
+  /* Paneles clicables (solo cuando se marcan como data-clickable o clase .buttonish) */
+  .panel-glass[data-clickable],
+  .panel-glass.buttonish {
+    cursor: var(--cursor-robot);
+  }
+
+  .panel-glass[data-clickable]:hover,
+  .panel-glass.buttonish:hover {
+    cursor: var(--cursor-robot-pointer) !important;
+  }
+
   .canvas-overlay {
     @apply fixed inset-0 pointer-events-none;
     z-index: 30;
@@ -126,44 +314,48 @@ canvas {
 
   .btn-metal {
     @apply inline-flex items-center justify-center select-none rounded-xl border text-cyan-100 px-4 py-2 font-medium tracking-wide transition-colors duration-150 ease-out;
-    border-color: rgba(34, 211, 238, 0.30);
-    background-image: linear-gradient(to bottom, rgba(34, 211, 238, 0.10), rgba(34, 211, 238, 0.00));
+    border-color: rgba(34, 211, 238, 0.3);
+    background-image: linear-gradient(to bottom, rgba(34, 211, 238, 0.1), rgba(34, 211, 238, 0));
     box-shadow: inset 0 0 24px rgba(34, 211, 238, 0.08), 0 0 40px rgba(34, 211, 238, 0.12);
   }
 
   .btn-metal:hover {
-    background-color: rgba(34, 211, 238, 0.10);
+    background-color: rgba(34, 211, 238, 0.1);
   }
 
   .btn-metal:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.50), inset 0 0 24px rgba(34, 211, 238, 0.10);
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.5), inset 0 0 24px rgba(34, 211, 238, 0.1);
   }
 
   .btn-metal:disabled {
-    opacity: .5;
+    opacity: 0.5;
     pointer-events: none;
   }
 
   .btn-ghost {
     @apply inline-flex items-center justify-center select-none rounded-xl border text-white px-4 py-2 font-medium tracking-wide transition-colors duration-150 ease-out;
     border-color: var(--hud-frame);
+    /* Fallback + color-mix (el último gana si está soportado) */
+    background: rgba(0, 0, 0, 0.7);
     background: color-mix(in oklab, black 70%, transparent);
     backdrop-filter: blur(6px);
   }
 
   .btn-ghost:hover {
+    /* Fallback + color-mix (el último gana si está soportado) */
+    background: rgba(0, 0, 0, 0.58);
     background: color-mix(in oklab, black 58%, transparent);
     border-color: rgba(255, 255, 255, 0.18);
   }
 
   .btn-ghost:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.55), 0 0 24px rgba(34, 211, 238, 0.20);
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.55), 0 0 24px rgba(34, 211, 238, 0.2);
   }
 
   .btn-ghost:disabled {
-    opacity: .55;
+    opacity: 0.55;
     pointer-events: none;
   }
 
@@ -202,7 +394,7 @@ canvas {
     width: 42px;
     height: 42px;
     border-radius: 9999px;
-    border: 3px solid rgba(255, 255, 255, .2);
+    border: 3px solid rgba(255, 255, 255, 0.2);
     border-top-color: var(--hud-neon);
     animation: spin 1s linear infinite;
     margin-inline: auto;
@@ -212,5 +404,145 @@ canvas {
     to {
       transform: rotate(360deg);
     }
+  }
+
+  /* Safe areas util */
+  .safe-pad {
+    padding-top: max(0.8rem, env(safe-area-inset-top));
+    padding-bottom: max(0.8rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Target táctil mínimo para botones primarios */
+.btn-primary {
+  min-height: 44px;
+}
+
+/* ===== Scrollbars sutiles (Firefox + WebKit) ===== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ===== Bloqueo de eventos del canvas cuando hay UI encima ===== */
+body.ui-blocking .game-canvas {
+  pointer-events: none;
+}
+
+/* ===== Utilidades personalizadas ===== */
+@layer utilities {
+
+  /* Desplazamiento vertical permitido (p. ej. listas dentro de panel) sin bloquear gestos */
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+}
+
+/* Touch-first: evita delays y gestos bloqueantes por defecto */
+button,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* Clase utilitaria para desactivar gestos en zonas de joystick */
+.touch-none {
+  touch-action: none;
+}
+
+/* ================= Parches responsive/rendimiento móvil ================= */
+
+/* 1) Menos overdraw en móvil: blur/sombras más ligeros + mejor área táctil */
+@media (hover: none),
+(pointer: coarse) {
+  .panel-glass {
+    backdrop-filter: blur(6px);
+    box-shadow: 0 0 24px rgba(34, 211, 238, 0.08), inset 0 0 16px rgba(34, 211, 238, 0.06);
+  }
+
+  .loader-overlay {
+    background: rgba(0, 0, 0, 0.32);
+    backdrop-filter: blur(4px);
+  }
+
+  .btn-metal,
+  .btn-ghost {
+    padding-block: clamp(.7rem, 1.8vh, .95rem);
+  }
+}
+
+/* 2) HUD escalable y legible */
+.hud,
+.canvas-overlay {
+  font-size: clamp(12px, 2.5vw, 16px);
+}
+
+@media (max-width: 360px) {
+  .panel-glass .panel-title {
+    font-size: clamp(.95rem, 4.5vw, 1.1rem);
+  }
+
+  .panel-glass .panel-subtitle {
+    font-size: 10px;
+  }
+}
+
+/* 3) Zonas táctiles para joysticks/gestos */
+.hud-joystick-left,
+.hud-joystick-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 44%;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.hud-joystick-left {
+  left: 0;
+}
+
+.hud-joystick-right {
+  right: 0;
+}
+
+/* 4) Botón de acción grande y seguro con safe areas */
+.hud-fire {
+  position: absolute;
+  right: env(safe-area-inset-right, 16px);
+  bottom: max(16px, env(safe-area-inset-bottom));
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 9999px;
+}
+
+/* 5) Asegúrate de marcar tu <canvas> con .game-canvas para poder bloquearlo cuando haya UI */
+.game-canvas {
+  display: block;
+}
+
+/* ====== Safety: oculta HUD móvil si hay ratón (desktop) ====== */
+@media (hover: hover) and (pointer: fine) {
+
+  :root:not([data-force-mobile="1"]) .hud-joystick-left,
+  :root:not([data-force-mobile="1"]) .hud-joystick-right,
+  :root:not([data-force-mobile="1"]) .hud-fire,
+  :root:not([data-force-mobile="1"]) .fire-zone,
+  :root:not([data-force-mobile="1"]) #fire-zone,
+  :root:not([data-force-mobile="1"]) #fire-btn {
+    display: none !important;
   }
 }

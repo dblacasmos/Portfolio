@@ -1,6 +1,6 @@
-/* ====================================
+/* ===============================================
    FILE: src/game/utils/video/selectVideoSource.ts
-   ==================================== */
+   =============================================== */
 
 export type SrcMap = { h1080?: string; h720?: string; h480?: string };
 export type VideoPref = { maxHeight: number; preferHevc?: boolean };

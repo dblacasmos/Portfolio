@@ -1,14 +1,14 @@
-// ====================================
-// FILE: src/game/layers/Weapon/Weapon.tsx
-// ====================================
+/* ====================================
+FILE: src/game/layers/Weapon/Weapon.tsx
+======================================= */
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
-import { setLayerRecursive } from "../../utils/three/layers";
-import { tuneMaterials } from "../../utils/textures/tuneMaterials";
-import { isKTX2Ready } from "@/game/utils/three/ktx2/ktx2";
+import { setLayerRecursive } from "@/game/utils/three/layers";
+import { tuneMaterials } from "@/game/utils/textures/tuneMaterials";
+import { isKTX2Ready } from "@/game/utils/textures/ktx2";
 
 export type WeaponAPI = { flash: () => void };
 export type WeaponProps = { hand?: "right" | "left" };
@@ -23,7 +23,7 @@ export const Weapon = forwardRef<WeaponAPI, WeaponProps>(function WeaponImpl(
     }) as any;
 
     const rootRef = useRef<THREE.Group>(null!);
-    const wrapRef = useRef<THREE.Group>(null!); // wrapper para espejo en zurdo
+    const wrapRef = useRef<THREE.Group>(null!);         // wrapper para espejo en zurdo
     const [hasGun, setHasGun] = useState(false);
 
     // --- Muzzle flash ---

@@ -1,8 +1,15 @@
-// FILE:vite.congif.ts
+/*  ====================
+    FILE: vite.config.ts
+    ==================== */
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// __dirname compatible con ESM
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Normaliza para windows/unix
 const has = (id: string, needle: string) => id.replace(/\\/g, '/').includes(needle)
@@ -14,7 +21,7 @@ export default defineConfig({
   assetsInclude: ['**/*.glb', '**/*.gltf', '**/*.wasm', '**/*.ktx2', '**/*.bin'],
   build: {
     target: 'es2022',
-    chunkSizeWarningLimit: 3000, // three+gltf se pasa del umbral por defecto
+    chunkSizeWarningLimit: 3000,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -43,7 +50,6 @@ export default defineConfig({
         },
       },
     },
-    // sourcemap: true, // útil para analizar pesos en prod
   },
   optimizeDeps: {
     include: [

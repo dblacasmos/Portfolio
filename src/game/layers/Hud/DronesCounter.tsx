@@ -1,9 +1,12 @@
+/*  ===========================================
+    FILE: src/game/layers/Hud/DronesCounter.tsx
+    ===========================================*/
 import React, { useMemo, useLayoutEffect, useEffect, useRef, useCallback } from "react";
 import * as THREE from "three";
 import { useThree, useFrame } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
-import { useGameStore } from "../../utils/state/store";
-import { audioManager } from "../../utils/audio/audio";
+import { useGameStore } from "@/game/utils/state/store";
+import { audioManager } from "@/game/utils/audio/audio";
 
 type Props = {
     position: [number, number, number];
@@ -12,7 +15,7 @@ type Props = {
 };
 
 const HUD_LAYER = CFG.layers.HUD;
-const COMPLETE_DELAY_MS = 200; // delay tras cerrar/ESC antes de aparición
+const COMPLETE_DELAY_MS = 200; // delay tras cerrar/ENTER antes de aparición
 
 const DronesCounterHud: React.FC<Props> = ({
     position,

@@ -1,9 +1,9 @@
-/* ====================================
+/* ================================================
    FILE: src/game/hooks/textures/useSmartTexture.ts
-   ==================================== */
+   ================================================ */
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { loadTextureSmart } from "@/game/utils/three/ktx2/ktx2";
+import { loadTextureSmart } from "@/game/utils/textures/ktx2";
 
 /**
  * Carga una textura intentando primero .ktx2 y cae a png/jpg/webp/avif.

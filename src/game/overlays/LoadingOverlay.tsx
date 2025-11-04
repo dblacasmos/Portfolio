@@ -1,19 +1,16 @@
-/*  ====================================
+/*  ==========================================
     FILE: src/game/overlays/LoadingOverlay.tsx
-    ==================================== */
+    ========================================== */
 import React from "react";
 import { useGameStore } from "../utils/state/store";
 import { ASSETS } from "../../constants/assets";
+import { hideGlobalLoadingOverlay } from "./GlobalLoadingPortal";
 
 type Props = {
-    /** Progreso real del juego 0..1 (padre lo calcula) */
-    progress01: number;
-    /** Callback de cierre cuando llega a 100% + minMs */
-    onFinished: () => void;
-    /** Duración mínima visible (ms). Por defecto 4000ms */
-    minMs?: number;
-    /** Si true, fondo transparente (no oscurece detrás) */
-    transparentBg?: boolean;
+    progress01: number;             // Progreso real del juego 0..1 (padre lo calcula)
+    onFinished: () => void;         // Callback de cierre cuando llega a 100% + minMs
+    minMs?: number;                 // Duración mínima visible (ms). Por defecto 4000ms
+    transparentBg?: boolean;        // Si true, fondo transparente (no oscurece detrás)
 };
 
 /** Guard global para evitar dobles montajes sin romper el orden de hooks */
@@ -91,6 +88,27 @@ function LoadingOverlayImpl({
         };
     }, []);
 
+    // --- Cierre manual: ENTER o tap en móvil/tablet -> cerrar overlay (temporal)
+    const isCoarse = React.useMemo(
+        () => (typeof window !== "undefined" ? window.matchMedia?.("(pointer: coarse)")?.matches ?? false : false),
+        []
+    );
+    React.useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                hideGlobalLoadingOverlay();
+            }
+        };
+        const onPointer = () => { if (isCoarse) hideGlobalLoadingOverlay(); };
+        window.addEventListener("keydown", onKey, true);
+        window.addEventListener("pointerdown", onPointer, { passive: true, capture: true });
+        return () => {
+            window.removeEventListener("keydown", onKey, true);
+            window.removeEventListener("pointerdown", onPointer, true);
+        };
+    }, [isCoarse]);
+
     // ---- Progreso mostrado (suavizado y monótono) ----
     const [pct, setPct] = React.useState(0);
     const startRef = React.useRef<number | null>(null);
@@ -107,10 +125,10 @@ function LoadingOverlayImpl({
             const target = Math.max(0, Math.min(1, progress01)) * 100;
             setPct((prev) => {
                 const delta = target - prev;
-                if (Math.abs(delta) < EPS) return target; // salta si está muy cerca
+                if (Math.abs(delta) < EPS) return target;           // salta si está muy cerca
                 const k = 0.16; // suavizado
                 const next = prev + delta * k;
-                return Math.max(prev, Math.min(100, next)); // no decrece
+                return Math.max(prev, Math.min(100, next));         // no decrece
             });
             raf = requestAnimationFrame(tick);
         };

@@ -1,6 +1,6 @@
-/* ====================================
+/* =====================================
    FILE: src/game/utils/hud/hudLayout.ts
-   ==================================== */
+   ===================================== */
 import { CFG } from "@/constants/config";
 
 /** Pura: clamp 2D en coords ortográficas [-aspect..+aspect]x[-1..+1] con márgenes seguros. */

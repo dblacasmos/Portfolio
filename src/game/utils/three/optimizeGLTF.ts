@@ -1,8 +1,8 @@
-/* ====================================
+/* ==========================================
    FILE: src/game/utils/three/optimizeGLTF.ts
-   ==================================== */
+   ========================================== */
 import * as THREE from "three";
-export { tuneMaterials } from "../textures/tuneMaterials";
+export { tuneMaterials } from "@/game/utils/textures/tuneMaterials";
 
 /**
  * Congela transforms y apaga sombras si tu escena no las usa.

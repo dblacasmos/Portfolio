@@ -1,3 +1,6 @@
+/*  =========================
+    FILE: tailwind.config.cjs
+    ========================= */
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
@@ -12,6 +15,11 @@ module.exports = {
     "[perspective:650px]",
     "h-dvh",
     "overflow-hidden",
+    // cursors personalizados (necesarios si se usan vía @apply o en CSS plano)
+    "cursor-robot",
+    "cursor-robot-pointer",
+    "hover:cursor-robot-pointer",
+    "group-hover:cursor-robot-pointer",
   ],
 
   theme: {

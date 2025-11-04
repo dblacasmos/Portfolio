@@ -1,9 +1,9 @@
-/* ====================================
+/* =========================================
    FILE: src/game/utils/video/VideoPlane.tsx
-   ==================================== */
+   ========================================= */
 import * as THREE from "three";
 import React, { useEffect, useMemo, useRef } from "react";
-import { Quality } from "@/game/graphics/quality";
+import { Quality } from "@/engine/quality";
 import { pickVideoSrc, type SrcMap } from "@/game/utils/video/selectVideoSource";
 
 export type VideoPlaneProps = {

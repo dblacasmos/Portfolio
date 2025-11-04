@@ -1,12 +1,12 @@
-/*  =============================
+/*  ===================================
     FILE: src/hooks/useDracoKtx2GLTF.ts
-    ============================= */
+    ==============================?==== */
 import { useGLTF } from "@react-three/drei";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import type { Group } from "three";
 import { CFG } from "@/constants/config";
-import { getKTX2Optional, isKTX2Ready, getKTX2 } from "@/game/utils/three/ktx2/ktx2";
+import { getKTX2Optional, isKTX2Ready, getKTX2 } from "@/game/utils/textures/ktx2";
 import { useGameStore } from "@/game/utils/state/store";
 
 type GLTFLike = { scene: Group } & Record<string, any>;
@@ -22,7 +22,7 @@ type Options = {
 const BASE = (import.meta.env?.BASE_URL ?? "/");
 const DEFAULT_DRACO_PATH = (CFG as any)?.decoders?.dracoPath ?? BASE + "draco/";
 
-// —— Singletons globales (evita duplicar instancias) ——
+// Singletons globales (evita duplicar instancias)
 let sharedDraco: DRACOLoader | null = null;
 const sharedMeshopt = MeshoptDecoder as any;
 

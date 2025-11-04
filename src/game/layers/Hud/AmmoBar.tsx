@@ -1,4 +1,7 @@
-import React, { useLayoutEffect, useMemo, useEffect, useRef } from "react";
+/*  =====================================
+    FILE: src/game/layers/Hud/AmmoBar.tsx
+    =====================================*/
+import { useLayoutEffect, useMemo, useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { CFG } from "@/constants/config";

@@ -1,3 +1,6 @@
+/*  ===============================================
+    FILE: src/game/layers/Hud/dials/ShieldDial.tsx
+    ===============================================*/
 import { CircularDial } from "./CircularDial";
 import { CFG } from "@/constants/config";
 
@@ -12,9 +15,9 @@ export function ShieldDial({
             label="ESCUDO"
             position={position}
             size={size}
-            color={CFG.hud?.dials?.shieldColor || "#22d3ee"} // cian base
-            criticalA="#22d3ee"                                // cian
-            criticalB="#4338ca"                                // índigo
+            color={CFG.hud?.dials?.shieldColor || "#22d3ee"}    // cian base
+            criticalA="#22d3ee"                                 // cian
+            criticalB="#4338ca"                                 // índigo
             criticalThreshold={0.2}
             layer={CFG.layers.HUD}
         />

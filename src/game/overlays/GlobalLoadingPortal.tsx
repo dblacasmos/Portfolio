@@ -1,8 +1,9 @@
-/* ====================================
+/* ===============================================
    FILE: src/game/overlays/GlobalLoadingPortal.tsx
-   ==================================== */
+   =============================================== */
 import { createRoot, Root } from "react-dom/client";
 import LoadingOverlay from "./LoadingOverlay";
+import { getOverlayRoot } from "@/game/utils/overlayPortal"; // ← usa tu helper
 
 type Options = { minMs?: number; maxMs?: number; transparentBg?: boolean };
 
@@ -17,22 +18,19 @@ let transparentBg = false;
 let maxMs = 15000;
 let watchdogId: number | null = null;
 
-// Fuentes de progreso
-let externalProgress = 0;     // setGlobalLoadingProgress
-let reachedStageFloor = 0;    // markGlobalLoadingStage
-let combinedProgress = 0;     // max(timeFloor, stageFloor, external)
+// Progreso
+let externalProgress = 0;
+let reachedStageFloor = 0;
+let combinedProgress = 0;
 let rafId: number | null = null;
 
-// Etapas conocidas (puedes añadir más sin tocar tipos)
+// Etapas
 const STAGE_MIN: Record<string, number> = {
-    // Navegación / routing
     navigating: 0.06,
     "route-loaded": 0.08,
     "game-imported": 0.10,
     "assets-preload": 0.14,
     "scene-preload": 0.18,
-
-    // In-game (compat con la versión anterior)
     mounted: 0.30,
     "first-frame": 0.60,
     "scene-ready": 1.00,
@@ -40,13 +38,32 @@ const STAGE_MIN: Record<string, number> = {
 
 function ensureMount() {
     if (mountEl && root) return;
+
     mountEl = document.createElement("div");
-    // Accesible y sin desplazar layout
     mountEl.setAttribute("aria-live", "polite");
-    mountEl.style.position = "fixed";
+    // IMPORTANTE: absoluto dentro de #fs-root (que debe ser position: relative)
+    mountEl.style.position = "absolute";
     mountEl.style.inset = "0";
     mountEl.style.zIndex = "2147483646";
-    document.body.appendChild(mountEl);
+    mountEl.style.pointerEvents = "auto";
+
+    const parent = getOverlayRoot(); // ← anclado a fs-root
+    parent.appendChild(mountEl);
+
+    // Reparenta dinámicamente si el host de overlays cambia (p. ej. al entrar/salir de FS)
+    const reparent = () => {
+        if (!mountEl) return;
+        const next = getOverlayRoot();
+        if (mountEl.parentElement !== next) {
+            try { next.appendChild(mountEl); } catch { }
+        }
+    };
+    document.addEventListener("fullscreenchange", reparent, true);
+    // En algunos navegadores el FS implica resize; también reparentamos en resize/orientation
+    window.addEventListener("resize", reparent, { passive: true });
+    window.addEventListener("orientationchange", reparent);
+    (mountEl as any).__reparent = reparent;
+
     root = createRoot(mountEl);
 }
 
@@ -62,7 +79,6 @@ function rerender() {
     );
 }
 
-// Rampa temporal: sube suave hasta ~0.82 durante minMs (aunque no haya updates)
 function timeFloor(now: number) {
     if (!bornAt || minMs <= 0) return 0;
     const t = Math.max(0, Math.min(1, (now - bornAt) / minMs));
@@ -73,7 +89,7 @@ function timeFloor(now: number) {
 function computeProgress(now: number) {
     const tf = timeFloor(now);
     const tgt = Math.max(tf, reachedStageFloor, externalProgress);
-    const next = Math.max(combinedProgress, Math.min(1, tgt)); // monótono
+    const next = Math.max(combinedProgress, Math.min(1, tgt));
     if (next !== combinedProgress) {
         combinedProgress = next;
         rerender();
@@ -93,7 +109,6 @@ function armWatchdog() {
     if (watchdogId != null) window.clearTimeout(watchdogId);
     if (!maxMs || maxMs <= 0) return;
     watchdogId = window.setTimeout(() => {
-        // Si algo fue mal y nadie cerró, cerramos nosotros.
         hideGlobalLoadingOverlay();
     }, maxMs);
 }
@@ -118,14 +133,12 @@ export function showGlobalLoadingOverlay(opts?: Options) {
     rafId = requestAnimationFrame(loop);
     armWatchdog();
 
-    // Señales (útiles para Game)
     window.dispatchEvent(new CustomEvent("global-loading-shown"));
 }
 
 export function setGlobalLoadingProgress(p: number) {
     if (!active) return;
     externalProgress = Math.max(0, Math.min(1, p));
-    // El loop re-renderiza; si llega a 100%, cierra tras cumplir minMs.
     if (externalProgress >= 0.999) {
         const elapsed = performance.now() - bornAt;
         const wait = Math.max(0, minMs - elapsed);
@@ -133,12 +146,10 @@ export function setGlobalLoadingProgress(p: number) {
     }
 }
 
-/** Asegura un mínimo de progreso asociado a una etapa. */
 export function markGlobalLoadingStage(name: string) {
     if (!active) return;
     const floor = STAGE_MIN[name] ?? 0;
-    if (floor > reachedStageFloor) { reachedStageFloor = floor; }
-    // el loop lo recogerá
+    if (floor > reachedStageFloor) reachedStageFloor = floor;
 }
 
 export function hideGlobalLoadingOverlay() {
@@ -153,6 +164,15 @@ export function hideGlobalLoadingOverlay() {
             requestAnimationFrame(() => {
                 try { try { root?.render(null as any); } catch { } root?.unmount(); } catch { }
                 if (mountEl?.parentNode) mountEl.parentNode.removeChild(mountEl);
+                // Quita listeners de reparentado
+                try {
+                    const fn = (mountEl as any)?.__reparent;
+                    if (fn) {
+                        document.removeEventListener("fullscreenchange", fn, true);
+                        window.removeEventListener("resize", fn as any);
+                        window.removeEventListener("orientationchange", fn as any);
+                    }
+                } catch { }
                 stopLoop();
                 if (watchdogId != null) { window.clearTimeout(watchdogId); watchdogId = null; }
                 root = null; mountEl = null;
@@ -168,8 +188,8 @@ export function hideGlobalLoadingOverlay() {
         }, 0);
     };
 
-    if (wait > 0) { window.setTimeout(doAsyncUnmount, wait); }
-    else { doAsyncUnmount(); }
+    if (wait > 0) window.setTimeout(doAsyncUnmount, wait);
+    else doAsyncUnmount();
 }
 
 export function isGlobalLoadingActive() {

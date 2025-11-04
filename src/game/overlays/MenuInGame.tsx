@@ -1,13 +1,15 @@
-/*  ====================================
+/*  ======================================
     FILE: src/game/overlays/MenuInGame.tsx
-    ==================================== */
+    ====================================== */
 import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { useGameStore } from "../utils/state/store";
-import { ASSETS } from "../../constants/assets";
-import { useUiClick } from "../../hooks/useUiClick";
-import { useHudEditorStore } from "../utils/state/hudEditor";
+import { useGameStore } from "@/game/utils/state/store";
+import { ASSETS } from "@/constants/assets";
+import { useUiClick } from "@/hooks/useUiClick";
+import { useHudEditorStore } from "@/game/utils/state/hudEditor";
+import { useEnterOrTapToClose } from "@/hooks/useEnterOrTapToClose";
+import { audioManager } from "@/game/utils/audio/audio";
 
 /* ---------- UI bits ---------- */
 const Btn = (
@@ -55,9 +57,7 @@ function exitPointerLock() {
     try { document.exitPointerLock?.(); } catch { }
 }
 
-/* ====================================
-   MenuInGame
-==================================== */
+/* =====  MenuInGame  ==== */
 type AdsMode = "hold" | "toggle";
 
 const MenuInGame: React.FC = () => {
@@ -83,6 +83,7 @@ const MenuInGame: React.FC = () => {
     const [showCtrls, setShowCtrls] = useState(false);
     const [showAudio, setShowAudio] = useState(false);
     const [showOpts, setShowOpts] = useState(false);
+    const panelRef = useRef<HTMLDivElement | null>(null);
 
     // Estado UI para ADS mode (fallback si el store no existe)
     const readLocalAds = (): AdsMode => {
@@ -117,22 +118,27 @@ const MenuInGame: React.FC = () => {
             return;
         }
         if (!musicRef.current) {
-            const a = new Audio(ASSETS.audio.musicCity);
+            const a = new Audio(ASSETS.audio?.musicCity || "");
             a.loop = true; a.preload = "auto";
             musicRef.current = a;
         }
         if (!sfxRef.current) {
-            const a = new Audio(ASSETS.audio.buttonSound);
+            const a = new Audio(ASSETS.audio?.buttonSound || "");
             a.preload = "auto";
             sfxRef.current = a;
         }
-        try {
-            if (musicRef.current) {
-                musicRef.current.volume = volumes.music;
-                musicRef.current.currentTime = 0;
-                musicRef.current.play().catch(() => { });
-            }
-        } catch { }
+        (async () => {
+            try {
+                if (typeof audioManager.ensureStarted === "function") {
+                    await audioManager.ensureStarted();
+                }
+                if (musicRef.current) {
+                    musicRef.current.volume = volumes.music;
+                    musicRef.current.currentTime = 0;
+                    musicRef.current.play().catch(() => { });
+                }
+            } catch { }
+        })();
         return () => { try { musicRef.current?.pause(); } catch { } };
     }, [showAudio, volumes.music]);
 
@@ -151,11 +157,11 @@ const MenuInGame: React.FC = () => {
         }
     };
 
-    /* ---------- ESC dentro del menú = cerrar y volver a pointer-lock ---------- */
+    /* ---------- TAB dentro del menú = cerrar y volver a pointer-lock ---------- */
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (!menuOpen) return;
-            if (e.key !== "Escape") return;
+            if (e.key !== "Tab") return;
             e.preventDefault();
             e.stopPropagation();
             setMenuOpen(false);
@@ -164,6 +170,17 @@ const MenuInGame: React.FC = () => {
         window.addEventListener("keydown", onKey, true);
         return () => window.removeEventListener("keydown", onKey, true);
     }, [menuOpen, setMenuOpen]);
+
+    // Tap en móvil/tablet = ESC (cerrar menú y volver a pointer lock)
+    useEnterOrTapToClose({
+        enabled: menuOpen,
+        onClose: () => {
+            setMenuOpen(false);
+            requestGamePointerLock();
+        },
+        closeOnBackdropOnly: false,
+        keyboardKey: "Tab",
+    });
 
     /* ---- Si el menú se muestra, salimos de pointer lock ---- */
     useEffect(() => { if (menuOpen) exitPointerLock(); }, [menuOpen]);
@@ -178,7 +195,7 @@ const MenuInGame: React.FC = () => {
         return () => { try { document.body.classList.remove("show-cursor", "hud-cursor"); } catch { } };
     }, [menuOpen]);
 
-    // ✅ Devoluciones tempranas después de los hooks
+    // Devoluciones tempranas después de los hooks
     if (!menuOpen || editEnabled) return null;
 
     const onPrimary = () => {
@@ -210,10 +227,24 @@ const MenuInGame: React.FC = () => {
     };
 
     return (
-        <div className="canvas-overlay z-40 pointer">
+        <div className="fixed inset-0 z-[999999] pointer-events-auto isolate">
+            {/* Backdrop clicable */}
+            <div
+                className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+                onClick={() => {
+                    // Si prefieres NO cerrar con backdrop, comenta estas 2 líneas.
+                    playClick();
+                    onPrimary();
+                }}
+            />
             <div className="absolute inset-0 grid place-items-center p-4">
                 <motion.div
-                    className="panel-glass w-[min(720px,92vw)]"
+                    ref={panelRef}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Menú"
+                    tabIndex={-1}
+                    className="panel-glass w-[min(720px,92vw)] outline-none"
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ duration: 0.18 }}
@@ -278,7 +309,7 @@ const MenuInGame: React.FC = () => {
                                     <div>- F = FullScreen/NavScreen</div>
                                     <div>- V = Correr</div>
                                     <div>- Click Izq = Disparar</div>
-                                    <div>- ESC = Abrir/Cerrar menú</div>
+                                    <div>- TAB = Abrir/Cerrar menú</div>
                                     <div className="col-span-2">- M = Expandir/Contraer Radar</div>
                                 </div>
                                 <div className="mt-4 flex justify-end gap-3">
@@ -317,7 +348,7 @@ const MenuInGame: React.FC = () => {
                                     </Btn>
                                 </div>
                                 <audio ref={musicRef} src={ASSETS.audio.musicCity} preload="auto" style={{ display: "none" }} />
-                                <audio ref={sfxRef} src={ASSETS.audio.buttonSound} preload="auto" style={{ display: "none" }} />
+                                <audio ref={sfxRef} src={ASSETS.audio?.buttonSound || ""} preload="auto" style={{ display: "none" }} />
                             </motion.div>
                         )}
                     </AnimatePresence>

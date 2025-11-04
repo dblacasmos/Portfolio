@@ -1,6 +1,6 @@
-// ================================================
-// FILE: src/game/utils/physics/ensureBVH.ts
-// ================================================
+/*  ===========================================
+    FILE: src/game/utils/collision/ensureBVH.ts
+    =========================================== */
 import type { BufferGeometry } from "three";
 
 // El tipo lo añade three-mesh-bvh en runtime, por eso el any opcional

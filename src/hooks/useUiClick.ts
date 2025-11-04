@@ -1,6 +1,6 @@
-// =======================================
-// FILE: src/hooks/useUiClick.ts
-// =======================================
+/* ==============================
+   FILE: src/hooks/useUiClicks.ts
+   ============================== */
 import { useCallback, useEffect } from "react";
 import { ASSETS } from "@/constants/assets";
 import { audioManager } from "@/game/utils/audio/audio";

@@ -1,6 +1,6 @@
-/* ====================================
+/* ===========================================
    FILE: src/game/utils/three/tuneMaterials.ts
-   ==================================== */
+   =========================================== */
 import * as THREE from 'three';
 import { CFG } from '@/constants/config';
 
@@ -12,23 +12,31 @@ export function tuneMaterials(root: THREE.Object3D) {
     const mat = (mesh as any).material;
     const applyTex = (t?: THREE.Texture) => {
       if (!t) return;
+      // SRGB por defecto (aportado desde txSanitize.ts)
+      (t as any).colorSpace = THREE.SRGBColorSpace;
+
+      // Anisotropía segura
       t.anisotropy = Math.min(maxAniso, (t.anisotropy || maxAniso));
+
+      // Inspección general
       const any: any = t;
       const isCompressed = any.isCompressedTexture === true;
       const w = any?.image?.width ?? 0;
       const h = any?.image?.height ?? 0;
       const isPOT = w > 0 && h > 0 && (w & (w - 1)) === 0 && (h & (h - 1)) === 0;
 
-      // Reglas sencillas:
-      // - Compressed (KTX2/Basis): no generes mipmaps aquí; usa los del asset si existen
+      // Reglas:
+      // - Compressed (KTX2/Basis): no generes mipmaps; usa los del asset si existen
       // - NPOT: sin mipmaps + clamp
-      // - Textura pequeña: opcionalmente sin mipmaps para ahorrar VRAM
+      // - Textura pequeña: sin mips para ahorrar VRAM (según minMipmapSize)
       t.magFilter = THREE.LinearFilter;
 
       if (isCompressed) {
         t.generateMipmaps = false;
         const hasMips = Array.isArray(any.mipmaps) && any.mipmaps.length > 1;
         t.minFilter = hasMips ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+        // anisotropy bajo en comprimidas suele ser más estable
+        t.anisotropy = Math.min(t.anisotropy, 4);
       } else if (!isPOT) {
         t.generateMipmaps = false;
         t.minFilter = THREE.LinearFilter;
@@ -61,5 +69,10 @@ function patchMat(mat: any, applyTex: (t?: THREE.Texture) => void) {
   applyTex(mat.metalnessMap);
   applyTex(mat.aoMap);
   applyTex(mat.emissiveMap);
+  // campos “clearcoat*” usados por algunos modelos
+  applyTex((mat as any).clearcoatMap);
+  applyTex((mat as any).clearcoatRoughnessMap);
+  applyTex((mat as any).clearcoatNormalMap);
+  applyTex((mat as any).transmissionMap);
 }
 export default tuneMaterials;

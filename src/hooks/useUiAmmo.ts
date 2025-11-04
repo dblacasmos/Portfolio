@@ -1,6 +1,6 @@
-/* =====================================
+/* ============================
    FILE: src/hooks/useUiAmmo.ts
-   ===================================== */
+   ============================ */
 
 /**
  * Hook de munición con recarga “tipo shooter”:
@@ -98,9 +98,7 @@ export function useAmmo({
         return !reloadingRef.current && magRef.current > 0;
     }, []);
 
-    /**
-     * Dispara n balas (por defecto 1). Devuelve true si al menos 1 bala se disparó.
-     */
+    /** Dispara n balas (por defecto 1). Devuelve true si al menos 1 bala se disparó.*/
     const shoot = useCallback((n: number = 1): boolean => {
         if (!canFire()) return false;
         let fired = 0;

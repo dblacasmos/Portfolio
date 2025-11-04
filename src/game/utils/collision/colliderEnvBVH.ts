@@ -1,8 +1,8 @@
-// =======================================
-// FILE: src/game/utils/three/colliderEnvBVH.ts
-// =======================================
+/*  ================================================
+    FILE: src/game/utils/collision/colliderEnvBVH.ts
+    ================================================ */
 import * as THREE from "three";
-import { ensureBVH } from "./ensureBVH"; // ← ruta corregida
+import { ensureBVH } from "./ensureBVH";
 import { CFG } from "@/constants/config";
 
 /* ---------- utilidades geométricas ---------- */

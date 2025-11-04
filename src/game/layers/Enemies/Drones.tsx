@@ -1,16 +1,16 @@
-/* =========================================================
+/* =====================================
 FILE: src/game/layers/Enemies/Drones.tsx
-========================================================= */
+======================================== */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useDracoGLTF } from "@/hooks/useDracoKtx2GLTF";
-import { CFG } from "../../../constants/config";
-import { useGameStore } from "../../utils/state/store";
+import { CFG } from "@/constants/config";
+import { useGameStore } from "@/game/utils/state/store";
 import { ASSETS } from "@/constants/assets";
-import { audioManager } from "../../utils/audio/audio";
-import type { ColliderEnvBVH } from "../../utils/collision/colliderEnvBVH";
-import { isKTX2Ready } from "@/game/utils/three/ktx2/ktx2";
+import { audioManager } from "@/game/utils/audio/audio";
+import type { ColliderEnvBVH } from "@/game/utils/collision/colliderEnvBVH";
+import { isKTX2Ready } from "@/game/utils/textures/ktx2";
 
 /* ---------- Tipado props ---------- */
 export type DronesProps = {
@@ -387,7 +387,7 @@ const Drones: React.FC<DronesProps> = ({
                 }
             }
 
-            // ② Puntos normalizados [-1..1] relativos al AABB
+            // Puntos normalizados [-1..1] relativos al AABB
             if (picked.length < WANT_COUNT) {
                 const customNorm = (CFG as any)?.drones?.customSpawnsXZ as { x: number; z: number }[] | undefined;
                 if (Array.isArray(customNorm) && customNorm.length) {
@@ -406,7 +406,7 @@ const Drones: React.FC<DronesProps> = ({
                 }
             }
 
-            // ③ Sectores (N, S, E, O, C) con rejilla
+            // Sectores (N, S, E, O, C) con rejilla
             if (picked.length < WANT_COUNT) {
                 const sectors = makeFiveSquareSectorsFromAABB(aabb, INNER_MARGIN);
                 const gridStep = Math.max(1.0, Math.min(2.0, Math.min(aabb.maxX - aabb.minX, aabb.maxZ - aabb.minZ) * 0.04));

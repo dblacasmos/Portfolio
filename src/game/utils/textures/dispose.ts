@@ -1,6 +1,6 @@
-// =======================================
-// FILE: src/game/utils/three/dispose.ts
-// =======================================
+/*  ========================================
+    FILE: src/game/utils/textures/dispose.ts
+    ======================================== */
 import * as THREE from "three";
 
 /** Libera geometrías, materiales y texturas dentro de un árbol Object3D. */

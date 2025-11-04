@@ -1,8 +1,8 @@
-// ===============================================
-// FILE: src/game/utils/state/audioSync.ts
-// ===============================================
+/*  =======================================
+    FILE: src/game/utils/state/audioSync.ts
+    =======================================*/
 import { StateCreator } from "zustand";
-import { audioManager } from "../audio/audio";
+import { audioManager } from "@/game/utils/audio/audio";
 import { CFG } from "@/constants/config";
 
 type HasAudioAndMenu = {

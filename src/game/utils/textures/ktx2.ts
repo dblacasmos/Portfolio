@@ -1,6 +1,6 @@
-/* ====================================
+/* ==================================
    FILE: src/game/utils/three/ktx2.ts
-   ==================================== */
+   ==================================*/
 import * as THREE from "three";
 // Import con extensión .js para bundlers ESM (Vite). El shim de tipos cubre ambas rutas.
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js";

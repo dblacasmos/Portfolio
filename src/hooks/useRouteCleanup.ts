@@ -1,6 +1,6 @@
-// =======================================
-// FILE: src/hooks/useRouteCleanup.ts
-// =======================================
+/* ==================================
+   FILE: src/hooks/useRouteCleanup.ts
+   ==================================*/
 import { useCallback, useEffect } from "react";
 import {
     hardCleanupBeforeMain,

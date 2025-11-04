@@ -1,6 +1,6 @@
-// =======================================
-// FILE: src/game/utils/color.ts
-// =======================================
+/* =============================
+   FILE: src/game/utils/color.ts
+   ============================= */
 export const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 export function lerpHex(a: string, b: string, t: number) {
@@ -12,6 +12,17 @@ export function lerpHex(a: string, b: string, t: number) {
     const g = Math.round(ag + (bg - ag) * t).toString(16).padStart(2, "0");
     const b2 = Math.round(ab + (bb - ab) * t).toString(16).padStart(2, "0");
     return `#${r}${g}${b2}`;
+}
+
+// Hex (#rrggbb) -> rgba(r,g,b,a) seguro
+export function rgbaFromHex(hex: string, alpha = 1) {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim());
+    if (!m) return `rgba(0,0,0,${alpha})`;
+    const r = parseInt(m[1], 16);
+    const g = parseInt(m[2], 16);
+    const b = parseInt(m[3], 16);
+    const a = Math.max(0, Math.min(1, alpha));
+    return `rgba(${r},${g},${b},${a})`;
 }
 
 // rojo -> naranja -> cian (para AmmoBar)

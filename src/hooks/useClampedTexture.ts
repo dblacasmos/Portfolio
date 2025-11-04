@@ -1,6 +1,6 @@
-// =======================================
-// FILE: src/hooks/useClampedTexture.ts
-// =======================================
+/* ====================================
+   FILE: src/hooks/useClampedTexture.ts
+   ==================================== */
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import loadClampedTexture, { type LoadClampedOptions } from "@/game/utils/loadClampedTexture";
@@ -49,7 +49,13 @@ export function useClampedTexture(url: string, opts: LoadClampedOptions = {}) {
       })
       .catch(() => { /* silent */ });
 
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+      if (prevRef.current) {
+        try { prevRef.current.dispose(); } catch { }
+        prevRef.current = null;
+      }
+    };
   }, [key]);
 
   return tex;

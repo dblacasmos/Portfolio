@@ -1,0 +1,60 @@
+/* ============================
+  FILE: src/styles/overlays.css
+  ============================= */
+
+:root {
+    --overlay-bg: rgba(0, 0, 0, 0.45);
+}
+
+.overlay-root {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--overlay-bg);
+    z-index: 40;
+}
+
+/* Soporte condicional para blur */
+@supports (backdrop-filter: blur(2px)) {
+    .overlay-root {
+        backdrop-filter: blur(2px);
+    }
+}
+
+.overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.overlay-card {
+    position: relative;
+    z-index: 1;
+    max-width: min(640px, 92vw);
+    width: 100%;
+    border: 1px solid var(--hud-frame);
+    background: var(--hud-glass);
+    backdrop-filter: blur(10px);
+    border-radius: 1.5rem;
+    padding: clamp(1rem, 1.2vw + 0.5rem, 1.5rem);
+    box-shadow: 0 0 40px rgba(34, 211, 238, 0.12), inset 0 0 24px rgba(34, 211, 238, 0.08);
+}
+
+.overlay-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--hud-frame);
+    color: #fff;
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.overlay-close:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.55), 0 0 24px rgba(34, 211, 238, 0.2);
+}

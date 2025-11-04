@@ -1,6 +1,6 @@
-// =======================================
-// FILE: src/game/utils/cleanupMain.ts
-// =======================================
+/* ===================================
+   FILE: src/game/utils/cleanupMain.ts
+   =================================== */
 import type { WebGLRenderer } from "three";
 
 // Tip opcional para filtrar qué elementos NO se deben tocar

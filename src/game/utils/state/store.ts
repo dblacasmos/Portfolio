@@ -1,11 +1,11 @@
-// =============================
-// FILE: src/game/utils/state/store.ts
-// =============================
+/*  ===================================
+    FILE: src/game/utils/state/store.ts
+    =================================== */
 import { create } from "zustand";
 import { CFG } from "@/constants/config";
 import { withAudioSync } from "./audioSync";
 import { ASSETS } from "@/constants/assets";
-import { audioManager } from "../audio/audio";
+import { audioManager } from "@/game/utils/audio/audio";
 
 export type AudioVolumes = { music: number; sfx: number };
 export type MissionCardMode = "intro" | "post-kill" | null;
@@ -17,7 +17,7 @@ export type GameState = {
     // Flags UI/juego
     menuOpen: boolean;
     playing: boolean;
-    loadingPct: number; // 0..100
+    loadingPct: number;     // 0..100
     globalMute: boolean;
 
     // Estado gameplay/HUD
@@ -84,7 +84,7 @@ export type GameState = {
 
     // Resets
     resetGame: () => void;
-    resetForNewRun: () => void; // ← faltaba en el tipo
+    resetForNewRun: () => void;
 };
 
 // Helpers seguros con SSR
@@ -140,7 +140,7 @@ const initialFromConfig = () => ({
     endDoorEnabled: false,
     allDronesDown: false,
 
-    hand: readHand(), // LS/CFG
+    hand: readHand(),   // LS/CFG
     adsMode: readAdsMode(),
 
     volumes: {

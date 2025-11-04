@@ -1,3 +1,6 @@
+/*  ================================================
+    FILE: src/game/layers/Hud/dials/CircularDial.tsx
+    ================================================ */
 import React, { useMemo, useRef, useCallback } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
@@ -15,9 +18,9 @@ type Props = {
     color?: string;
 
     /** Paleta crítica (se activa por debajo de criticalThreshold) */
-    criticalA?: string;  // color A (ej. naranja o cian)
-    criticalB?: string;  // color B (ej. rojo o índigo)
-    criticalThreshold?: number; // 0..1 (por defecto 0.2)
+    criticalA?: string;             // color A (ej. naranja o cian)
+    criticalB?: string;             // color B (ej. rojo o índigo)
+    criticalThreshold?: number;     // 0..1 (por defecto 0.2)
 
     /** Capa de render; por defecto HUD */
     layer?: number;

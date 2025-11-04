@@ -1,31 +1,23 @@
-/* ====================================
+/* =======================================
    FILE: src/game/layers/World/DomeSky.tsx
-   ==================================== */
+   ======================================= */
 import * as React from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
 
 type Props = {
-    /** Centro XZ del mundo (la cúpula se ancla aquí) */
-    center: THREE.Vector2;
-    /** Radio horizontal de la cúpula (en X/Z) */
-    radius: number;
-    /** Altura del suelo (Y en el centro) */
-    groundY: number;
-    /** Altura visual de la cúpula (escala vertical) */
-    height: number;
-    /** URL de textura equirectangular opcional (sino, degradado ligero) */
-    textureUrl?: string;
-    /** Colores fallback cuando no hay textura */
-    colorTop?: string;
-    colorHorizon?: string;
-    /** Generar envMap PMREM desde la textura (⚠️ VRAM). Por defecto off. */
-    useEnvMap?: boolean;
-    /** Límite de tamaño para la textura (reduce VRAM). */
-    maxTextureSize?: number;
-    /** Segments de la esfera (más = más suavidad = más VRAM) */
-    segments?: { width?: number; height?: number };
+    center: THREE.Vector2;                                  // Centro XZ del mundo (la cúpula se ancla aquí)
+    radius: number;                                         // Radio horizontal de la cúpula (en X/Z)
+    groundY: number;                                        // Altura del suelo (Y en el centro)
+    height: number;                                         // Altura visual de la cúpula (escala vertical)
+    textureUrl?: string;                                    // URL de textura equirectangular opcional (sino, degradado ligero)
+    colorTop?: string;                                      // Colores fallback cuando no hay textura
+    colorHorizon?: string;                                  
+    useEnvMap?: boolean;                                    // Generar envMap PMREM desde la textura (VRAM). Por defecto off
+    maxTextureSize?: number;                                // Límite de tamaño para la textura (reduce VRAM)
+    segments?: { width?: number; height?: number };         // Segments de la esfera (más = más suavidad = más VRAM)
+    onEnvMap?: (env: THREE.Texture | null) => void;         // Callback opcional para entregar el envMap (PMREM) al exterior
 };
 
 /**
@@ -47,10 +39,11 @@ export default function DomeSky({
     useEnvMap = false,
     maxTextureSize = 2048,
     segments = { width: 56, height: 36 },
+    onEnvMap,
 }: Props) {
     const meshRef = React.useRef<THREE.Mesh>(null!);
     const matRef = React.useRef<THREE.MeshBasicMaterial>(null!);
-    const { gl, scene } = useThree();
+    const { gl } = useThree();
 
     // Geometría hemisférica
     const wSeg = Math.max(8, Math.floor(segments.width ?? 56));
@@ -163,21 +156,22 @@ export default function DomeSky({
 
     const envRTRef = React.useRef<THREE.WebGLRenderTarget | null>(null);
     React.useEffect(() => {
+        // Generamos PMREM solo si se pide y hay textura
         if (!useEnvMap || !tex) {
-            if (useEnvMap === false) scene.environment = null;
+            onEnvMap?.(null);
             envRTRef.current?.dispose?.();
             envRTRef.current = null;
             return;
         }
         const rt = pmrem.fromEquirectangular(tex);
         envRTRef.current = rt;
-        scene.environment = rt.texture;
+        onEnvMap?.(rt.texture);
         return () => {
+            onEnvMap?.(null);
             envRTRef.current?.dispose?.();
             envRTRef.current = null;
-            if (scene.environment === rt.texture) scene.environment = null;
         };
-    }, [useEnvMap, tex, pmrem, scene]);
+    }, [useEnvMap, tex, pmrem, onEnvMap]);
 
     // Material y orden de render (antes de la ciudad)
     React.useEffect(() => {

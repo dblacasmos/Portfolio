@@ -1,11 +1,11 @@
-/*  ====================================
+/*  ==========================================
     FILE: src/game/overlays/HudEditOverlay.tsx
-    ==================================== */
+    ========================================== */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useHudEditorStore, type HudLayoutExport } from "../utils/state/hudEditor";
-import { useGameStore } from "../utils/state/store";
+import { useHudEditorStore, type HudLayoutExport } from "@/game/utils/state/hudEditor";
+import { useGameStore } from "@/game/utils/state/store";
 
 type Props = { exportLayout: () => HudLayoutExport };
 
@@ -18,7 +18,7 @@ function requestGamePointerLock() {
     } catch { }
 }
 
-/** Overlay de edición HUD (visualiza grid, botones de guardar/cargar y evita salidas accidentales con ESC). */
+/** Overlay de edición HUD (visualiza grid, botones de guardar/cargar y evita salidas accidentales con TAB). */
 const HudEditOverlay: React.FC<Props> = ({ exportLayout }) => {
     const enabled = useHudEditorStore((s) => s.enabled);
     const setEnabled = useHudEditorStore((s) => s.setEnabled);
@@ -71,8 +71,8 @@ const HudEditOverlay: React.FC<Props> = ({ exportLayout }) => {
         } catch { }
 
         const stopEsc = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                // No se cierra con ESC; usar el botón "FINALIZAR EDITAR"
+            if (e.key === "Tab") {
+                // No se cierra con TAB; usar el botón "FINALIZAR EDITAR"
                 e.stopPropagation();
             }
         };
@@ -127,9 +127,12 @@ const HudEditOverlay: React.FC<Props> = ({ exportLayout }) => {
     if (!enabled) return null;
 
     // Portar al root inmersivo si existe (mantiene overlays en fullscreen)
-    const portalRoot =
-        (typeof document !== "undefined" &&
-            document.querySelector("[data-immersive-root]")) as HTMLElement | null;
+    const portalRoot = ((): HTMLElement | null => {
+        try {
+            return ((window as any).__scaleRoot as HTMLElement | null)
+                ?? (document.querySelector("[data-immersive-root]") as HTMLElement | null);
+        } catch { return (document.querySelector("[data-immersive-root]") as HTMLElement | null); }
+    })();
 
     return createPortal(
         <div className="fixed inset-0 z-[1000] pointer-events-none" style={gridStyle} data-hud-edit-overlay="">

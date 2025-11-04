@@ -1,20 +1,21 @@
-/* =========================================================
+/* ====================================
 FILE: src/game/layers/Player/Player.tsx
-========================================================= */
+======================================= */
 import { Suspense, useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import Hud from "../Hud/Hud";
-import { useAmmo } from "../../../hooks/useUiAmmo";
-import { useKeyboard } from "../../../hooks/useKeyboard";
-import { ColliderEnvBVH } from "../../utils/collision/colliderEnvBVH";
+import Hud from "@/game/layers/Hud/Hud";
+import { useAmmo } from "@/hooks/useUiAmmo";
+import { useInput } from "@/hooks/useInput";
+import { useKeyboard } from "@/hooks/useKeyboard";
+import { ColliderEnvBVH } from "@/game/utils/collision/colliderEnvBVH";
 import { CFG } from "@/constants/config";
-import Weapon from "../Weapon/Weapon";
-import { audioManager } from "../../utils/audio/audio";
-import { useGameStore } from "../../utils/state/store";
-import { useHudEditorStore } from "../../utils/state/hudEditor";
+import Weapon from "@/game/layers/Weapon/Weapon";
+import { audioManager } from "@/game/utils/audio/audio";
+import { useGameStore } from "@/game/utils/state/store";
+import { useHudEditorStore } from "@/game/utils/state/hudEditor";
 import { setLayerRecursive } from "@/game/utils/three/layers";
-import { isFullscreen, enterFullscreen, exitFullscreen } from "@/game/utils/immersive";
+import { isFullscreen, enterImmersive, exitImmersive } from "@/game/utils/immersive";
 import { ASSETS } from "@/constants/assets";
 
 type DebugFlags = { withWeapon?: boolean; withHud?: boolean };
@@ -22,8 +23,7 @@ type DebugFlags = { withWeapon?: boolean; withHud?: boolean };
 type Props = {
     env: React.MutableRefObject<ColliderEnvBVH | null>;
     onShoot: (from: THREE.Vector3, to: THREE.Vector3) => void;
-    startAt?: THREE.Vector3;
-    /** Si se pasa, la cámara mira hacia aquí al nacer. */
+    startAt?: THREE.Vector3;                                    // Si se pasa, la cámara mira hacia aquí al nacer
     startLookAt?: THREE.Vector3;
     debug?: DebugFlags;
     uiLocked?: boolean;
@@ -156,10 +156,10 @@ const Player = ({
         };
     }, [gl, menuOpen, setMenuOpen]);
 
-    // ESC → abrir menú (y liberar lock)
+    // TAB -> abrir menú (y liberar lock)
     useEffect(() => {
         const onEsc = (e: KeyboardEvent) => {
-            if (e.key !== "Escape") return;
+            if (e.key !== "Tab") return;
             e.preventDefault();
             try { document.exitPointerLock(); } catch { }
             setMenuOpen(true);
@@ -188,17 +188,25 @@ const Player = ({
     const playServoOut = () => { if (ZOOM_OUT_SRC) (audioManager as any)?.playSfx?.(ZOOM_OUT_SRC); };
 
     // Ratón: LMB dispara, RMB zoom (hold/toggle)
+    const enableTouch = useInput((s) => s.enableTouch)
     useEffect(() => {
         const el = gl.domElement;
 
         const onPointerDown = (e: PointerEvent) => {
             if (menuOpen || editEnabled || uiLocked) return;
+            // En dispositivos táctiles NO usamos pointer-lock ni manejamos clicks de ratón.
+            if (enableTouch) return;
             const locked = document.pointerLockElement === el;
 
             // Disparo
             if (e.button === 0) {
                 if (!locked && !requestingLockRef.current) {
-                    try { requestingLockRef.current = true; el.requestPointerLock(); } catch { requestingLockRef.current = false; }
+                    try {
+                        requestingLockRef.current = true;
+                        el.requestPointerLock?.();
+                    } catch {
+                        requestingLockRef.current = false;
+                    }
                     return;
                 }
                 primeAudio();
@@ -294,7 +302,7 @@ const Player = ({
         if (startLookAt) (camera as THREE.PerspectiveCamera).lookAt(startLookAt);
     }, [startAt, startLookAt, camera]);
 
-    // Rig arma → capa WEAPON
+    // Rig arma -> capa WEAPON
     useEffect(() => {
         if (!withWeapon) return;
         const rig = weaponRigRef.current;
@@ -508,7 +516,7 @@ const Player = ({
         rig.quaternion.multiply(qAdd);
     });
 
-    // ---- Disparo
+    // Disparo
     const tryShoot = () => {
         if (menuOpen || editEnabled || uiLocked) return;
         if (reloading || reloadActive.current) return;
@@ -762,21 +770,21 @@ const Player = ({
         };
     }, []);
 
-    // Tecla "F" → fullscreen del contenedor del canvas
+    // Tecla "F" -> fullscreen del contenedor del canvas
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if (e.code === "KeyF") {
+                // No cambies de FS si hay UI encima; evita estados raros
+                if (menuOpen || editEnabled || uiLocked) return;
                 e.preventDefault();
-                if (isFullscreen()) exitFullscreen();
-                else {
-                    const host = gl.domElement.parentElement ?? document.documentElement;
-                    enterFullscreen(host);
-                }
+                e.stopPropagation();
+                if (isFullscreen()) exitImmersive();
+                else enterImmersive(gl.domElement); // FS en #fs-root + pointer-lock en canvas
             }
         };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [gl]);
+        window.addEventListener("keydown", onKey, true);
+        return () => window.removeEventListener("keydown", onKey, true);
+    }, [gl, menuOpen, editEnabled, uiLocked]);
 
     return (
         <>

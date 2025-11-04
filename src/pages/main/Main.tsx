@@ -1,19 +1,23 @@
 /* =============================
   FILE: src/pages/main/Main.tsx
-  ============================= */
-
+  ============================== */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import Hero from "./Hero";
-import { ASSETS } from "../../constants/assets";
-import { enterFullscreen } from "../../game/utils/immersive";
+import { ASSETS } from "@/constants/assets";
+import { enterFullscreen } from "@/game/utils/immersive";
 import { useRouteCleanup } from "@/hooks/useRouteCleanup";
+import { useRobotCursor } from "@/hooks/useRobotCursor";
 
 /** Reproduce un <video> probando varias rutas hasta que alguna cargue */
 function BgVideo({ sources }: { sources: string[] }) {
   const [idx, setIdx] = useState(0);
   const src = sources[idx];
+  const reduced = typeof window !== "undefined"
+    ? window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+    : false;
 
+  if (reduced) return null;
   return (
     <video
       id="bgMain"
@@ -22,7 +26,7 @@ function BgVideo({ sources }: { sources: string[] }) {
       loop
       muted
       playsInline
-      preload="auto"
+      preload="metadata"
       onError={() => {
         // avanza al siguiente candidato si falla
         if (idx < sources.length - 1) setIdx((i) => i + 1);
@@ -36,9 +40,7 @@ function BgVideo({ sources }: { sources: string[] }) {
   );
 }
 
-/* ============================
-   Hook: música en bucle con fades
-   ============================ */
+/* ====  Hook: música en bucle con fades  ===== */
 function useLoopMusic(
   url?: string,
   {
@@ -170,6 +172,8 @@ function useLoopMusic(
 }
 
 export default function Main() {
+  // Activa cursor robot en esta pantalla
+  useRobotCursor(true);
   // Limpieza dura al entrar en Main:
   // - conserva el <video id="bgMain">
   // - conserva TODO lo dentro de #hero-root (incl. posibles <canvas>/<video> futuros)

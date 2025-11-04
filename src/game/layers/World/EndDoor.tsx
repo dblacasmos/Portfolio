@@ -1,17 +1,17 @@
-/* =========================================================
+/* ==========================================================
   FILE: src/game/layers/World/EndDoor.tsx
   - Reproduce 1 vez el vídeo completo
   - Captura los últimos N segundos en memoria (frames)
   - Bucle PERFECTO de ese tramo vía CanvasTexture (sin saltos)
   - Chroma key azul en shader
-============================================================ */
+============================================================= */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
-import { CFG } from "../../../constants/config";
+import { CFG } from "@/constants/config";
 import { ASSETS } from "@/constants/assets";
-import { setLayerRecursive } from "../../utils/three/layers";
-import { audioManager } from "../../utils/audio/audio";
+import { setLayerRecursive } from "@/game/utils/three/layers";
+import { audioManager } from "@/game/utils/audio/audio";
 
 type EndDoorProps = {
     center: THREE.Vector2;
@@ -399,7 +399,7 @@ export default function EndDoor({
         g.lookAt(lookAt);
         g.updateMatrixWorld();
 
-        // 🔗 Exponer el mesh para que el Radar pueda leerlo si no recibe getEndDoorMesh
+        // Exponer el mesh para que el Radar pueda leerlo si no recibe getEndDoorMesh
         try {
             onReady?.(meshRef.current);
             (window as any).__endDoorMesh = meshRef.current;

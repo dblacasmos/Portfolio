@@ -1,6 +1,6 @@
-/* =============================
+/* ===============================
     FILE: src/hooks/useKeyboard.ts
-    ============================= */
+    ============================== */
 import { useEffect, useRef } from "react";
 
 type UseKeyboardOptions = {

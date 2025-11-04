@@ -1,7 +1,7 @@
 /* =============================
    FILE: src/game/utils/audio.ts
    ============================= */
-import { CFG } from "../../../constants/config";
+import { CFG } from "@/constants/config";
 
 /**
  * Mezclador de audio con WebAudio cuando está disponible y
@@ -18,9 +18,9 @@ export class AudioManager {
   private sfxGain: GainNode | null = null;
   private uiGain: GainNode | null = null;
 
-  private buffers = new Map<string, AudioBuffer>();        // WebAudio
-  private htmlCache = new Map<string, HTMLAudioElement>(); // Fallback HTMLAudio
-  private activeSources = new Set<AudioBufferSourceNode>(); // Para stopAll()
+  private buffers = new Map<string, AudioBuffer>();             // WebAudio
+  private htmlCache = new Map<string, HTMLAudioElement>();      // Fallback HTMLAudio
+  private activeSources = new Set<AudioBufferSourceNode>();     // Para stopAll()
 
   // Silencios temporales por-clip
   private squelchUntil = new Map<string, number>();

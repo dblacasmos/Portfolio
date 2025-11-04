@@ -1,6 +1,6 @@
-// =======================================
-// FILE: src/game/utils/loadClampedTexture.ts
-// =======================================
+/* ==========================================
+   FILE: src/game/utils/loadClampedTexture.ts
+   ========================================== */
 import * as THREE from "three";
 
 /**
@@ -12,13 +12,13 @@ import * as THREE from "three";
 const cache = new Map<string, Promise<THREE.Texture>>();
 
 export type LoadClampedOptions = {
-    maxSize?: number;               // px, lado mayor (p.ej. 1024)
-    colorSpace?: THREE.ColorSpace;  // por defecto: SRGB
-    anisotropy?: number;            // por defecto: 4
-    generateMipmaps?: boolean;      // por defecto: true
-    minFilter?: THREE.MinificationTextureFilter;   // p.ej. LinearMipmapLinearFilter (por defecto)
-    magFilter?: THREE.MagnificationTextureFilter;  // p.ej. LinearFilter (por defecto)
-};
+    maxSize?: number;                               // px, lado mayor (p.ej. 1024)
+    colorSpace?: THREE.ColorSpace;                  // por defecto: SRGB
+    anisotropy?: number;                            // por defecto: 4
+    generateMipmaps?: boolean;                      // por defecto: true
+    minFilter?: THREE.MinificationTextureFilter;    // p.ej. LinearMipmapLinearFilter (por defecto)
+    magFilter?: THREE.MagnificationTextureFilter;   // p.ej. LinearFilter (por defecto)
+}; 
 
 export function loadClampedTexture(
     url: string,

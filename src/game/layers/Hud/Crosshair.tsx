@@ -1,3 +1,6 @@
+/*  =======================================
+    FILE: src/game/layers/Hud/Crosshair.tsx
+    =======================================*/
 import React from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
@@ -5,16 +8,11 @@ import { CFG } from "@/constants/config";
 
 type Props = {
     position?: [number, number, number];
-    /** Escala extra opcional (además de CFG.hud.crosshair.size) */
-    scale?: number;
-    /** 0..1 intensidad de separación de la cruz (recoil/spread). */
-    spread?: number;
-    /** 0..1 nivel de zoom (ADS). */
-    zoom?: number;
-    /** Si el raycast topa con enemigo (tinta roja). */
-    overTarget?: boolean;
-    /** Rumbo del jugador en radianes (para el overlay N/E/S/O). */
-    headingRad?: number;
+    scale?: number;                         // Escala extra opcional (además de CFG.hud.crosshair.size)
+    spread?: number;                        // 0..1 intensidad de separación de la cruz (recoil/spread)
+    zoom?: number;                          // 0..1 nivel de zoom (ADS)
+    overTarget?: boolean;                   // Si el raycast topa con enemigo (tinta roja)
+    headingRad?: number;                    // Rumbo del jugador en radianes (para el overlay N/E/S/O)
 };
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));

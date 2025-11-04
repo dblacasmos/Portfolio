@@ -1,3 +1,6 @@
+/*  =======================================
+    FILE: src/game/layers/Hud/Radar.tsx
+    =======================================*/
 import React, { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -19,8 +22,8 @@ export type RadarProps = {
     zoomMul?: number;
     getEnemyMeshes?: () => THREE.Object3D[] | null;
     getPoiMeshes?: () => THREE.Object3D[] | null;
-    getEndDoorMesh?: () => THREE.Object3D | null; // ⬅ EndDoor (amarillo)
-    endDoorVisible?: boolean;                     // ⬅ se activa al 5/5
+    getEndDoorMesh?: () => THREE.Object3D | null;   // EndDoor (amarillo)
+    endDoorVisible?: boolean;                       // se activa al 5/5
     fillAlpha?: number;
     viewWorldWidth?: number;
     sweepEnabled?: boolean;

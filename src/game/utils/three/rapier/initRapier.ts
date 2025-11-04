@@ -1,41 +1,75 @@
-// src/game/utils/physics/initRapier.ts
-let ready: Promise<void> | null = null;
+/*  ===============================================
+    FILE: src/game/utils/three/rapier/initRapier.ts
+    =============================================== */
+import { useEffect, useState } from "react";
 
-export function ensureRapierInit(): Promise<void> {
-    if (ready) return ready;
+/**
+ * Inicializa @dimforge/rapier3d-compat una sola vez y expone estado "ready".
+ * Evita el crash "raweventqueue_new" cuando <Physics> se monta antes del init().
+ */
 
-    ready = (async () => {
-        try {
-            const RAPIER = await import("@dimforge/rapier3d-compat");
+type RapierNS = typeof import("@dimforge/rapier3d-compat");
 
-            // Ruta del .wasm (ajusta si lo sirves en otra carpeta)
-            const wasmUrl =
-                new URL((import.meta.env.BASE_URL ?? "/") + "rapier/rapier_wasm_bg.wasm", window.location.href).href;
+let _promise: Promise<RapierNS> | null = null;
+let _ready = false;
+let _err: unknown = null;
 
-            // --- Silenciador puntual del warning de wasm-bindgen -------------------
-            const warn = console.warn;
-            console.warn = function (...args: any[]) {
-                const s = (args?.[0] ?? "").toString();
-                // Filtra SOLO el aviso deprecado de init()
-                if (s.includes("using deprecated parameters for the initialization function")) return;
-                return warn.apply(this, args as any);
-            };
+export function prepareRapier(): Promise<RapierNS> {
+    if (_promise) return _promise;
+    _promise = import("@dimforge/rapier3d-compat")
+        .then(async (RAPIER) => {
             try {
-                // ✅ Firma nueva: un ÚNICO objeto
-                await (RAPIER as any).init({ module_or_path: wasmUrl });
-            } finally {
-                console.warn = warn;
+                // Llama siempre a init(); Vite/Preview resuelven el .wasm automáticamente.
+                await RAPIER.init();
+                (globalThis as any).RAPIER = RAPIER; // útil para depurar
+                _ready = true;
+                return RAPIER;
+            } catch (e) {
+                _err = e;
+                console.warn("[Rapier] init() failed:", e);
+                throw e;
             }
-            // ----------------------------------------------------------------------
-
-        } catch (e) {
-            // No hacemos hard-fail: el juego puede seguir sin físicas momentáneamente
-            console.warn("[Rapier] init failed (continuo igualmente):", e);
-        }
-    })();
-
-    return ready;
+        })
+        .catch((e) => {
+            _err = e;
+            console.warn("[Rapier] dynamic import failed:", e);
+            throw e;
+        });
+    return _promise;
 }
 
-// Auto-arranque
-void ensureRapierInit();
+export function isRapierReady() {
+    return _ready;
+}
+
+export function getRapierError() {
+    return _err;
+}
+
+/** Hook de conveniencia para compuertas de render. */
+export function useRapierReady(): boolean {
+    const [ok, setOk] = useState<boolean>(_ready);
+    useEffect(() => {
+        if (_ready) return;
+        let alive = true;
+        prepareRapier()
+            .then(() => alive && setOk(true))
+            .catch(() => alive && setOk(false));
+        return () => {
+            alive = false;
+        };
+    }, []);
+    return ok;
+}
+
+/** Precalienta Rapier tras una primera interacción del usuario (evita jank del primer frame). */
+export function prewarmRapierOnFirstPointer(): void {
+    if (typeof window === "undefined") return;
+    const once = (ev: Event) => {
+        window.removeEventListener("pointerdown", once);
+        // Ignora si ya está listo/en curso
+        if (_ready || _promise) return;
+        prepareRapier().catch(() => { /* noop: ya se loguea arriba */ });
+    };
+    window.addEventListener("pointerdown", once, { once: true, passive: true });
+}

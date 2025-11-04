@@ -1,8 +1,11 @@
+/*  =================================
+    FILE: src/game/layers/Hud/Hud.tsx
+    =================================*/
 import React, { useMemo, useRef, useLayoutEffect, useCallback, useEffect, useState } from "react";
 import * as THREE from "three";
 import { useThree, useFrame, createPortal } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
-import { useHudEditorStore, type OrthoId } from "../../utils/state/hudEditor";
+import { useHudEditorStore, type OrthoId } from "@/game/utils/state/hudEditor";
 import { setLayerRecursive } from "@/game/utils/three/layers";
 import { Crosshair } from "./Crosshair";
 import AmmoBar from "./AmmoBar";
@@ -11,7 +14,7 @@ import ShieldDial from "./dials/ShieldDial";
 import ReloadBar from "./ReloadBar";
 import DronesCounterHud from "./DronesCounter";
 import Radar from "./Radar";
-import { useGameStore } from "../../utils/state/store";
+import { useGameStore } from "@/game/utils/state/store";
 
 const HUD_LAYER = CFG.layers.HUD;
 const OVERLAY_ORDER = 20000;
@@ -172,7 +175,6 @@ const Frame: React.FC<{
 }> = () => null;
 
 /* ------------------------------ HUD ------------------------------ */
-
 export type HudProps = {
     mag: number;
     magSize?: number;
@@ -269,7 +271,6 @@ export default function Hud({
     }, []);
 
     /* ----------------- Posiciones por defecto + tamaños ----------------- */
-
     const defaultAmmoPos = useMemo<[number, number, number]>(() => {
         const planeW = CFG.hud.ammo.size * responsiveScale;
         const planeH = planeW * (CFG.hud.ammo.canvasPx[1] / CFG.hud.ammo.canvasPx[0]);

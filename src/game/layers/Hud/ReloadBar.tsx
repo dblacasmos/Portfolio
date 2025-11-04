@@ -1,19 +1,17 @@
+/*  ====================================
+    FILE: src/game/layers/Hud/Reload.tsx
+    ====================================*/
 import React, { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { CFG } from "@/constants/config";
 
 type Props = {
-  /** ¿Mostrar la barra? (si false, fade-out pero no se desmonta) */
-  reloading: boolean;
-  /** Progreso 0..1 externo; si es <=0 o >=1 se ignora y usamos fallback por tiempo. */
-  progress: number;
-  /** Posición del plano en coords ortográficas. */
-  position?: [number, number, number];
-  /** Rotación del plano (por defecto [0, Math.PI, 0] para corregir espejo) */
-  rotation?: [number, number, number];
-  /** Render order para que flote sobre el HUD */
-  renderOrder?: number;
+  reloading: boolean;                     // ¿Mostrar la barra? (si false, fade-out pero no se desmonta)
+  progress: number;                       // Progreso 0..1 externo; si es <=0 o >=1 se ignora y usamos fallback por tiempo
+  position?: [number, number, number];    // Posición del plano en coords ortográficas
+  rotation?: [number, number, number];    // Rotación del plano (por defecto [0, Math.PI, 0] para corregir espejo)
+  renderOrder?: number;                   // Render order para que flote sobre el HUD
 };
 
 const HUD_LAYER = CFG.layers.HUD;
