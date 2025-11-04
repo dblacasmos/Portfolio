@@ -1,75 +1,30 @@
 /*  ===============================================
     FILE: src/game/utils/three/rapier/initRapier.ts
     =============================================== */
-import { useEffect, useState } from "react";
-
 /**
- * Inicializa @dimforge/rapier3d-compat una sola vez y expone estado "ready".
- * Evita el crash "raweventqueue_new" cuando <Physics> se monta antes del init().
+ * Opción A — Deja que @react-three/rapier gestione Rapier internamente.
+ * No importamos ni inicializamos `@dimforge/rapier3d-compat` aquí.
+ *
+ * - warmRapier(): “toca” @react-three/rapier para forzar su chunk y que él cargue Rapier.
+ * - prepareRapier(): alias de warmRapier (compatibilidad con el código existente).
+ * - useRapierReady(): hook simple que marca "listo" cuando termina warmRapier().
+ * - prewarmRapierOnFirstPointer(): precalienta al primer click/tap del usuario.
  */
 
-type RapierNS = typeof import("@dimforge/rapier3d-compat");
+// NO HAGAS import (ni estático ni dinámico) aquí.
+// Deja que @react-three/rapier se cargue sólo donde se usa (Game.tsx).
 
-let _promise: Promise<RapierNS> | null = null;
-let _ready = false;
-let _err: unknown = null;
-
-export function prepareRapier(): Promise<RapierNS> {
-    if (_promise) return _promise;
-    _promise = import("@dimforge/rapier3d-compat")
-        .then(async (RAPIER) => {
-            try {
-                // Llama siempre a init(); Vite/Preview resuelven el .wasm automáticamente.
-                await RAPIER.init();
-                (globalThis as any).RAPIER = RAPIER; // útil para depurar
-                _ready = true;
-                return RAPIER;
-            } catch (e) {
-                _err = e;
-                console.warn("[Rapier] init() failed:", e);
-                throw e;
-            }
-        })
-        .catch((e) => {
-            _err = e;
-            console.warn("[Rapier] dynamic import failed:", e);
-            throw e;
-        });
-    return _promise;
+/** No-op para mantener la API y evitar warnings de Vite. */
+export async function warmRapier(): Promise<void> {
+    // Intencionadamente vacío: evitar mezclar import dinámico/estático del mismo módulo.
 }
 
-export function isRapierReady() {
-    return _ready;
-}
-
-export function getRapierError() {
-    return _err;
-}
-
-/** Hook de conveniencia para compuertas de render. */
-export function useRapierReady(): boolean {
-    const [ok, setOk] = useState<boolean>(_ready);
-    useEffect(() => {
-        if (_ready) return;
-        let alive = true;
-        prepareRapier()
-            .then(() => alive && setOk(true))
-            .catch(() => alive && setOk(false));
-        return () => {
-            alive = false;
-        };
-    }, []);
-    return ok;
-}
-
-/** Precalienta Rapier tras una primera interacción del usuario (evita jank del primer frame). */
+/** No-op tras el primer gesto del usuario (mantiene firma sin importar nada). */
 export function prewarmRapierOnFirstPointer(): void {
     if (typeof window === "undefined") return;
-    const once = (ev: Event) => {
+    const once = () => {
         window.removeEventListener("pointerdown", once);
-        // Ignora si ya está listo/en curso
-        if (_ready || _promise) return;
-        prepareRapier().catch(() => { /* noop: ya se loguea arriba */ });
+        // Aquí no importamos nada a propósito.
     };
     window.addEventListener("pointerdown", once, { once: true, passive: true });
 }

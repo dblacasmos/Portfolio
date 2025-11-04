@@ -33,12 +33,12 @@ import HudEditOverlay from "./overlays/HudEditOverlay";
 import Quality from "../engine/quality";
 import { initKTX2Loader, disposeKTX2Loader } from "@/game/utils/textures/ktx2";
 import { ASSETS } from "@/constants/assets";
-import { prepareRapier } from "@/game/utils/three/rapier/initRapier";
+import { warmRapier, prewarmRapierOnFirstPointer } from "@/game/utils/three/rapier/initRapier";
 import { usePageVisibility } from "@/hooks/usePageVisibility";
 import { installImmersiveKeyTraps } from "@/game/utils/immersive";
 
 patchThreeColorAlphaWarning();
-patchThreeIndex0AttributeNameWarning(); 
+patchThreeIndex0AttributeNameWarning();
 
 /* ------------------ Helpers & Dev Bridge ------------------ */
 function DevBridge() {
@@ -314,26 +314,17 @@ const Game: React.FC = () => {
   const lostHandlerRef = useRef<((e: Event) => void) | null>(null);
   const restHandlerRef = useRef<(() => void) | null>(null);
 
-  // ==== Rapier: no montar <Physics> hasta que el wasm esté listo ====
-  const [rapierReady, setRapierReady] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    prepareRapier()
-      .then(() => {
-        if (alive) setRapierReady(true);
-      })
-      .catch((err) => {
-        console.warn("[Rapier] init failed:", err);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   useEffect(() => {
     try {
       if (!isGlobalLoadingActive()) showGlobalLoadingOverlay();
     } catch { }
+  }, []);
+
+  // Precalienta el bundle de @react-three/rapier (deja que esa lib cargue Rapier/WASM).
+  // Además, tras el primer gesto del usuario, fuerza el prewarm para evitar jank del primer frame.
+  useEffect(() => {
+    warmRapier().catch(() => { /* el helper ya traza el error si aplica */ });
+    prewarmRapierOnFirstPointer();
   }, []);
 
   // Precarga SFX críticos
@@ -1146,23 +1137,21 @@ const Game: React.FC = () => {
               hitTest={clipLine}
             />
 
-            {rapierReady && (
-              <Physics colliders={false} gravity={[0, -9.81, 0]}>
-                <Drones
-                  envRef={envRef}
-                  registerTargets={registerTargetsStable}
-                  cityBoundsRef={cityInfoRef}
-                  roadsMeshRef={roadsMeshRef}
-                  wallsMeshRef={wallsMeshRef}
-                  groundMeshRef={groundMeshRef}
-                  groundYRef={groundYRef}
-                  playerSpawnRef={playerSpawnRef}
-                  endDoorRef={endDoorRef}
-                  /* Bloquear spawn bajo mesa/ObjetoFinal */
-                  forbidMeshRef={forbidMeshRef}
-                />
-              </Physics>
-            )}
+            <Physics colliders={false} gravity={[0, -9.81, 0]}>
+              <Drones
+                envRef={envRef}
+                registerTargets={registerTargetsStable}
+                cityBoundsRef={cityInfoRef}
+                roadsMeshRef={roadsMeshRef}
+                wallsMeshRef={wallsMeshRef}
+                groundMeshRef={groundMeshRef}
+                groundYRef={groundYRef}
+                playerSpawnRef={playerSpawnRef}
+                endDoorRef={endDoorRef}
+                /* Bloquear spawn bajo mesa/ObjetoFinal */
+                forbidMeshRef={forbidMeshRef}
+              />
+            </Physics>
 
             {/* HUD (layer HUD) */}
             <LayeredComposer />
