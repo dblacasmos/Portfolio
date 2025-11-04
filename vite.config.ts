@@ -21,7 +21,7 @@ export default defineConfig({
   assetsInclude: ['**/*.glb', '**/*.gltf', '**/*.wasm', '**/*.ktx2', '**/*.bin'],
   build: {
     target: 'es2022',
-    chunkSizeWarningLimit: 3000,
+    chunkSizeWarningLimit: 3500,
     rollupOptions: {
       output: {
         manualChunks(id) {
