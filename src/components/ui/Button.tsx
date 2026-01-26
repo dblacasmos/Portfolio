@@ -1,11 +1,11 @@
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { forwardRef, type ReactNode } from "react";
+import { motion, type HTMLMotionProps } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "outline";
 type ButtonSize = "sm" | "md" | "lg";
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends HTMLMotionProps<"button"> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   children: ReactNode;
@@ -48,13 +48,13 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         transition={{ type: "spring", stiffness: 400, damping: 17 }}
+        {...props}
         className={cn(
           "inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all duration-200 focus-ring disabled:opacity-50 disabled:pointer-events-none",
           variants[variant],
           sizes[size],
           className
         )}
-        {...props}
       >
         {icon && iconPosition === "left" && icon}
         {children}
