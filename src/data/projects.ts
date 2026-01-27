@@ -16,6 +16,7 @@ export interface Project {
   cover?: string;
   gallery?: string[];
   links?: ProjectLinks;
+  caseStudySlug?: string; // Link to detailed case study page
 }
 
 export const projects: Project[] = [
@@ -44,6 +45,7 @@ export const projects: Project[] = [
       "/projects/fraud-risk-scoring/dashboard-2.png",
       "/projects/fraud-risk-scoring/dashboard-3.png",
     ],
+    caseStudySlug: "fraud-risk-scoring-system",
   },
   {
     id: "profitability-analysis",

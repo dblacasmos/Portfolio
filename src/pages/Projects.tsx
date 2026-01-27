@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import {
   Calendar,
@@ -12,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowUpRight,
+  BookOpen,
 } from "lucide-react";
 import Container from "@/components/layout/Container";
 import Badge from "@/components/ui/Badge";
@@ -323,7 +325,9 @@ interface StickyPreviewProps {
 }
 
 function StickyPreview({ project, onExpand, reducedMotion }: StickyPreviewProps) {
+  const navigate = useNavigate();
   const hasLinks = project.links && Object.keys(project.links).length > 0;
+  const hasCaseStudy = !!project.caseStudySlug;
 
   return (
     <motion.div
@@ -415,6 +419,18 @@ function StickyPreview({ project, onExpand, reducedMotion }: StickyPreviewProps)
           </div>
         )}
 
+        {/* Case Study Button */}
+        {hasCaseStudy && (
+          <Button
+            variant="primary"
+            onClick={() => navigate(`/projects/${project.caseStudySlug}`)}
+            className="w-full mb-3"
+            icon={<BookOpen className="w-4 h-4" />}
+          >
+            View Case Study
+          </Button>
+        )}
+
         {/* Expand button */}
         <Button
           variant="secondary"
@@ -441,11 +457,13 @@ interface SpotlightModalProps {
 }
 
 function SpotlightModal({ project, onClose, reducedMotion }: SpotlightModalProps) {
+  const navigate = useNavigate();
   const galleryImages = project.gallery || [];
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [slideDirection, setSlideDirection] = useState<"left" | "right">("right");
   const hasLinks = project.links && Object.keys(project.links).length > 0;
   const hasVideos = project.links?.videos && project.links.videos.length > 0;
+  const hasCaseStudy = !!project.caseStudySlug;
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -636,6 +654,22 @@ function SpotlightModal({ project, onClose, reducedMotion }: SpotlightModalProps
           <p className="text-slate200 leading-relaxed mb-6 text-base">
             {project.description}
           </p>
+
+          {/* Case Study CTA */}
+          {hasCaseStudy && (
+            <div className="mb-6">
+              <button
+                onClick={() => {
+                  onClose();
+                  navigate(`/projects/${project.caseStudySlug}`);
+                }}
+                className="w-full inline-flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-orange500 to-orange600 hover:from-orange600 hover:to-orange500 rounded-xl text-base font-semibold text-slate50 shadow-glow-orange hover:shadow-glow-orange-lg transition-all duration-200 focus-ring"
+              >
+                <BookOpen className="w-5 h-5" />
+                Read Full Case Study
+              </button>
+            </div>
+          )}
 
           {/* CTAs Section */}
           {hasLinks && (
