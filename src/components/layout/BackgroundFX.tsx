@@ -6,8 +6,8 @@ export default function BackgroundFX() {
 
   return (
     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-      {/* Base background */}
-      <div className="absolute inset-0 bg-slate950" />
+      {/* Base background - semi-transparent to allow video to show through */}
+      <div className="absolute inset-0 bg-slate950/80" />
 
       {/* Animated gradient orbs */}
       <motion.div

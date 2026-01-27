@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ interface LightboxProps {
   isOpen: boolean;
   onClose: () => void;
   alt?: string;
+  title?: string;
 }
 
 export default function Lightbox({
@@ -17,9 +18,12 @@ export default function Lightbox({
   isOpen,
   onClose,
   alt = "Project image",
+  title,
 }: LightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isLoading, setIsLoading] = useState(true);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setCurrentIndex(initialIndex);
@@ -35,19 +39,49 @@ export default function Lightbox({
     setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
   }, [images.length]);
 
+  // Focus management and keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
+
+    // Focus the close button when modal opens
+    const focusTimer = setTimeout(() => {
+      closeButtonRef.current?.focus();
+    }, 100);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowRight") goNext();
       if (e.key === "ArrowLeft") goPrev();
+
+      // Focus trap
+      if (e.key === "Tab" && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          // Shift + Tab
+          if (document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement?.focus();
+          }
+        } else {
+          // Tab
+          if (document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement?.focus();
+          }
+        }
+      }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     document.body.style.overflow = "hidden";
 
     return () => {
+      clearTimeout(focusTimer);
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
@@ -59,6 +93,10 @@ export default function Lightbox({
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={title || "Image lightbox"}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -68,6 +106,7 @@ export default function Lightbox({
         >
           {/* Close button */}
           <button
+            ref={closeButtonRef}
             onClick={onClose}
             className="absolute top-4 right-4 z-10 p-3 text-slate200 hover:text-slate50 bg-slate800/80 hover:bg-slate700 rounded-full transition-all duration-200 focus-ring"
             aria-label="Close lightbox"
@@ -96,25 +135,36 @@ export default function Lightbox({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="relative max-w-[90vw] max-h-[85vh] flex items-center justify-center"
+            className="relative max-w-[90vw] max-h-[85vh] flex flex-col items-center justify-center"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Title if provided */}
+            {title && (
+              <h2 className="absolute -top-10 left-0 right-0 text-center text-slate50 text-lg font-semibold">
+                {title}
+              </h2>
+            )}
+
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-8 h-8 border-2 border-orange500 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
-            <img
-              src={images[currentIndex]}
-              alt={`${alt} ${currentIndex + 1}`}
-              className={cn(
-                "max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl",
-                "transition-opacity duration-200",
-                isLoading ? "opacity-0" : "opacity-100"
-              )}
-              onLoad={() => setIsLoading(false)}
-              onError={() => setIsLoading(false)}
-            />
+
+            {/* Image with light background for better contrast */}
+            <div className="bg-slate800/50 p-2 rounded-xl">
+              <img
+                src={images[currentIndex]}
+                alt={`${alt} ${currentIndex + 1}`}
+                className={cn(
+                  "max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl",
+                  "transition-opacity duration-200",
+                  isLoading ? "opacity-0" : "opacity-100"
+                )}
+                onLoad={() => setIsLoading(false)}
+                onError={() => setIsLoading(false)}
+              />
+            </div>
           </motion.div>
 
           {/* Navigation - Next */}
@@ -149,6 +199,7 @@ export default function Lightbox({
                       : "opacity-60 hover:opacity-100"
                   )}
                   aria-label={`View image ${index + 1}`}
+                  aria-current={index === currentIndex ? "true" : undefined}
                 >
                   <img
                     src={img}

@@ -21,9 +21,9 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { cn } from "@/lib/utils";
 import { projects, allTags, type Project } from "@/data/projects";
 
-// ============================================================================
+
 // Animation Variants
-// ============================================================================
+
 
 const pageVariants = {
   initial: { opacity: 0 },
@@ -46,9 +46,9 @@ const previewVariants = {
   exit: { opacity: 0, scale: 0.98 },
 };
 
-// ============================================================================
+
 // Main Projects Page
-// ============================================================================
+
 
 export default function Projects() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -202,9 +202,9 @@ export default function Projects() {
   );
 }
 
-// ============================================================================
+
 // Project List Item
-// ============================================================================
+
 
 interface ProjectListItemProps {
   project: Project;
@@ -312,9 +312,9 @@ function ProjectListItem({
   );
 }
 
-// ============================================================================
+
 // Sticky Preview Panel
-// ============================================================================
+
 
 interface StickyPreviewProps {
   project: Project;
@@ -430,9 +430,9 @@ function StickyPreview({ project, onExpand, reducedMotion }: StickyPreviewProps)
   );
 }
 
-// ============================================================================
+
 // Spotlight Modal (Expanded View)
-// ============================================================================
+
 
 interface SpotlightModalProps {
   project: Project;
@@ -748,9 +748,9 @@ function SpotlightModal({ project, onClose, reducedMotion }: SpotlightModalProps
   );
 }
 
-// ============================================================================
+
 // Empty State Component
-// ============================================================================
+
 
 interface EmptyStateProps {
   onClear: () => void;

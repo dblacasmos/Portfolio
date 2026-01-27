@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { User, GraduationCap, Globe, Briefcase, Code2 } from "lucide-react";
 import Container from "@/components/layout/Container";
@@ -9,6 +10,25 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export default function AboutSection() {
   const prefersReducedMotion = useReducedMotion();
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Fallback for autoplay if blocked
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const tryPlay = () => {
+      video.play().catch(() => {});
+    };
+
+    document.addEventListener("click", tryPlay, { once: true });
+    document.addEventListener("scroll", tryPlay, { once: true });
+
+    return () => {
+      document.removeEventListener("click", tryPlay);
+      document.removeEventListener("scroll", tryPlay);
+    };
+  }, []);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -33,7 +53,7 @@ export default function AboutSection() {
       scale: 1,
       transition: {
         duration: prefersReducedMotion ? 0.2 : 0.6,
-        ease: [0.22, 1, 0.36, 1]
+        ease: [0.22, 1, 0.36, 1],
       },
     },
   };
@@ -44,8 +64,29 @@ export default function AboutSection() {
   };
 
   return (
-    <Section id="about" className="bg-slate900/30">
-      <Container>
+    <Section id="about" className="relative overflow-hidden">
+      {/* Background video layer (z-0) */}
+      <video
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+        style={{ zIndex: 0 }}
+        src="/backgroundAbout.mp4"
+        autoPlay
+        muted
+        playsInline
+        loop
+        preload="auto"
+        aria-hidden="true"
+      />
+
+      {/* Dark overlay for readability (z-10) */}
+      <div
+        className="absolute inset-0 bg-slate950/75 pointer-events-none"
+        style={{ zIndex: 10 }}
+        aria-hidden="true"
+      />
+
+      <Container className="relative z-20">
         <motion.div
           variants={containerVariants}
           initial="hidden"
@@ -64,9 +105,11 @@ export default function AboutSection() {
               <User className="w-3 h-3" />
               About Me
             </motion.span>
+
             <h2 className="text-3xl md:text-4xl font-bold text-slate50">
               Getting to Know <span className="text-gradient">My Story</span>
             </h2>
+
             <p className="mt-4 text-slate200 max-w-2xl mx-auto">
               Background, journey, and what drives me as a developer
             </p>
@@ -98,8 +141,12 @@ export default function AboutSection() {
                         className="ring-orange500/20 flex-shrink-0"
                       />
                       <div className="flex-grow min-w-0">
-                        <h3 className="text-lg font-semibold text-slate50">{profile.name}</h3>
-                        <p className="text-sm text-orange500 font-medium">{profile.role}</p>
+                        <h3 className="text-lg font-semibold text-slate50">
+                          {profile.name}
+                        </h3>
+                        <p className="text-sm text-orange500 font-medium">
+                          {profile.role}
+                        </p>
                         <div className="flex items-center gap-1 mt-1 text-xs text-slate200/60">
                           <Briefcase className="w-3 h-3" />
                           <span>Available for opportunities</span>
@@ -108,7 +155,7 @@ export default function AboutSection() {
                     </div>
 
                     <p className="text-slate200 leading-relaxed text-sm">
-                      {profile.summary}
+                      {profile.summaries.about}
                     </p>
 
                     <div className="mt-6 pt-4 border-t border-slate700/50 space-y-3">
@@ -122,7 +169,9 @@ export default function AboutSection() {
                       <div className="flex items-center gap-2 text-sm">
                         <Code2 className="w-4 h-4 text-orange500" />
                         <span className="text-slate200/60">Focus:</span>
-                        <span className="text-slate50">Big Data & AI, Backend Development</span>
+                        <span className="text-slate50">
+                          Big Data & AI, Software Development
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -150,8 +199,12 @@ export default function AboutSection() {
                         <GraduationCap className="w-5 h-5 text-teal400" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-slate50">Education</h3>
-                        <p className="text-xs text-slate200/60">Academic background</p>
+                        <h3 className="text-lg font-semibold text-slate50">
+                          Education
+                        </h3>
+                        <p className="text-xs text-slate200/60">
+                          Academic background
+                        </p>
                       </div>
                     </div>
 
@@ -162,19 +215,30 @@ export default function AboutSection() {
                           initial={prefersReducedMotion ? {} : { opacity: 0, x: -10 }}
                           whileInView={{ opacity: 1, x: 0 }}
                           viewport={{ once: true }}
-                          transition={{ delay: prefersReducedMotion ? 0 : index * 0.1 + 0.2 }}
+                          transition={{
+                            delay: prefersReducedMotion ? 0 : index * 0.1 + 0.2,
+                          }}
                           className="relative pl-4 border-l-2 border-teal400/30 hover:border-teal400 transition-colors duration-200"
                         >
                           <div className="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-teal400/50" />
+
                           <h4 className="text-sm font-semibold text-slate50 leading-tight">
                             {edu.title}
                           </h4>
+
                           <p className="text-sm text-teal400 font-medium mt-0.5">
                             {edu.institution}
                           </p>
+
                           <p className="text-xs text-slate200/60 mt-1">
                             {edu.period} • {edu.location}
                           </p>
+
+                          {edu.description && (
+                            <p className="text-xs text-slate200/80 mt-2 leading-relaxed">
+                              {edu.description}
+                            </p>
+                          )}
                         </motion.div>
                       ))}
                     </div>

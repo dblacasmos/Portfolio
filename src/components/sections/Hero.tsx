@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import {
+  motion,
+  useAnimationControls,
+  useScroll,
+  useTransform,
+} from "framer-motion";
 import { ArrowRight, Mail, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Container from "@/components/layout/Container";
@@ -8,138 +13,244 @@ import Avatar from "@/components/ui/Avatar";
 import { profile } from "@/data/profile";
 import { scrollToSection } from "@/lib/utils";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import BackgroundHomeVideo from "@/components/background/BackgroundHomeVideo";
 
 // ============================================================================
-// Animation Timing Configuration
+// Animation Configuration
 // ============================================================================
 
-const TIMING = {
-  titleDelay: 0.8,
-  titleDuration: 6.0,
+const STORAGE_KEY = "hero_intro_played";
 
-  gap1: 0.5, // respiro entre título y subtítulo
-  subtitleDuration: 4.0,
+// Smooth easeOut curve
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-  gap2: 0.7, // respiro antes del reveal
-  revealDuration: 1.4,
-  revealStagger: 0.3,
+// ============================================================================
+// Helpers
+// ============================================================================
 
-  // Intro row (badge + mobile avatar)
-  introRowOffset: 0.2, // aparece justo después de terminar el título
-};
+function shouldPlayIntro(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return sessionStorage.getItem(STORAGE_KEY) !== "true";
+  } catch {
+    return true;
+  }
+}
 
-const titleEnd = TIMING.titleDelay + TIMING.titleDuration;
-const subtitleDelay = titleEnd + TIMING.gap1;
-const subtitleEnd = subtitleDelay + TIMING.subtitleDuration;
-const revealDelay = subtitleEnd + TIMING.gap2;
+function markIntroPlayed(): void {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, "true");
+  } catch {
+    // Ignore storage errors
+  }
+}
 
-const introRowDelay = titleEnd + TIMING.introRowOffset;
+// Wait for next animation frame (promisified)
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
 
-const EASE_OUT = [0.12, 0.95, 0.25, 1]; // Premium-ish easeOut curve
+// ============================================================================
+// Component
+// ============================================================================
 
 export default function Hero() {
   const navigate = useNavigate();
   const prefersReducedMotion = useReducedMotion();
-  const [isLoaded, setIsLoaded] = useState(false);
 
+  // Desktop detection (one-time snapshot, no resize reactivity on purpose)
+  const isDesktop =
+    typeof window !== "undefined" && window.innerWidth >= 1024;
+
+  // Full motion config (~4s total) - more theatrical on desktop
+  const FULL_MOTION = {
+    titleX: isDesktop ? 260 : 180, // pixels from right
+    subtitleY: isDesktop ? 200 : 120, // pixels from bottom
+    avatarScale: 0.85,
+    buttonY: 40,
+    phase1Duration: 1.8, // Title + Subtitle
+    phase2Duration: 1.1, // Avatar + Paragraph
+    phase3Duration: 0.8, // Badge + Buttons + Social
+    phase3Stagger: 0.14, // Stagger between phase 3 items
+  };
+
+  // Reduced motion config (still visible, just gentler) - also scales by desktop
+  const REDUCED_MOTION = {
+    titleX: isDesktop ? 120 : 80, // still moves, but less
+    subtitleY: isDesktop ? 80 : 60,
+    avatarScale: 0.95,
+    buttonY: 16,
+    phase1Duration: 0.7,
+    phase2Duration: 0.5,
+    phase3Duration: 0.4,
+    phase3Stagger: 0.08,
+  };
+
+  // Select motion config
+  const m = prefersReducedMotion ? REDUCED_MOTION : FULL_MOTION;
+
+  // Determine if we should animate (first load only)
+  const [shouldAnimate] = useState(() => shouldPlayIntro());
+
+  // Content visibility - starts false, set true when ready to show
+  const [isReady, setIsReady] = useState(false);
+
+  // Animation controls for orchestrated sequence
+  const titleControls = useAnimationControls();
+  const subtitleControls = useAnimationControls();
+  const avatarControls = useAnimationControls();
+  const paragraphControls = useAnimationControls();
+  const badgeControls = useAnimationControls();
+  const buttonsControls = useAnimationControls();
+  const socialControls = useAnimationControls();
+  const scrollIndicatorControls = useAnimationControls();
+
+  // Parallax background
   const { scrollY } = useScroll();
   const backgroundY = useTransform(scrollY, [0, 500], [0, 150]);
   const backgroundOpacity = useTransform(scrollY, [0, 300], [0.6, 0.2]);
 
+  // Run orchestrated animation sequence
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoaded(true), 50);
-    return () => clearTimeout(timer);
-  }, []);
+    const runSequence = async () => {
+      // Debug logging
+      console.log("[Hero] Mount", {
+        shouldAnimate,
+        prefersReducedMotion,
+        isDesktop,
+        timestamp: Date.now(),
+      });
 
-  // Title: slides from right
-  const titleVariants = {
-    hidden: {
-      opacity: 0,
-      x: prefersReducedMotion ? 0 : 40,
-    },
-    visible: {
-      opacity: 1,
-      x: 0,
-      transition: {
-        duration: prefersReducedMotion ? 0.3 : TIMING.titleDuration,
-        delay: prefersReducedMotion ? 0 : TIMING.titleDelay,
-        ease: EASE_OUT,
-      },
-    },
-  };
+      if (!shouldAnimate) {
+        // Already played - jump to final state instantly
+        console.log("[Hero] Skipping intro (already played this session)");
+        titleControls.set({ opacity: 1, x: 0 });
+        subtitleControls.set({ opacity: 1, y: 0 });
+        avatarControls.set({ opacity: 1, scale: 1 });
+        paragraphControls.set({ opacity: 1, scale: 1 });
+        badgeControls.set({ opacity: 1, y: 0 });
+        buttonsControls.set({ opacity: 1, y: 0 });
+        socialControls.set({ opacity: 1, y: 0 });
+        scrollIndicatorControls.set({ opacity: 1 });
+        setIsReady(true);
+        return;
+      }
 
-  // Subtitle: slides from bottom
-  const subtitleVariants = {
-    hidden: {
-      opacity: 0,
-      y: prefersReducedMotion ? 0 : 32,
-    },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: prefersReducedMotion ? 0.3 : TIMING.subtitleDuration,
-        delay: prefersReducedMotion ? 0 : subtitleDelay,
-        ease: EASE_OUT,
-      },
-    },
-  };
+      // Wait for DOM to be ready (double-rAF ensures paint happened)
+      await nextFrame();
+      await nextFrame();
 
-  // Final reveal: fade + scale
-  const revealVariants = {
-    hidden: {
-      opacity: 0,
-      scale: prefersReducedMotion ? 1 : 0.98,
-    },
-    visible: (custom: number = 0) => ({
-      opacity: 1,
-      scale: 1,
-      transition: {
-        duration: prefersReducedMotion ? 0.2 : TIMING.revealDuration,
-        delay: prefersReducedMotion ? 0 : revealDelay + custom * TIMING.revealStagger,
-        ease: EASE_OUT,
-      },
-    }),
-  };
+      // Now show content in hidden state
+      setIsReady(true);
 
-  // Avatar special reveal (bounce)
-  const avatarVariants = {
-    hidden: {
-      opacity: 0,
-      scale: prefersReducedMotion ? 1 : 0.9,
-    },
-    visible: (delay = 0) => ({
-      opacity: 1,
-      scale: 1,
-      transition: {
-        duration: prefersReducedMotion ? 0.2 : 0.9,
-        delay: prefersReducedMotion ? 0 : delay,
-        ease: [0.34, 1.56, 0.64, 1], // slight overshoot
-      },
-    }),
-  };
+      // Small delay to ensure React has rendered the hidden state
+      await nextFrame();
+      await nextFrame();
 
-  // Location badge (with the intro row)
-  const badgeVariants = {
-    hidden: {
-      opacity: 0,
-      y: prefersReducedMotion ? 0 : 16,
-    },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: prefersReducedMotion ? 0.2 : 0.6,
-        delay: prefersReducedMotion ? 0 : introRowDelay,
-        ease: EASE_OUT,
-      },
-    },
-  };
+      console.log("[Hero] Starting animation sequence");
+
+      // ========================================
+      // PHASE 1: Title + Subtitle (simultaneous)
+      // ========================================
+      console.log("[Hero] Phase 1: Title + Subtitle");
+      await Promise.all([
+        titleControls.start({
+          opacity: 1,
+          x: 0,
+          transition: { duration: m.phase1Duration, ease: EASE },
+        }),
+        subtitleControls.start({
+          opacity: 1,
+          y: 0,
+          transition: { duration: m.phase1Duration, ease: EASE },
+        }),
+      ]);
+
+      // ========================================
+      // PHASE 2: Avatar + Paragraph
+      // ========================================
+      console.log("[Hero] Phase 2: Avatar + Paragraph");
+      await Promise.all([
+        avatarControls.start({
+          opacity: 1,
+          scale: 1,
+          transition: { duration: m.phase2Duration, ease: EASE },
+        }),
+        paragraphControls.start({
+          opacity: 1,
+          scale: 1,
+          transition: { duration: m.phase2Duration, ease: EASE },
+        }),
+      ]);
+
+      // ========================================
+      // PHASE 3: Badge → Buttons → Social (staggered)
+      // ========================================
+      console.log("[Hero] Phase 3: Badge + Buttons + Social");
+      await badgeControls.start({
+        opacity: 1,
+        y: 0,
+        transition: { duration: m.phase3Duration, ease: EASE },
+      });
+
+      // Small stagger
+      await new Promise((r) => setTimeout(r, m.phase3Stagger * 1000));
+
+      await buttonsControls.start({
+        opacity: 1,
+        y: 0,
+        transition: { duration: m.phase3Duration, ease: EASE },
+      });
+
+      // Small stagger
+      await new Promise((r) => setTimeout(r, m.phase3Stagger * 1000));
+
+      await socialControls.start({
+        opacity: 1,
+        y: 0,
+        transition: { duration: m.phase3Duration, ease: EASE },
+      });
+
+      // ========================================
+      // PHASE 4: Scroll indicator
+      // ========================================
+      console.log("[Hero] Phase 4: Scroll indicator");
+      await scrollIndicatorControls.start({
+        opacity: 1,
+        transition: { duration: 0.5, ease: EASE },
+      });
+
+      // Mark intro as played
+      markIntroPlayed();
+      console.log("[Hero] Animation sequence complete");
+    };
+
+    runSequence();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount - deps intentionally empty
+
+  // ============================================================================
+  // Initial (hidden) states - using motion config values
+  // ============================================================================
+  const titleInitial = { opacity: 0, x: m.titleX };
+  const subtitleInitial = { opacity: 0, y: m.subtitleY };
+  const avatarInitial = { opacity: 0, scale: m.avatarScale };
+  const paragraphInitial = { opacity: 0, scale: m.avatarScale };
+  const badgeInitial = { opacity: 0, y: m.buttonY };
+  const buttonsInitial = { opacity: 0, y: m.buttonY };
+  const socialInitial = { opacity: 0, y: m.buttonY };
+  const scrollIndicatorInitial = { opacity: 0 };
 
   return (
-    <section id="hero" className="relative min-h-screen flex items-center pt-20 overflow-hidden">
+    <section
+      id="hero"
+      className="relative min-h-screen flex items-center pt-20 overflow-hidden"
+    >
+      {/* Section-scoped background video */}
+      <BackgroundHomeVideo />
+
       {/* Ambient Background */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-[2]">
         {/* Primary gradient orb */}
         <motion.div
           style={{ y: prefersReducedMotion ? 0 : backgroundY }}
@@ -174,24 +285,24 @@ export default function Hero() {
       </div>
 
       <Container className="relative z-10">
-        {/* CSS Grid Layout: 2-column on lg+ */}
-        <div className="grid lg:grid-cols-[1fr_auto] lg:gap-16 xl:gap-20 items-center">
+        {/* Content - hidden until isReady */}
+        <div
+          className="grid lg:grid-cols-[1fr_auto] lg:gap-16 xl:gap-20 items-center"
+          style={{ visibility: isReady ? "visible" : "hidden" }}
+        >
           {/* Left Column: Text Content */}
           <div className="max-w-2xl">
-            {/* Location badge */}
+            {/* Location badge with mobile avatar */}
             <motion.div
-              variants={badgeVariants}
-              initial="hidden"
-              animate={isLoaded ? "visible" : "hidden"}
+              initial={badgeInitial}
+              animate={badgeControls}
               className="mb-6"
             >
-              {/* Mobile avatar + badge row */}
               <div className="flex items-center gap-4">
+                {/* Mobile avatar */}
                 <motion.div
-                  variants={avatarVariants}
-                  custom={introRowDelay}
-                  initial="hidden"
-                  animate={isLoaded ? "visible" : "hidden"}
+                  initial={avatarInitial}
+                  animate={avatarControls}
                   className="lg:hidden"
                 >
                   <Avatar
@@ -205,49 +316,47 @@ export default function Hero() {
 
                 <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate800/50 backdrop-blur-sm border border-slate700/50 rounded-full">
                   <MapPin className="w-3.5 h-3.5 text-orange500" />
-                  <span className="text-sm text-slate200">{profile.location}</span>
+                  <span className="text-sm text-slate200">
+                    {profile.location}
+                  </span>
                 </span>
               </div>
             </motion.div>
 
-            {/* Main title */}
+            {/* Main title - slides from right */}
             <motion.h1
-              variants={titleVariants}
-              initial="hidden"
-              animate={isLoaded ? "visible" : "hidden"}
+              initial={titleInitial}
+              animate={titleControls}
               className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.1]"
             >
               <span className="text-slate50">Hi, I'm </span>
-              <span className="text-gradient inline-block">{profile.name.split(" ")[0]}</span>
+              <span className="text-gradient inline-block">
+                {profile.name.split(" ")[0]}
+              </span>
             </motion.h1>
 
-            {/* Role subtitle */}
+            {/* Subtitle - slides from bottom */}
             <motion.p
-              variants={subtitleVariants}
-              initial="hidden"
-              animate={isLoaded ? "visible" : "hidden"}
+              initial={subtitleInitial}
+              animate={subtitleControls}
               className="mt-5 text-xl sm:text-2xl md:text-3xl text-slate200 font-medium"
             >
               {profile.role}
             </motion.p>
 
-            {/* Summary */}
+            {/* Summary paragraph */}
             <motion.p
-              variants={revealVariants}
-              custom={0}
-              initial="hidden"
-              animate={isLoaded ? "visible" : "hidden"}
+              initial={paragraphInitial}
+              animate={paragraphControls}
               className="mt-6 text-base sm:text-lg text-slate200/80 max-w-2xl leading-relaxed"
             >
-              {profile.summary}
+              {profile.summaries.home}
             </motion.p>
 
             {/* CTA Buttons */}
             <motion.div
-              variants={revealVariants}
-              custom={1}
-              initial="hidden"
-              animate={isLoaded ? "visible" : "hidden"}
+              initial={buttonsInitial}
+              animate={buttonsControls}
               className="mt-10 flex flex-wrap gap-4"
             >
               <Button
@@ -270,10 +379,8 @@ export default function Hero() {
 
             {/* Social links */}
             <motion.div
-              variants={revealVariants}
-              custom={2}
-              initial="hidden"
-              animate={isLoaded ? "visible" : "hidden"}
+              initial={socialInitial}
+              animate={socialControls}
               className="mt-12 flex items-center gap-6"
             >
               <a
@@ -284,7 +391,9 @@ export default function Hero() {
               >
                 <span className="inline-flex items-center gap-1">
                   GitHub
-                  <span className="inline-block transition-transform group-hover:translate-x-0.5">→</span>
+                  <span className="inline-block transition-transform group-hover:translate-x-0.5">
+                    →
+                  </span>
                 </span>
               </a>
               <a
@@ -295,7 +404,9 @@ export default function Hero() {
               >
                 <span className="inline-flex items-center gap-1">
                   LinkedIn
-                  <span className="inline-block transition-transform group-hover:translate-x-0.5">→</span>
+                  <span className="inline-block transition-transform group-hover:translate-x-0.5">
+                    →
+                  </span>
                 </span>
               </a>
             </motion.div>
@@ -303,10 +414,8 @@ export default function Hero() {
 
           {/* Right Column: Large Avatar (Desktop only) */}
           <motion.div
-            variants={avatarVariants}
-            custom={revealDelay}
-            initial="hidden"
-            animate={isLoaded ? "visible" : "hidden"}
+            initial={avatarInitial}
+            animate={avatarControls}
             className="hidden lg:flex items-center justify-center"
           >
             <div className="relative">
@@ -328,9 +437,8 @@ export default function Hero() {
 
       {/* Scroll indicator */}
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: isLoaded ? 1 : 0 }}
-        transition={{ delay: prefersReducedMotion ? 0.2 : revealDelay + 0.6, duration: 0.5 }}
+        initial={scrollIndicatorInitial}
+        animate={scrollIndicatorControls}
         className="absolute bottom-8 left-1/2 -translate-x-1/2"
       >
         <motion.div

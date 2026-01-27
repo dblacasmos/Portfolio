@@ -1,31 +1,52 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import BackgroundFX from "@/components/layout/BackgroundFX";
+import BackgroundScrollVideo from "@/components/layout/BackgroundScrollVideo";
 import FloatingCode from "@/components/layout/FloatingCode";
 import ScrollToTop from "@/components/layout/ScrollToTop";
-import Home from "@/pages/Home";
-import Projects from "@/pages/Projects";
-import About from "@/pages/About";
-import Contact from "@/pages/Contact";
-import NotFound from "@/pages/NotFound";
+import Loading from "@/components/ui/Loading";
+
+// Lazy load page components for code splitting
+const Home = lazy(() => import("@/pages/Home"));
+const Projects = lazy(() => import("@/pages/Projects"));
+const About = lazy(() => import("@/pages/About"));
+const Contact = lazy(() => import("@/pages/Contact"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
+
+// Set to true to enable scroll-controlled background video
+// Requires: public/background.mp4
+const ENABLE_SCROLL_VIDEO = true;
 
 export default function App() {
   const location = useLocation();
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    <div className="relative min-h-screen overflow-x-hidden bg-slate950">
+      {/*
+        Layer order (back to front):
+        -z-30: BackgroundScrollVideo (video layer)
+        -z-10: BackgroundFX (gradient orbs + overlays)
+        -z-5:  FloatingCode (floating code snippets)
+        z-0+:  Content (Navbar, pages, Footer)
+      */}
+      {ENABLE_SCROLL_VIDEO && <BackgroundScrollVideo src="/background.mp4" />}
       <BackgroundFX />
       <FloatingCode />
       <Navbar />
       <ScrollToTop />
-      <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<Home />} />
-        <Route path="/projects" element={<Projects />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <main id="main-content">
+        <Suspense fallback={<Loading />}>
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<Home />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </main>
       <Footer />
     </div>
   );

@@ -10,8 +10,10 @@ export const profile = {
   portfolio: "https://www.dblacasmos.dev/",
   linkedin: "https://www.linkedin.com/in/dblacasmos/",
   github: "https://github.com/dblacasmos/",
-  summary:
-    "Aspiring data and software professional with hands-on experience in machine learning, big data pipelines, and backend development through academic and personal projects. I have developed risk scoring systems for fraud detection, retail profitability analysis, and a pet tracking system for emotional interpretation using a big data architecture on AWS, as well as dashboards in Power BI. I possess a strong analytical mindset, honed in regulated and high-responsibility environments. I am seeking an internship to apply my data and backend skills within a technical team, where I can continue learning and improving every day.",
+  summaries: {
+    home: "Software Development student specialized in Big Data & AI, focused on backend systems and data-driven solutions. I work with Python, Java, SQL, and cloud technologies to build data pipelines, APIs, and analytical tools. I am currently seeking an internship opportunity  where I can contribute to real projects while continuing to strengthen my technical and professional skills.",
+    about: "I am a software development student with hands-on experience in backend development, Big Data architectures, and applied machine learning through academic and personal projects. During my training, I have built risk scoring systems for fraud detection, retail profitability analysis solutions, and data-driven applications deployed on AWS using services such as S3, Glue, Athena, Redshift, and Lambda, as well as analytical dashboards with Power BI. I bring a strong analytical mindset, attention to detail, and experience working in structured and high-responsibility environments. I am currently looking for an internship opportunity where I can actively contribute to backend and data-focused teams while completing my professional training and gaining real-world experience in scalable, production-oriented systems."
+  },
   languages: [{ name: "English", level: "Upper-Intermediate (B2)" }],
 };
 

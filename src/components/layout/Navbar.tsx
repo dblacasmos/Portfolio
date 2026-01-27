@@ -98,11 +98,14 @@ export default function Navbar() {
       )}
     >
       <Container>
-        <nav className={cn(
-          "flex items-center justify-between transition-all",
-          prefersReducedMotion ? "duration-0" : "duration-300",
-          isScrolled ? "h-14 md:h-16" : "h-16 md:h-20"
-        )}>
+        <nav
+          aria-label="Main navigation"
+          className={cn(
+            "flex items-center justify-between transition-all",
+            prefersReducedMotion ? "duration-0" : "duration-300",
+            isScrolled ? "h-14 md:h-16" : "h-16 md:h-20"
+          )}
+        >
           {/* Logo */}
           <Link
             to="/"

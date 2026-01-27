@@ -14,6 +14,7 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import { profile, education } from "@/data/profile";
 import { skillCategories } from "@/data/skills";
+import BackgroundAboutVideo from "@/components/background/BackgroundAboutVideo";
 
 const pageVariants = {
   initial: { opacity: 0, y: 20 },
@@ -46,9 +47,12 @@ export default function About() {
       animate="animate"
       exit="exit"
       transition={{ duration: 0.3 }}
-      className="pt-24 pb-16 min-h-screen"
+      className="relative pt-24 pb-16 min-h-screen overflow-hidden"
     >
-      <Container>
+      {/* Section-scoped background video */}
+      <BackgroundAboutVideo />
+
+      <Container className="relative z-10">
         <motion.div
           variants={containerVariants}
           initial="hidden"
@@ -79,7 +83,7 @@ export default function About() {
                 </div>
 
                 <p className="text-slate200 leading-relaxed mb-6">
-                  {profile.summary}
+                  {profile.summaries.about}
                 </p>
 
                 <div className="grid sm:grid-cols-2 gap-4">
