@@ -11,9 +11,20 @@ export function copyToClipboard(text: string): Promise<void> {
   return navigator.clipboard.writeText(text);
 }
 
+/**
+ * Smooth scroll to a section with offset for sticky navbar
+ */
 export function scrollToSection(id: string): void {
   const element = document.getElementById(id);
   if (element) {
-    element.scrollIntoView({ behavior: "smooth" });
+    // Account for sticky navbar height (approximately 64-80px depending on scroll state)
+    const navbarOffset = 80;
+    const elementPosition = element.getBoundingClientRect().top;
+    const offsetPosition = elementPosition + window.scrollY - navbarOffset;
+
+    window.scrollTo({
+      top: offsetPosition,
+      behavior: "smooth",
+    });
   }
 }

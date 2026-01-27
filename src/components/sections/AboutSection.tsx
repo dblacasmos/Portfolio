@@ -3,6 +3,7 @@ import { User, GraduationCap, Globe, Briefcase, Code2 } from "lucide-react";
 import Container from "@/components/layout/Container";
 import Section from "@/components/layout/Section";
 import Card from "@/components/ui/Card";
+import Avatar from "@/components/ui/Avatar";
 import { profile, education } from "@/data/profile";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 
@@ -88,13 +89,21 @@ export default function AboutSection() {
                   </div>
 
                   <div className="relative">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2.5 bg-gradient-to-br from-orange500/20 to-orange600/10 rounded-xl ring-1 ring-orange500/20">
-                        <Briefcase className="w-5 h-5 text-orange500" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate50">Profile</h3>
-                        <p className="text-xs text-slate200/60">{profile.role}</p>
+                    {/* Avatar + Header row */}
+                    <div className="flex items-start gap-4 mb-4">
+                      <Avatar
+                        src="/avatar.webp"
+                        alt={profile.name}
+                        size="lg"
+                        className="ring-orange500/20 flex-shrink-0"
+                      />
+                      <div className="flex-grow min-w-0">
+                        <h3 className="text-lg font-semibold text-slate50">{profile.name}</h3>
+                        <p className="text-sm text-orange500 font-medium">{profile.role}</p>
+                        <div className="flex items-center gap-1 mt-1 text-xs text-slate200/60">
+                          <Briefcase className="w-3 h-3" />
+                          <span>Available for opportunities</span>
+                        </div>
                       </div>
                     </div>
 

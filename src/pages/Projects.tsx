@@ -255,11 +255,11 @@ function ProjectListItem({
     >
       {/* Thumbnail */}
       {project.cover && (
-        <div className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-slate900">
+        <div className="relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-gradient-to-br from-slate800 to-slate900">
           <img
             src={project.cover}
             alt=""
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain p-1"
             loading="lazy"
           />
           <div className={cn(
@@ -337,15 +337,15 @@ function StickyPreview({ project, onExpand, reducedMotion }: StickyPreviewProps)
       {/* Cover Image */}
       {project.cover && (
         <div
-          className="relative aspect-[16/9] overflow-hidden cursor-pointer group"
+          className="relative aspect-[16/10] overflow-hidden cursor-pointer group bg-gradient-to-br from-slate800 to-slate900"
           onClick={onExpand}
         >
           <img
             src={project.cover}
             alt={`${project.title} preview`}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="w-full h-full object-contain p-2 transition-transform duration-500 group-hover:scale-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate900/90 via-slate900/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate900/90 via-transparent to-transparent pointer-events-none" />
 
           {/* Expand button overlay */}
           <div className="absolute inset-0 flex items-center justify-center bg-slate950/0 group-hover:bg-slate950/40 transition-colors duration-200">
@@ -539,7 +539,7 @@ function SpotlightModal({ project, onClose, reducedMotion }: SpotlightModalProps
         {galleryImages.length > 0 && (
           <div className="relative">
             {/* Main Image with Push-Slide Animation */}
-            <div className="relative aspect-[16/9] overflow-hidden rounded-t-2xl bg-slate900">
+            <div className="relative aspect-[16/10] overflow-hidden rounded-t-2xl bg-gradient-to-br from-slate800 to-slate900">
               <AnimatePresence mode="popLayout" custom={slideDirection}>
                 <motion.img
                   key={currentImageIndex}
@@ -551,7 +551,7 @@ function SpotlightModal({ project, onClose, reducedMotion }: SpotlightModalProps
                   animate={reducedMotion ? { opacity: 1 } : "center"}
                   exit={reducedMotion ? { opacity: 0 } : "exit"}
                   transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-contain p-4"
                 />
               </AnimatePresence>
 
@@ -594,7 +594,7 @@ function SpotlightModal({ project, onClose, reducedMotion }: SpotlightModalProps
                     key={index}
                     onClick={(e) => { e.stopPropagation(); goToImage(index); }}
                     className={cn(
-                      "relative flex-shrink-0 w-14 h-10 rounded-lg overflow-hidden transition-all duration-200 focus-ring",
+                      "relative flex-shrink-0 w-14 h-10 rounded-lg overflow-hidden transition-all duration-200 focus-ring bg-slate800",
                       index === currentImageIndex
                         ? "ring-2 ring-orange500 scale-105"
                         : "opacity-60 hover:opacity-100"
@@ -604,7 +604,7 @@ function SpotlightModal({ project, onClose, reducedMotion }: SpotlightModalProps
                     <img
                       src={img}
                       alt=""
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain p-0.5"
                     />
                   </button>
                 ))}
