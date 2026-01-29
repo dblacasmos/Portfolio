@@ -1,104 +1,57 @@
-import { useRef, useEffect, useState } from "react";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
 
-export default function BackgroundHomeVideo() {
-  const videoRef = useRef<HTMLVideoElement>(null);
+interface BackgroundHomeVideoProps {
+  /**
+   * Force the video to play even when prefers-reduced-motion is enabled.
+   * Use for passive background videos that don't cause vestibular issues.
+   * @default true
+   */
+  forcePlay?: boolean;
+}
+
+/**
+ * Background video for the Hero section.
+ * - Shows looping muted video behind content
+ * - Respects reduced-motion unless forcePlay is true
+ * - Video is always muted, loops, and doesn't block interactions
+ */
+export default function BackgroundHomeVideo({
+  forcePlay = true,
+}: BackgroundHomeVideoProps) {
   const prefersReducedMotion = useReducedMotion();
-  const [containerRef, isInView] = useIntersectionObserver<HTMLDivElement>({
-    threshold: 0.1,
-    rootMargin: "100px",
-  });
-  const [isSmallScreen, setIsSmallScreen] = useState(false);
-  const [videoLoaded, setVideoLoaded] = useState(false);
+  const videoSrc = `${import.meta.env.BASE_URL}backgroundHome.mp4`;
 
-  // Check for small screens
-  useEffect(() => {
-    const checkScreen = () => {
-      setIsSmallScreen(window.innerWidth < 768);
-    };
-    checkScreen();
-    window.addEventListener("resize", checkScreen);
-    return () => window.removeEventListener("resize", checkScreen);
-  }, []);
-
-  // Handle video playback based on visibility and preferences
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    // Don't autoplay on small screens or if reduced motion is preferred
-    if (prefersReducedMotion || isSmallScreen) {
-      video.pause();
-      video.currentTime = 0;
-      return;
-    }
-
-    if (isInView && videoLoaded) {
-      video.play().catch(() => {});
-    } else {
-      video.pause();
-    }
-  }, [isInView, prefersReducedMotion, isSmallScreen, videoLoaded]);
-
-  // Fallback for autoplay if blocked
-  useEffect(() => {
-    if (prefersReducedMotion || isSmallScreen) return;
-
-    const video = videoRef.current;
-    if (!video) return;
-
-    const tryPlay = () => {
-      if (isInView && videoLoaded) {
-        video.play().catch(() => {});
-      }
-    };
-
-    document.addEventListener("click", tryPlay, { once: true });
-    document.addEventListener("scroll", tryPlay, { once: true });
-
-    return () => {
-      document.removeEventListener("click", tryPlay);
-      document.removeEventListener("scroll", tryPlay);
-    };
-  }, [isInView, prefersReducedMotion, isSmallScreen, videoLoaded]);
-
-  const handleVideoLoaded = () => {
-    setVideoLoaded(true);
-  };
-
-  // Show static background for reduced motion or small screens
-  const showStaticBg = prefersReducedMotion || isSmallScreen;
+  // Determine if video should play:
+  // - If forcePlay is true, always show video (background videos are passive)
+  // - If forcePlay is false, respect reduced-motion preference
+  const showVideo = forcePlay || !prefersReducedMotion;
 
   return (
-    <div ref={containerRef} className="absolute inset-0" style={{ zIndex: 0 }}>
-      {/* Static fallback background */}
+    <div className="absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
+      {/* Static fallback background - always rendered underneath */}
       <div
         className="absolute inset-0 bg-gradient-to-br from-slate900 via-slate950 to-slate900"
         aria-hidden="true"
       />
 
-      {/* Video layer - only render if not preferring reduced motion */}
-      {!showStaticBg && (
+      {/* Video layer */}
+      {showVideo && (
         <video
-          ref={videoRef}
-          className={`absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-700 ${
-            videoLoaded ? "opacity-100" : "opacity-0"
-          }`}
-          src="/backgroundHome.mp4"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          style={{ zIndex: 1 }}
+          src={videoSrc}
+          autoPlay
+          loop
           muted
           playsInline
-          loop
-          preload="none"
-          onCanPlayThrough={handleVideoLoaded}
           aria-hidden="true"
         />
       )}
 
-      {/* Overlay layer - above video, below content */}
+      {/* Overlay - darkens video, sits above video but below Hero content */}
       <div
         className="absolute inset-0 bg-slate950/70 pointer-events-none"
-        style={{ zIndex: 1 }}
+        style={{ zIndex: 2 }}
         aria-hidden="true"
       />
     </div>

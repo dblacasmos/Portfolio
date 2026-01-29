@@ -21,6 +21,8 @@ out
 Thumbs.db
 *.local
 .claude
+nul
+NUL
 
 # Editor directories and files
 .vscode/*

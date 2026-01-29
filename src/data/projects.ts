@@ -72,6 +72,7 @@ export const projects: Project[] = [
       "/projects/profitability-analysis/dashboard-2.png",
       "/projects/profitability-analysis/dashboard-3.png",
     ],
+    caseStudySlug: "profitability-analysis-pricing-strategy",
   },
   {
     id: "pet-monitoring",
@@ -96,6 +97,7 @@ export const projects: Project[] = [
       "/projects/pet-tracking/architecture.png",
       "/projects/pet-tracking/dashboard-1.png",
     ],
+    caseStudySlug: "pet-tracking-emotional-analytics",
   },
   {
     id: "home-clothing-tester",

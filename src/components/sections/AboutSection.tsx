@@ -1,4 +1,3 @@
-import { useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { User, GraduationCap, Globe, Briefcase, Code2 } from "lucide-react";
 import Container from "@/components/layout/Container";
@@ -10,25 +9,6 @@ import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 export default function AboutSection() {
   const prefersReducedMotion = useReducedMotion();
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Fallback for autoplay if blocked
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const tryPlay = () => {
-      video.play().catch(() => {});
-    };
-
-    document.addEventListener("click", tryPlay, { once: true });
-    document.addEventListener("scroll", tryPlay, { once: true });
-
-    return () => {
-      document.removeEventListener("click", tryPlay);
-      document.removeEventListener("scroll", tryPlay);
-    };
-  }, []);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -65,28 +45,7 @@ export default function AboutSection() {
 
   return (
     <Section id="about" className="relative overflow-hidden">
-      {/* Background video layer (z-0) */}
-      <video
-        ref={videoRef}
-        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-        style={{ zIndex: 0 }}
-        src="/backgroundAbout.mp4"
-        autoPlay
-        muted
-        playsInline
-        loop
-        preload="auto"
-        aria-hidden="true"
-      />
-
-      {/* Dark overlay for readability (z-10) */}
-      <div
-        className="absolute inset-0 bg-slate950/75 pointer-events-none"
-        style={{ zIndex: 10 }}
-        aria-hidden="true"
-      />
-
-      <Container className="relative z-20">
+      <Container className="relative">
         <motion.div
           variants={containerVariants}
           initial="hidden"

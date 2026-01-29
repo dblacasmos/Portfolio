@@ -24,7 +24,10 @@ export default function App() {
   const location = useLocation();
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-slate950">
+    // NOTE: Using overflow-x-clip instead of overflow-x-hidden is CRITICAL.
+    // overflow-hidden creates a scroll container that breaks position:sticky.
+    // overflow-clip clips content without creating a scroll context.
+    <div className="relative min-h-screen overflow-x-clip bg-slate950">
       {/*
         Layer order (back to front):
         -z-30: BackgroundScrollVideo (video layer)

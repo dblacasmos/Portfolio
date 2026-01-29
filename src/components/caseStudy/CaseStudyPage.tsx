@@ -44,11 +44,26 @@ export default function CaseStudyPage({ data }: CaseStudyPageProps) {
         />
       </Container>
 
-      {/* Main Content with Sidebar TOC */}
+      {/* Main Content with Sidebar */}
       <Container className="mt-20">
-        <div className="grid xl:grid-cols-[1fr_280px] gap-12 xl:gap-16">
+        {/*
+          Grid layout for content + sidebar.
+          xl:items-start is CRITICAL for sticky sidebar to work:
+          - Without it, grid items stretch to fill the row
+          - With it, items align to start and sticky can "travel" within the row
+        */}
+        <div className="grid xl:grid-cols-[1fr_320px] gap-12 xl:gap-16 xl:items-start">
           {/* Main Content */}
           <div className="min-w-0">
+            {/* Mobile/Tablet TOC - sticky below navbar */}
+            <div className="xl:hidden sticky top-20 z-20 -mx-4 px-4 py-3 bg-slate950/95 backdrop-blur-sm border-b border-slate700/30 mb-8">
+              <TableOfContents
+                sections={data.sections}
+                callouts={data.callouts}
+                collapsible
+              />
+            </div>
+
             {/* Sections */}
             <div className="space-y-20">
               {data.sections.map((section, index) => (
@@ -107,11 +122,25 @@ export default function CaseStudyPage({ data }: CaseStudyPageProps) {
             </footer>
           </div>
 
-          {/* Sidebar TOC (Desktop only) */}
-          <TableOfContents
-            sections={data.sections}
-            callouts={data.callouts}
-          />
+          {/* Sidebar: Sticky Cover + TOC (Desktop only) */}
+          <aside className="hidden xl:block sticky top-24 h-fit space-y-6">
+            {/* Cover Image */}
+            <div className="rounded-xl overflow-hidden border border-slate700/50 bg-slate800/30">
+              <img
+                src={data.heroImage.src}
+                alt={data.heroImage.alt}
+                className="w-full h-auto object-contain aspect-[16/10]"
+              />
+            </div>
+
+            {/* Table of Contents - scrollable if content is long */}
+            <div className="max-h-[calc(100vh-20rem)] overflow-y-auto">
+              <TableOfContents
+                sections={data.sections}
+                callouts={data.callouts}
+              />
+            </div>
+          </aside>
         </div>
       </Container>
 
