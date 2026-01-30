@@ -1,6 +1,6 @@
 export const profile = {
   name: "David Blanco Casasola",
-  role: "Software Developer | Big Data & AI",
+  role: "Software Developer | Big Data & AI (Student)",
   location: "Colmenar Viejo, Madrid, Spain",
   phone: "+34 639 685 153",
   emails: {
