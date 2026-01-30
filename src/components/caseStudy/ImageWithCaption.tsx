@@ -9,6 +9,12 @@ interface ImageWithCaptionProps extends CaseStudyImage {
   aspectRatio?: "auto" | "16/10" | "16/9" | "4/3";
 }
 
+// Helper to detect video files
+function isVideoFile(src: string): boolean {
+  const videoExtensions = [".mp4", ".webm", ".ogg", ".mov"];
+  return videoExtensions.some((ext) => src.toLowerCase().endsWith(ext));
+}
+
 export default function ImageWithCaption({
   src,
   alt,
@@ -19,7 +25,9 @@ export default function ImageWithCaption({
 }: ImageWithCaptionProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInView, setIsInView] = useState(priority);
-  const imgRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const isVideo = isVideoFile(src);
 
   // Intersection observer for lazy loading
   useEffect(() => {
@@ -35,8 +43,8 @@ export default function ImageWithCaption({
       { rootMargin: "200px", threshold: 0 }
     );
 
-    if (imgRef.current) {
-      observer.observe(imgRef.current);
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
     }
 
     return () => observer.disconnect();
@@ -52,7 +60,7 @@ export default function ImageWithCaption({
   return (
     <figure className={cn("group", className)}>
       <div
-        ref={imgRef}
+        ref={containerRef}
         className={cn(
           "relative overflow-hidden rounded-xl bg-slate800/50 border border-slate700/50",
           aspectRatioClass
@@ -63,8 +71,24 @@ export default function ImageWithCaption({
           <div className="absolute inset-0 bg-gradient-to-r from-slate800 via-slate700 to-slate800 animate-pulse" />
         )}
 
-        {/* Image */}
-        {isInView && (
+        {/* Video or Image */}
+        {isInView && isVideo ? (
+          <motion.video
+            src={src}
+            controls
+            playsInline
+            muted
+            preload="metadata"
+            onLoadedData={() => setIsLoaded(true)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: isLoaded ? 1 : 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="w-full h-full object-contain"
+          >
+            <source src={src} type="video/mp4" />
+            Your browser does not support the video tag.
+          </motion.video>
+        ) : isInView ? (
           <motion.img
             src={src}
             alt={alt}
@@ -81,10 +105,12 @@ export default function ImageWithCaption({
               "transition-transform duration-500 group-hover:scale-[1.02]"
             )}
           />
-        )}
+        ) : null}
 
-        {/* Gradient overlay on hover */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate900/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+        {/* Gradient overlay on hover (only for images) */}
+        {!isVideo && (
+          <div className="absolute inset-0 bg-gradient-to-t from-slate900/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+        )}
       </div>
 
       {/* Caption */}

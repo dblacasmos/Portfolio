@@ -394,17 +394,6 @@ function StickyPreview({ project, onExpand, reducedMotion }: StickyPreviewProps)
         {/* Quick CTAs */}
         {hasLinks && (
           <div className="flex flex-wrap gap-3 mb-6">
-            {project.links?.demo && (
-              <a
-                href={project.links.demo}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange500 to-orange600 hover:from-orange600 hover:to-orange500 rounded-lg text-sm font-medium text-slate50 shadow-glow-orange hover:shadow-glow-orange-lg transition-all duration-200 focus-ring"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Live Demo
-              </a>
-            )}
             {project.links?.github && (
               <a
                 href={project.links.github}

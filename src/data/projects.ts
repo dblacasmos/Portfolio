@@ -40,10 +40,6 @@ export const projects: Project[] = [
     cover: "/projects/fraud-risk-scoring/cover.png",
     gallery: [
       "/projects/fraud-risk-scoring/cover.png",
-      "/projects/fraud-risk-scoring/architecture.png",
-      "/projects/fraud-risk-scoring/dashboard-1.png",
-      "/projects/fraud-risk-scoring/dashboard-2.png",
-      "/projects/fraud-risk-scoring/dashboard-3.png",
     ],
     caseStudySlug: "fraud-risk-scoring-system",
   },
@@ -67,10 +63,6 @@ export const projects: Project[] = [
     cover: "/projects/profitability-analysis/cover.png",
     gallery: [
       "/projects/profitability-analysis/cover.png",
-      "/projects/profitability-analysis/architecture.png",
-      "/projects/profitability-analysis/dashboard-1.png",
-      "/projects/profitability-analysis/dashboard-2.png",
-      "/projects/profitability-analysis/dashboard-3.png",
     ],
     caseStudySlug: "profitability-analysis-pricing-strategy",
   },
@@ -94,8 +86,6 @@ export const projects: Project[] = [
     cover: "/projects/pet-tracking/cover.png",
     gallery: [
       "/projects/pet-tracking/cover.png",
-      "/projects/pet-tracking/architecture.png",
-      "/projects/pet-tracking/dashboard-1.png",
     ],
     caseStudySlug: "pet-tracking-emotional-analytics",
   },
@@ -115,18 +105,12 @@ export const projects: Project[] = [
     links: {
       github: "https://github.com/dblacasmos/Home_Clothing_Tester",
       docs: "https://github.com/dblacasmos/Home_Clothing_Tester/blob/main/README.es.md",
-      demo: "https://www.youtube.com/playlist?list=PL20E_dbZAg6NRchb4f-cXrPwNIGhl4tFR",
-      videos: [
-        { label: "1) Demo general + arquitectura", url: "https://youtu.be/VmeO8TDuLWM" },
-        { label: "2) Auth (Spring Security)", url: "https://youtu.be/ce_CYnc_5cQ" },
-        { label: "3) JDBC + MySQL", url: "https://youtu.be/EOzAcERS74k" },
-        { label: "4) Dashboard (Streamlit + Docker)", url: "https://youtu.be/olsfdqmR7YA" },
-      ],
     },
     cover: "/projects/home-clothing-tester/cover.png",
     gallery: [
       "/projects/home-clothing-tester/cover.png",
-    ]
+    ],
+    caseStudySlug: "home-clothing-tester",
   },
 ];
 
