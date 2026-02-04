@@ -1,6 +1,5 @@
 export type ProjectLinks = {
   github?: string;
-  demo?: string;  //demo principal
   docs?: string;
   videos?: { label: string; url: string }[];
 };

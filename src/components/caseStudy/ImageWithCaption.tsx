@@ -74,16 +74,18 @@ export default function ImageWithCaption({
         {/* Video or Image */}
         {isInView && isVideo ? (
           <motion.video
-            src={src}
             controls
             playsInline
             muted
+            loop
             preload="metadata"
             onLoadedData={() => setIsLoaded(true)}
+            onError={() => setIsLoaded(true)}
             initial={{ opacity: 0 }}
             animate={{ opacity: isLoaded ? 1 : 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
             className="w-full h-full object-contain"
+            aria-label={alt}
           >
             <source src={src} type="video/mp4" />
             Your browser does not support the video tag.

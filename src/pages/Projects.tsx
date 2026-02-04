@@ -6,9 +6,7 @@ import {
   MapPin,
   X,
   Github,
-  ExternalLink,
   FileText,
-  Play,
   Image as ImageIcon,
   ChevronLeft,
   ChevronRight,
@@ -451,7 +449,6 @@ function SpotlightModal({ project, onClose, reducedMotion }: SpotlightModalProps
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [slideDirection, setSlideDirection] = useState<"left" | "right">("right");
   const hasLinks = project.links && Object.keys(project.links).length > 0;
-  const hasVideos = project.links?.videos && project.links.videos.length > 0;
   const hasCaseStudy = !!project.caseStudySlug;
 
   useEffect(() => {
@@ -667,17 +664,6 @@ function SpotlightModal({ project, onClose, reducedMotion }: SpotlightModalProps
                 Links & Resources
               </h3>
               <div className="flex flex-wrap gap-3">
-                {project.links?.demo && (
-                  <a
-                    href={project.links.demo}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-orange500 to-orange600 hover:from-orange600 hover:to-orange500 rounded-xl text-sm font-semibold text-slate50 shadow-glow-orange hover:shadow-glow-orange-lg transition-all duration-200 focus-ring"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    Live Demo
-                  </a>
-                )}
                 {project.links?.github && (
                   <a
                     href={project.links.github}
@@ -700,33 +686,6 @@ function SpotlightModal({ project, onClose, reducedMotion }: SpotlightModalProps
                     Documentation
                   </a>
                 )}
-              </div>
-            </div>
-          )}
-
-          {/* Videos Section */}
-          {hasVideos && (
-            <div className="mb-8">
-              <h3 className="text-xs font-semibold text-slate200/60 uppercase tracking-wider mb-4">
-                Video Demos
-              </h3>
-              <div className="grid sm:grid-cols-2 gap-3">
-                {project.links?.videos?.map((video, index) => (
-                  <a
-                    key={index}
-                    href={video.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex items-center gap-3 p-4 bg-slate900/50 hover:bg-slate700/50 border border-slate700/50 hover:border-teal400/40 rounded-xl transition-all duration-200 focus-ring"
-                  >
-                    <div className="flex-shrink-0 w-12 h-12 bg-teal400/10 group-hover:bg-teal400/20 rounded-lg flex items-center justify-center transition-colors duration-200">
-                      <Play className="w-5 h-5 text-teal400" />
-                    </div>
-                    <span className="text-sm text-slate200 group-hover:text-slate50 line-clamp-2 transition-colors duration-200">
-                      {video.label}
-                    </span>
-                  </a>
-                ))}
               </div>
             </div>
           )}

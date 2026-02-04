@@ -123,11 +123,7 @@ export const homeClothingTesterCaseStudy: CaseStudyData = {
       ],
       images: [
         {
-<<<<<<< HEAD
           src: "/projects/home-clothing-tester/video/camera-preview-1.mp4",
-=======
-          src: "/projects/home-clothing-tester/camera-preview-1.png",
->>>>>>> c0aecfd (Initial commit)
           alt: "Camera preview interface showing live video stream",
           caption:
             "Camera preview feature: real-time webcam visualization without adaptive try-on.",
@@ -239,11 +235,7 @@ export const homeClothingTesterCaseStudy: CaseStudyData = {
       ],
       images: [
         {
-<<<<<<< HEAD
           src: "/projects/home-clothing-tester/video/deploy-1.mp4",
-=======
-          src: "/projects/home-clothing-tester/deploy-1.png",
->>>>>>> c0aecfd (Initial commit)
           alt: "Docker deployment process showing container startup",
           caption:
             "Reproducible system startup using Docker and PowerShell.",

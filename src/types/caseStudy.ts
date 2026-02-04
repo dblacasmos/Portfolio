@@ -58,7 +58,7 @@ export interface CaseStudyData {
   // Callouts (Key Technical Decisions, What I Didn't Do)
   callouts?: CaseStudyCallout[];
 
-  // Links (GitHub, Demo, Docs)
+  // Links (GitHub, Docs)
   links?: CaseStudyLink[];
 
   // SEO metadata
