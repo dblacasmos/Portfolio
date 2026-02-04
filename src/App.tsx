@@ -17,8 +17,8 @@ const Contact = lazy(() => import("@/pages/Contact"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 // Set to true to enable scroll-controlled background video
-// Requires: public/background.mp4
-const ENABLE_SCROLL_VIDEO = true;
+// Requires: public/background.mp4 (disabled by default - file doesn't exist)
+const ENABLE_SCROLL_VIDEO = false;
 
 export default function App() {
   const location = useLocation();

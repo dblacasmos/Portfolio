@@ -1,8 +1,7 @@
 import { cn } from "@/lib/utils";
 
-// ============================================================================
-// ContentBackdrop
-// ============================================================================
+// CONTENT BACKDROP
+
 // A wrapper component that adds a subtle backdrop behind content areas
 // to ensure readability over the background video.
 //
@@ -13,7 +12,6 @@ import { cn } from "@/lib/utils";
 //
 // Or with custom intensity:
 //   <ContentBackdrop intensity="heavy">...</ContentBackdrop>
-// ============================================================================
 
 interface ContentBackdropProps {
   children: React.ReactNode;

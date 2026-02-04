@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 
-// ============================================================================
-// Configuration
-// ============================================================================
+// CONFIGURATION
 
 const CODE_SNIPPETS = [
   "const data = await fetch()",
@@ -72,9 +70,7 @@ function generateElements(count: number, seed: number): FloatingElement[] {
   return elements;
 }
 
-// ============================================================================
-// Component
-// ============================================================================
+// COMPONENT
 
 export default function FloatingCode() {
   const containerRef = useRef<HTMLDivElement>(null);

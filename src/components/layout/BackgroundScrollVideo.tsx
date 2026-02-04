@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-// ============================================================================
-// Configuration
-// ============================================================================
+// CONFIGURATION
 
 const CONFIG = {
   // Wheel delta to video time conversion factor
@@ -22,9 +20,7 @@ const CONFIG = {
   fallbackBg: "#020617", // slate-950
 };
 
-// ============================================================================
-// Component
-// ============================================================================
+// COMPONENT
 
 interface BackgroundScrollVideoProps {
   src: string;

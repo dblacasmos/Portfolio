@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   motion,
   useAnimationControls,
@@ -9,28 +9,35 @@ import { ArrowRight, Mail, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Container from "@/components/layout/Container";
 import Button from "@/components/ui/Button";
-import Avatar from "@/components/ui/Avatar";
+import VideoAvatar from "@/components/ui/VideoAvatar";
 import { profile } from "@/data/profile";
 import { scrollToSection } from "@/lib/utils";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import BackgroundHomeVideo from "@/components/background/BackgroundHomeVideo";
 
-// ============================================================================
-// Animation Configuration
-// ============================================================================
+// ANIMATION CONFIGURATION
 
 const STORAGE_KEY = "hero_intro_played";
 
 // Smooth easeOut curve
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-// ============================================================================
-// Helpers
-// ============================================================================
+// HELPERS
 
 function shouldPlayIntro(): boolean {
   if (typeof window === "undefined") return true;
   try {
+    // DEV: Allow resetting intro via URL param ?resetIntro=1
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("resetIntro") === "1") {
+      console.debug("[Hero] Resetting intro via ?resetIntro=1");
+      sessionStorage.removeItem(STORAGE_KEY);
+      // Clean URL without reload
+      const url = new URL(window.location.href);
+      url.searchParams.delete("resetIntro");
+      window.history.replaceState({}, "", url.toString());
+      return true;
+    }
     return sessionStorage.getItem(STORAGE_KEY) !== "true";
   } catch {
     return true;
@@ -50,9 +57,7 @@ function nextFrame(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-// ============================================================================
-// Component
-// ============================================================================
+// COMPONENT
 
 export default function Hero() {
   const navigate = useNavigate();
@@ -64,19 +69,19 @@ export default function Hero() {
 
   // Full motion config (~4s total) - more theatrical on desktop
   const FULL_MOTION = {
-    titleX: isDesktop ? 260 : 180, // pixels from right
-    subtitleY: isDesktop ? 200 : 120, // pixels from bottom
+    titleX: isDesktop ? 260 : 180,
+    subtitleY: isDesktop ? 200 : 120,
     avatarScale: 0.85,
     buttonY: 40,
-    phase1Duration: 1.8, // Title + Subtitle
-    phase2Duration: 1.1, // Avatar + Paragraph
-    phase3Duration: 0.8, // Badge + Buttons + Social
-    phase3Stagger: 0.14, // Stagger between phase 3 items
+    phase1Duration: 1.8,
+    phase2Duration: 1.1,
+    phase3Duration: 0.8,
+    phase3Stagger: 0.14,
   };
 
-  // Reduced motion config (still visible, just gentler) - also scales by desktop
+  // Reduced motion config
   const REDUCED_MOTION = {
-    titleX: isDesktop ? 120 : 80, // still moves, but less
+    titleX: isDesktop ? 120 : 80,
     subtitleY: isDesktop ? 80 : 60,
     avatarScale: 0.95,
     buttonY: 16,
@@ -86,7 +91,6 @@ export default function Hero() {
     phase3Stagger: 0.08,
   };
 
-  // Select motion config
   const m = prefersReducedMotion ? REDUCED_MOTION : FULL_MOTION;
 
   // Determine if we should animate (first load only)
@@ -105,6 +109,9 @@ export default function Hero() {
   const socialControls = useAnimationControls();
   const scrollIndicatorControls = useAnimationControls();
 
+  // Ref for the hero section
+  const heroRef = useRef<HTMLElement>(null);
+
   // Parallax background
   const { scrollY } = useScroll();
   const backgroundY = useTransform(scrollY, [0, 500], [0, 150]);
@@ -113,20 +120,11 @@ export default function Hero() {
   // Run orchestrated animation sequence
   useEffect(() => {
     const runSequence = async () => {
-      // Debug logging
-      console.log("[Hero] Mount", {
-        shouldAnimate,
-        prefersReducedMotion,
-        isDesktop,
-        timestamp: Date.now(),
-      });
-
       if (!shouldAnimate) {
         // Already played - jump to final state instantly
-        console.log("[Hero] Skipping intro (already played this session)");
         titleControls.set({ opacity: 1, x: 0 });
         subtitleControls.set({ opacity: 1, y: 0 });
-        avatarControls.set({ opacity: 1, scale: 1 });
+        avatarControls.set({ opacity: 1, scale: 1, y: 0 });
         paragraphControls.set({ opacity: 1, scale: 1 });
         badgeControls.set({ opacity: 1, y: 0 });
         buttonsControls.set({ opacity: 1, y: 0 });
@@ -143,16 +141,11 @@ export default function Hero() {
       // Now show content in hidden state
       setIsReady(true);
 
-      // Small delay to ensure React has rendered the hidden state
+      // Small delay to ensure React has rendered
       await nextFrame();
       await nextFrame();
 
-      console.log("[Hero] Starting animation sequence");
-
-      // ========================================
       // PHASE 1: Title + Subtitle (simultaneous)
-      // ========================================
-      console.log("[Hero] Phase 1: Title + Subtitle");
       await Promise.all([
         titleControls.start({
           opacity: 1,
@@ -166,34 +159,31 @@ export default function Hero() {
         }),
       ]);
 
-      // ========================================
-      // PHASE 2: Avatar + Paragraph
-      // ========================================
-      console.log("[Hero] Phase 2: Avatar + Paragraph");
+      // PHASE 2: Paragraph + Avatar (simultaneous)
       await Promise.all([
-        avatarControls.start({
-          opacity: 1,
-          scale: 1,
-          transition: { duration: m.phase2Duration, ease: EASE },
-        }),
         paragraphControls.start({
           opacity: 1,
           scale: 1,
           transition: { duration: m.phase2Duration, ease: EASE },
         }),
+        avatarControls.start({
+          opacity: 1,
+          scale: 1,
+          y: 0,
+          transition: { duration: m.phase2Duration, ease: EASE },
+        }),
       ]);
 
-      // ========================================
+      // Mark intro as played
+      markIntroPlayed();
+
       // PHASE 3: Badge → Buttons → Social (staggered)
-      // ========================================
-      console.log("[Hero] Phase 3: Badge + Buttons + Social");
       await badgeControls.start({
         opacity: 1,
         y: 0,
         transition: { duration: m.phase3Duration, ease: EASE },
       });
 
-      // Small stagger
       await new Promise((r) => setTimeout(r, m.phase3Stagger * 1000));
 
       await buttonsControls.start({
@@ -202,7 +192,6 @@ export default function Hero() {
         transition: { duration: m.phase3Duration, ease: EASE },
       });
 
-      // Small stagger
       await new Promise((r) => setTimeout(r, m.phase3Stagger * 1000));
 
       await socialControls.start({
@@ -211,30 +200,21 @@ export default function Hero() {
         transition: { duration: m.phase3Duration, ease: EASE },
       });
 
-      // ========================================
       // PHASE 4: Scroll indicator
-      // ========================================
-      console.log("[Hero] Phase 4: Scroll indicator");
       await scrollIndicatorControls.start({
         opacity: 1,
         transition: { duration: 0.5, ease: EASE },
       });
-
-      // Mark intro as played
-      markIntroPlayed();
-      console.log("[Hero] Animation sequence complete");
     };
 
     runSequence();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount - deps intentionally empty
+  }, []); // Run once on mount
 
-  // ============================================================================
-  // Initial (hidden) states - using motion config values
-  // ============================================================================
+  // Initial (hidden) states
   const titleInitial = { opacity: 0, x: m.titleX };
   const subtitleInitial = { opacity: 0, y: m.subtitleY };
-  const avatarInitial = { opacity: 0, scale: m.avatarScale };
+  const avatarInitial = { opacity: 0, scale: m.avatarScale, y: 0 };
   const paragraphInitial = { opacity: 0, scale: m.avatarScale };
   const badgeInitial = { opacity: 0, y: m.buttonY };
   const buttonsInitial = { opacity: 0, y: m.buttonY };
@@ -243,6 +223,7 @@ export default function Hero() {
 
   return (
     <section
+      ref={heroRef}
       id="hero"
       className="relative min-h-screen flex items-center pt-20 overflow-hidden"
     >
@@ -305,8 +286,7 @@ export default function Hero() {
                   animate={avatarControls}
                   className="lg:hidden"
                 >
-                  <Avatar
-                    src="/avatar.webp"
+                  <VideoAvatar
                     alt={profile.name}
                     size="lg"
                     priority
@@ -423,8 +403,7 @@ export default function Hero() {
               <div className="absolute inset-0 scale-125 bg-gradient-to-br from-orange500/25 via-teal400/15 to-transparent blur-3xl rounded-full" />
               {/* Secondary glow ring */}
               <div className="absolute inset-0 scale-110 bg-gradient-to-tr from-orange600/10 to-teal500/10 blur-2xl rounded-full" />
-              <Avatar
-                src="/avatar.webp"
+              <VideoAvatar
                 alt={profile.name}
                 size="hero"
                 priority

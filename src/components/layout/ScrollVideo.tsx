@@ -1,8 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 
-// ============================================================================
-// Configuration
-// ============================================================================
+// CONFIGURATION
 
 const CONFIG = {
   // Scroll-to-video-time mapping (pixels of scroll per second of video)
@@ -17,9 +15,7 @@ const CONFIG = {
   opacityTransition: 500,
 };
 
-// ============================================================================
-// Component
-// ============================================================================
+// COMPONENT
 
 interface ScrollVideoProps {
   src: string;
